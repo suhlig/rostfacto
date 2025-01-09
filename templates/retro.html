@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="retro-board">
-    <div class="column">
+<div class="container">
+  <div class="grid">
+    <div>
         <h2>Good</h2>
         <div id="good-items">
             {% for item in good_items %}
@@ -20,7 +21,7 @@
         </form>
     </div>
 
-    <div class="column">
+    <div>
         <h2>Bad</h2>
         <div id="bad-items">
             {% for item in bad_items %}
@@ -38,7 +39,7 @@
         </form>
     </div>
 
-    <div class="column">
+    <div>
         <h2>Watch</h2>
         <div id="watch-items">
             {% for item in watch_items %}
@@ -55,5 +56,6 @@
             <button type="submit">Add</button>
         </form>
     </div>
+  </div>
 </div>
 {% endblock %}
