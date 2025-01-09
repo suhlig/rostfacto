@@ -15,6 +15,7 @@ async fn main() {
         .unwrap();
 
     let app = Router::new()
+        .route("/", get(handlers::index))
         .route("/retro/:id", get(handlers::show_retro))
         .route("/items/:category/:retro_id", post(handlers::add_item))
         .nest_service("/static", ServeDir::new("static"))

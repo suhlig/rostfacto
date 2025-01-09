@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="retro-list">
+    <h1>Retrospectives</h1>
+    {% for retro in retros %}
+        <div class="card">
+            <a href="/retro/{{ retro.id }}">{{ retro.title }}</a>
+            <span class="date">{{ retro.created_at }}</span>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

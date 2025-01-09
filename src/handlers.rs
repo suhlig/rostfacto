@@ -3,10 +3,32 @@ use axum::{
     response::Html,
     Form,
 };
+use crate::models::Retrospective;
 use askama::Template;
 use sqlx::PgPool;
 use serde::Deserialize;
 use crate::models::{Retrospective, RetroItem, ItemCategory};
+
+#[derive(Template)]
+#[template(path = "index.html")]
+struct IndexTemplate {
+    retros: Vec<Retrospective>,
+}
+
+pub async fn index(
+    State(pool): State<PgPool>,
+) -> Html<String> {
+    let retros = sqlx::query_as!(
+        Retrospective,
+        "SELECT * FROM retrospectives ORDER BY created_at DESC"
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    let template = IndexTemplate { retros };
+    Html(template.render().unwrap())
+}
 
 #[derive(Template)]
 #[template(path = "retro.html")]

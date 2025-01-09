@@ -1,3 +1,20 @@
+.retro-list {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.retro-list .card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.retro-list .date {
+    color: #666;
+    font-size: 0.9em;
+}
+
 .retro-board {
     display: flex;
     gap: 20px;
