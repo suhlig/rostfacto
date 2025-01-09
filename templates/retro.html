@@ -12,7 +12,7 @@
             {% endfor %}
         </div>
         
-        <form hx-post="/items/good/{{ retro.id }}"
+        <form hx-post="/items/Good/{{ retro.id }}"
               hx-target="#good-items"
               hx-swap="beforeend">
             <textarea name="text" required></textarea>
@@ -30,7 +30,7 @@
             {% endfor %}
         </div>
         
-        <form hx-post="/items/bad/{{ retro.id }}"
+        <form hx-post="/items/Bad/{{ retro.id }}"
               hx-target="#bad-items"
               hx-swap="beforeend">
             <textarea name="text" required></textarea>
@@ -48,7 +48,7 @@
             {% endfor %}
         </div>
         
-        <form hx-post="/items/watch/{{ retro.id }}"
+        <form hx-post="/items/Watch/{{ retro.id }}"
               hx-target="#watch-items"
               hx-swap="beforeend">
             <textarea name="text" required></textarea>
