@@ -3,7 +3,6 @@ use axum::{
     response::Html,
     Form,
 };
-use crate::models::Retrospective;
 use askama::Template;
 use sqlx::PgPool;
 use serde::Deserialize;
