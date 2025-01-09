@@ -8,7 +8,8 @@
         <form hx-post="/items/Good/{{ retro.id }}"
               hx-target="#good-items"
               hx-swap="beforeend"
-              hx-trigger="submit">
+              hx-trigger="submit"
+              hx-on::after-request="this.reset()">
             <input type="text" 
                    name="text" 
                    required 
@@ -30,7 +31,8 @@
         <form hx-post="/items/Watch/{{ retro.id }}"
               hx-target="#watch-items"
               hx-swap="beforeend"
-              hx-trigger="submit">
+              hx-trigger="submit"
+              hx-on::after-request="this.reset()">
             <input type="text" 
                    name="text" 
                    required 
@@ -52,7 +54,8 @@
         <form hx-post="/items/Bad/{{ retro.id }}"
               hx-target="#bad-items"
               hx-swap="beforeend"
-              hx-trigger="submit">
+              hx-trigger="submit"
+              hx-on::after-request="this.reset()">
             <input type="text" 
                    name="text" 
                    required 
