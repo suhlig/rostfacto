@@ -20,6 +20,40 @@
         </form>
     </div>
 
-    <!-- Similar columns for Bad and Watch -->
+    <div class="column">
+        <h2>Bad</h2>
+        <div id="bad-items">
+            {% for item in bad_items %}
+                <div class="card">
+                    {{ item.text }}
+                </div>
+            {% endfor %}
+        </div>
+        
+        <form hx-post="/items/bad/{{ retro.id }}"
+              hx-target="#bad-items"
+              hx-swap="beforeend">
+            <textarea name="text" required></textarea>
+            <button type="submit">Add</button>
+        </form>
+    </div>
+
+    <div class="column">
+        <h2>Watch</h2>
+        <div id="watch-items">
+            {% for item in watch_items %}
+                <div class="card">
+                    {{ item.text }}
+                </div>
+            {% endfor %}
+        </div>
+        
+        <form hx-post="/items/watch/{{ retro.id }}"
+              hx-target="#watch-items"
+              hx-swap="beforeend">
+            <textarea name="text" required></textarea>
+            <button type="submit">Add</button>
+        </form>
+    </div>
 </div>
 {% endblock %}
