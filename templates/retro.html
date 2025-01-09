@@ -68,26 +68,6 @@
             {% endfor %}
         </div>
     </div>
-        <h2 style="text-align: center;">Watch</h2>
-        <form hx-post="/items/Watch/{{ retro.id }}"
-              hx-target="#watch-items"
-              hx-swap="beforeend"
-              hx-trigger="submit">
-            <input type="text" 
-                   name="text" 
-                   required 
-                   placeholder="Add a watch item..."
-                   style="width: 100%;">
-        </form>
-        
-        <div id="watch-items">
-            {% for item in watch_items %}
-                <div class="card">
-                    {{ item.text }}
-                </div>
-            {% endfor %}
-        </div>
-    </div>
   </div>
 </div>
 {% endblock %}
