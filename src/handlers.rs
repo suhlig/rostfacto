@@ -5,6 +5,8 @@ use axum::{
 };
 use askama::Template;
 use sqlx::PgPool;
+use serde::Deserialize;
+use crate::models::{Retrospective, RetroItem, ItemCategory};
 
 #[derive(Template)]
 #[template(path = "retro.html")]
