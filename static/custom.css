@@ -1,0 +1,44 @@
+.retro-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    padding: 1rem;
+}
+
+.retro-column {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.retro-column h2 {
+    color: #495057;
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.retro-column input[type="text"] {
+    border: 2px solid #e9ecef;
+    border-radius: 4px;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    background: white;
+}
+
+.retro-column input[type="text"]:focus {
+    border-color: #4dabf7;
+    box-shadow: 0 0 0 2px rgba(77, 171, 247, 0.2);
+}
+
+.card {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.good-column { border-top: 4px solid #51cf66; }
+.bad-column { border-top: 4px solid #ff6b6b; }
+.watch-column { border-top: 4px solid #339af0; }

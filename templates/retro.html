@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container">
-  <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap: 1rem;">
-    <div>
+<div class="container-fluid">
+  <div class="retro-grid">
+    <div class="retro-column good-column">
         <h2 style="text-align: center;">Good</h2>
         <form hx-post="/items/Good/{{ retro.id }}"
               hx-target="#good-items"
@@ -25,7 +25,7 @@
         </div>
     </div>
 
-    <div>
+    <div class="retro-column bad-column">
         <h2 style="text-align: center;">Bad</h2>
         <form hx-post="/items/Bad/{{ retro.id }}"
               hx-target="#bad-items"
@@ -47,7 +47,7 @@
         </div>
     </div>
 
-    <div>
+    <div class="retro-column watch-column">
         <h2 style="text-align: center;">Watch</h2>
         <form hx-post="/items/Watch/{{ retro.id }}"
               hx-target="#watch-items"
