@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="retro-board">
+    <div class="column">
+        <h2>Good</h2>
+        <div id="good-items">
+            {% for item in good_items %}
+                <div class="card">
+                    {{ item.text }}
+                </div>
+            {% endfor %}
+        </div>
+        
+        <form hx-post="/items/good/{{ retro.id }}"
+              hx-target="#good-items"
+              hx-swap="beforeend">
+            <textarea name="text" required></textarea>
+            <button type="submit">Add</button>
+        </form>
+    </div>
+
+    <!-- Similar columns for Bad and Watch -->
+</div>
+{% endblock %}
