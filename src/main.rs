@@ -20,7 +20,8 @@ async fn main() {
         .nest_service("/static", ServeDir::new("static"))
         .with_state(pool);
 
-    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
+    let addr = "0.0.0.0:3000".parse().unwrap();
+    axum::serve(addr, app)
         .serve(app.into_make_service())
         .await
         .unwrap();
