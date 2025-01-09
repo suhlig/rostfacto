@@ -3,6 +3,11 @@
 {% block content %}
 <div class="retro-list">
     <h1>Retrospectives</h1>
+    
+    <form class="new-retro-form" action="/retros" method="post">
+        <input type="text" name="title" placeholder="Retro title" required>
+        <button type="submit">Create Retro</button>
+    </form>
     {% for retro in retros %}
         <div class="card">
             <a href="/retro/{{ retro.id }}">{{ retro.title }}</a>

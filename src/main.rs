@@ -16,6 +16,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(handlers::index))
+        .route("/retros", post(handlers::create_retro))
         .route("/retro/:id", get(handlers::show_retro))
         .route("/items/:category/:retro_id", post(handlers::add_item))
         .nest_service("/static", ServeDir::new("static"))

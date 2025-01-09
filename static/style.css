@@ -15,6 +15,32 @@
     font-size: 0.9em;
 }
 
+.new-retro-form {
+    margin: 20px 0;
+    display: flex;
+    gap: 10px;
+}
+
+.new-retro-form input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.new-retro-form button {
+    padding: 8px 16px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.new-retro-form button:hover {
+    background: #45a049;
+}
+
 .retro-board {
     display: flex;
     gap: 20px;

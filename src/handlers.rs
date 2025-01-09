@@ -5,13 +5,30 @@ use axum::{
 };
 use askama::Template;
 use sqlx::PgPool;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use crate::models::{Retrospective, RetroItem, ItemCategory};
 
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
     retros: Vec<Retrospective>,
+}
+
+pub async fn create_retro(
+    State(pool): State<PgPool>,
+    Form(form): Form<NewRetro>,
+) -> Html<String> {
+    let retro = sqlx::query_as!(
+        Retrospective,
+        "INSERT INTO retrospectives (title) VALUES ($1) RETURNING *",
+        form.title
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    // Redirect to the index page by re-using our index handler
+    index(State(pool)).await
 }
 
 pub async fn index(
@@ -89,6 +106,11 @@ pub async fn show_retro(
     };
 
     Html(template.render().unwrap())
+}
+
+#[derive(Deserialize)]
+pub struct NewRetro {
+    title: String,
 }
 
 #[derive(Deserialize)]
