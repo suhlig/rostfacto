@@ -5,7 +5,7 @@ use axum::{
 };
 use askama::Template;
 use sqlx::PgPool;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use crate::models::{Retrospective, RetroItem, ItemCategory};
 
 #[derive(Template)]
