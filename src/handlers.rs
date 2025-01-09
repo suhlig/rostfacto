@@ -83,11 +83,11 @@ pub async fn add_item(
     let item = sqlx::query_as!(
         RetroItem,
         r#"INSERT INTO retro_items (retro_id, text, category) 
-           VALUES ($1, $2, $3::item_category) 
+           VALUES ($1, $2, $3) 
            RETURNING id as "id!", retro_id as "retro_id!", text as "text!", category as "category: _", created_at as "created_at!""#,
         retro_id,
         form.text,
-        category.to_string()
+        category as ItemCategory
     )
     .fetch_one(&pool)
     .await
