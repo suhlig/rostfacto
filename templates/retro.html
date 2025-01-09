@@ -4,7 +4,7 @@
 <div class="container">
   <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap: 1rem;">
     <div>
-        <h2>Good</h2>
+        <h2 style="text-align: center;">Good</h2>
         <form hx-post="/items/Good/{{ retro.id }}"
               hx-target="#good-items"
               hx-swap="beforeend"
@@ -26,7 +26,7 @@
     </div>
 
     <div>
-        <h2>Bad</h2>
+        <h2 style="text-align: center;">Bad</h2>
         <form hx-post="/items/Bad/{{ retro.id }}"
               hx-target="#bad-items"
               hx-swap="beforeend"
@@ -48,7 +48,7 @@
     </div>
 
     <div>
-        <h2>Watch</h2>
+        <h2 style="text-align: center;">Watch</h2>
         <form hx-post="/items/Watch/{{ retro.id }}"
               hx-target="#watch-items"
               hx-swap="beforeend"
