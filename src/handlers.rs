@@ -32,14 +32,30 @@ pub async fn show_retro(
 
     let good_items = sqlx::query_as!(
         RetroItem,
-        "SELECT * FROM retro_items WHERE retro_id = $1 AND category = 'GOOD'",
+        r#"SELECT * FROM retro_items WHERE retro_id = $1 AND category = 'GOOD'"#,
         retro_id
     )
     .fetch_all(&pool)
     .await
     .unwrap();
 
-    // Similar queries for bad_items and watch_items
+    let bad_items = sqlx::query_as!(
+        RetroItem,
+        r#"SELECT * FROM retro_items WHERE retro_id = $1 AND category = 'BAD'"#,
+        retro_id
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    let watch_items = sqlx::query_as!(
+        RetroItem,
+        r#"SELECT * FROM retro_items WHERE retro_id = $1 AND category = 'WATCH'"#,
+        retro_id
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
 
     let template = RetroTemplate {
         retro,
@@ -63,10 +79,10 @@ pub async fn add_item(
 ) -> Html<String> {
     let item = sqlx::query_as!(
         RetroItem,
-        "INSERT INTO retro_items (retro_id, text, category) VALUES ($1, $2, $3) RETURNING *",
+        r#"INSERT INTO retro_items (retro_id, text, category) VALUES ($1, $2, $3::item_category) RETURNING *"#,
         retro_id,
         form.text,
-        category as _
+        category.to_string()
     )
     .fetch_one(&pool)
     .await

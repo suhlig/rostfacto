@@ -24,3 +24,13 @@ pub enum ItemCategory {
     Bad,
     Watch,
 }
+
+impl ToString for ItemCategory {
+    fn to_string(&self) -> String {
+        match self {
+            ItemCategory::Good => "GOOD".to_string(),
+            ItemCategory::Bad => "BAD".to_string(),
+            ItemCategory::Watch => "WATCH".to_string(),
+        }
+    }
+}
