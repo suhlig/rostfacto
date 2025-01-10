@@ -19,9 +19,8 @@ async fn setup() -> Client {
 }
 
 #[test]
-#[tokio::test(flavor = "multi_thread")]
-async fn test_retro_workflow() {
-    let client = setup().await;
+fn test_retro_workflow() {
+    let client = tokio_test::block_on(setup());
     
     // Test 1: Create a new retro
     client.goto("http://localhost:3000").await.unwrap();
@@ -61,5 +60,5 @@ async fn test_retro_workflow() {
         assert!(client.find(fantoccini::Locator::Css(selector)).await.is_err());
     }
     
-    client.close().await.unwrap();
+    tokio_test::block_on(client.close()).unwrap();
 }
