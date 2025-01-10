@@ -10,7 +10,7 @@ pub async fn archive_retro(
 ) -> Html<String> {
     sqlx::query!(
         r#"
-        UPDATE retro_items 
+        UPDATE retro_items
         SET status = 'ARCHIVED'::item_status
         WHERE retro_id = $1
         "#,
@@ -64,8 +64,8 @@ pub async fn toggle_status(
                 WHERE current_status = 'DEFAULT'::item_status
             )
         )
-        UPDATE retro_items 
-        SET status = CASE 
+        UPDATE retro_items
+        SET status = CASE
             WHEN status = 'COMPLETED'::item_status THEN 'COMPLETED'::item_status
             WHEN status = 'DEFAULT'::item_status AND NOT EXISTS (
                 SELECT 1 FROM highlighted_check WHERE has_highlighted
@@ -74,7 +74,7 @@ pub async fn toggle_status(
             ELSE status
         END
         WHERE id = $1
-        RETURNING id as "id!", retro_id as "retro_id!", text as "text!", 
+        RETURNING id as "id!", retro_id as "retro_id!", text as "text!",
                   category as "category: _", created_at as "created_at!",
                   status as "status: _"
         "#,
@@ -95,8 +95,8 @@ pub async fn toggle_status(
     let all_completed = sqlx::query_scalar!(
         r#"
         SELECT NOT EXISTS (
-            SELECT 1 FROM retro_items 
-            WHERE retro_id = $1 
+            SELECT 1 FROM retro_items
+            WHERE retro_id = $1
             AND status != 'COMPLETED'::item_status
             AND status != 'ARCHIVED'::item_status
         )
@@ -187,10 +187,10 @@ pub async fn show_retro(
 
     let good_items = sqlx::query_as!(
         RetroItem,
-        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", 
+        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!",
                   category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM retro_items 
-           WHERE retro_id = $1 
+           FROM retro_items
+           WHERE retro_id = $1
            AND category = 'GOOD'
            AND status != 'ARCHIVED'::item_status
            ORDER BY created_at ASC"#,
@@ -202,10 +202,10 @@ pub async fn show_retro(
 
     let bad_items = sqlx::query_as!(
         RetroItem,
-        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", 
+        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!",
                   category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM retro_items 
-           WHERE retro_id = $1 
+           FROM retro_items
+           WHERE retro_id = $1
            AND category = 'BAD'
            AND status != 'ARCHIVED'::item_status
            ORDER BY created_at ASC"#,
@@ -217,10 +217,10 @@ pub async fn show_retro(
 
     let watch_items = sqlx::query_as!(
         RetroItem,
-        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", 
+        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!",
                   category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM retro_items 
-           WHERE retro_id = $1 
+           FROM retro_items
+           WHERE retro_id = $1
            AND category = 'WATCH'
            AND status != 'ARCHIVED'::item_status
            ORDER BY created_at ASC"#,
@@ -257,9 +257,9 @@ pub async fn add_item(
 ) -> Html<String> {
     let item = sqlx::query_as!(
         RetroItem,
-        r#"INSERT INTO retro_items (retro_id, text, category, status) 
-           VALUES ($1, $2, $3, 'DEFAULT') 
-           RETURNING id as "id!", retro_id as "retro_id!", text as "text!", 
+        r#"INSERT INTO retro_items (retro_id, text, category, status)
+           VALUES ($1, $2, $3, 'DEFAULT')
+           RETURNING id as "id!", retro_id as "retro_id!", text as "text!",
                      category as "category: _", created_at as "created_at!", status as "status: _""#,
         retro_id,
         form.text,
