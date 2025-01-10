@@ -21,6 +21,10 @@
     color: #ffe8dd;
 }
 
+main {
+    padding: 0;
+}
+
 .retro-title {
     text-align: center;
     margin: 0.5rem 0;
