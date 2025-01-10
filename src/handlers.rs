@@ -44,10 +44,11 @@ pub async fn toggle_status(
         ItemStatus::Default => "",
     };
 
-    Html(format!(
+    let template = format!(
         r#"<div class="card {}" hx-post="/items/{}/toggle-status" hx-swap="outerHTML">{}</div>"#,
-        status_class, item.id, item.text
-    ))
+        status_class, item.id, htmlescape::encode_minimal(&item.text)
+    );
+    Html(template)
 }
 
 pub async fn create_retro(
@@ -176,5 +177,10 @@ pub async fn add_item(
     .await
     .unwrap();
 
-    Html(format!("<div class=\"card\" hx-post=\"/items/{}/toggle-status\" hx-swap=\"outerHTML\">{}</div>", item.id, item.text))
+    let template = format!(
+        r#"<div class="card" hx-post="/items/{}/toggle-status" hx-swap="outerHTML">{}</div>"#,
+        item.id,
+        htmlescape::encode_minimal(&item.text)
+    );
+    Html(template)
 }
