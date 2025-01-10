@@ -21,6 +21,18 @@ pub async fn toggle_status(
     let item = sqlx::query_as!(
         RetroItem,
         r#"
+        WITH item_info AS (
+            SELECT retro_id, status as current_status
+            FROM retro_items
+            WHERE id = $1
+        ),
+        reset_highlighted AS (
+            UPDATE retro_items
+            SET status = 'DEFAULT'::item_status
+            WHERE retro_id = (SELECT retro_id FROM item_info)
+            AND status = 'HIGHLIGHTED'::item_status
+            AND id != $1
+        )
         UPDATE retro_items 
         SET status = CASE 
             WHEN status = 'COMPLETED'::item_status THEN 'COMPLETED'::item_status
