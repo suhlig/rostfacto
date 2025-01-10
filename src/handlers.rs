@@ -45,7 +45,7 @@ pub async fn toggle_status(
     };
 
     Html(format!(
-        "<div class=\"card {}\" hx-post=\"/items/{}/toggle-status\" hx-swap=\"outerHTML\">{}</div>",
+        r#"<div class="card {}" hx-post="/items/{}/toggle-status" hx-swap="outerHTML">{}</div>"#,
         status_class, item.id, item.text
     ))
 }
