@@ -2,12 +2,14 @@ use fantoccini::{Client, ClientBuilder};
 use tokio;
 
 async fn setup() -> Client {
-    let caps = serde_json::json!({
-        "browserName": "firefox",
-        "moz:firefoxOptions": {
+    let mut caps = serde_json::Map::new();
+    caps.insert("browserName".to_string(), serde_json::json!("firefox"));
+    caps.insert(
+        "moz:firefoxOptions".to_string(),
+        serde_json::json!({
             "args": ["--headless"]
-        }
-    });
+        }),
+    );
     
     ClientBuilder::native()
         .capabilities(caps)
