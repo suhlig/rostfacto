@@ -106,7 +106,8 @@ pub async fn show_retro(
 
     let good_items = sqlx::query_as!(
         RetroItem,
-        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", category as "category: _", created_at as "created_at!", status as "status: _"
+        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", 
+                  category as "category: _", created_at as "created_at!", status as "status: _"
            FROM retro_items WHERE retro_id = $1 AND category = 'GOOD'"#,
         retro_id
     )
