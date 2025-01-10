@@ -1,1 +1,1 @@
-ALTER TYPE status ADD VALUE 'ARCHIVED' AFTER 'COMPLETED';
+-- ARCHIVED status is now included in the initial enum creation
