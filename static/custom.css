@@ -1,8 +1,16 @@
 .retro-title {
     text-align: center;
     margin: 2rem 0;
-    color: #495057;
-    font-size: 2rem;
+    color: #b7410e;
+    font-size: 2.5rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.retro-title::before {
+    content: "🦀";
+    margin-right: 10px;
 }
 
 .card.highlighted {
@@ -60,6 +68,6 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-.good-column { border-top: 4px solid #51cf66; }
-.bad-column { border-top: 4px solid #ff6b6b; }
-.watch-column { border-top: 4px solid #339af0; }
+.good-column { border-top: 4px solid #51cf66; border-radius: 8px 8px 0 0; }
+.bad-column { border-top: 4px solid #ff6b6b; border-radius: 8px 8px 0 0; }
+.watch-column { border-top: 4px solid #b7410e; border-radius: 8px 8px 0 0; }
