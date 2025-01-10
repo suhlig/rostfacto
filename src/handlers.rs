@@ -88,6 +88,7 @@ pub async fn toggle_status(
         ItemStatus::Highlighted => "highlighted",
         ItemStatus::Completed => "completed",
         ItemStatus::Default => "",
+        ItemStatus::Archived => "archived", // Archived items will use the same style as completed
     };
 
     // Check if all items in this retro are completed
