@@ -1,5 +1,8 @@
 use fantoccini::{Client, ClientBuilder};
-async fn setup() -> Client {
+use std::time::Duration;
+use tokio::time::sleep;
+
+async fn setup() -> Result<Client, fantoccini::error::NewSessionError> {
     let mut caps = serde_json::Map::new();
     caps.insert("browserName".to_string(), serde_json::json!("firefox"));
     caps.insert(
@@ -10,16 +13,31 @@ async fn setup() -> Client {
         }),
     );
     
+    // Add a retry mechanism for connecting to WebDriver
+    for _ in 0..3 {
+        match ClientBuilder::native()
+            .capabilities(caps.clone())
+            .connect("http://localhost:4444")
+            .await
+        {
+            Ok(client) => return Ok(client),
+            Err(e) => {
+                eprintln!("Failed to connect to WebDriver: {}", e);
+                sleep(Duration::from_secs(1)).await;
+            }
+        }
+    }
+    
+    // Final attempt
     ClientBuilder::native()
         .capabilities(caps)
         .connect("http://localhost:4444")
         .await
-        .expect("Failed to connect to WebDriver")
 }
 
 #[tokio::test]
-async fn test_retro_workflow() {
-    let client = setup().await;
+async fn test_retro_workflow() -> Result<(), Box<dyn std::error::Error>> {
+    let client = setup().await?;
     
     // Test 1: Create a new retro
     client.goto("http://localhost:3000").await.unwrap();
@@ -70,5 +88,6 @@ async fn test_retro_workflow() {
         assert!(client.find(fantoccini::Locator::Css(selector)).await.is_err());
     }
     
-    client.close().await.unwrap();
+    client.close().await?;
+    Ok(())
 }
