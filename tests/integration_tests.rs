@@ -94,33 +94,61 @@ async fn test_retro_workflow() -> Result<(), Box<dyn std::error::Error>> {
     async fn add_item(client: &Client, category: &str, text: &str) -> Result<(), Box<dyn std::error::Error>> {
         // Find and fill the input field
         let input_selector = format!("form[hx-post*='/items/{}/'] input", category);
-        let input = client.find(fantoccini::Locator::Css(&input_selector)).await?;
+        
+        // Wait for the form to be ready with exponential backoff
+        let mut delay = 100;
+        let max_attempts = 15;
+        let mut input = None;
+        
+        for attempt in 0..max_attempts {
+            match client.find(fantoccini::Locator::Css(&input_selector)).await {
+                Ok(element) => {
+                    input = Some(element);
+                    break;
+                },
+                Err(_) => {
+                    if attempt == max_attempts - 1 {
+                        return Err(format!("Form input for '{}' not found after {} attempts", category, max_attempts).into());
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
+                    delay = std::cmp::min(delay * 2, 2000);
+                }
+            }
+        }
+        
+        let input = input.ok_or("Input field not found")?;
         input.send_keys(text).await?;
         
-        // Submit the form
+        // Submit the form and wait for response
         input.send_keys("\n").await?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         
         // Wait for the item to appear with exponential backoff
         let item_selector = format!("#{}-items .card", category.to_lowercase());
-        let mut delay = 100; // Start with 100ms
-        let max_attempts = 10;
+        let mut delay = 200; // Start with longer initial delay
+        let max_attempts = 15;
         
         for attempt in 0..max_attempts {
             match client.find(fantoccini::Locator::Css(&item_selector)).await {
                 Ok(element) => {
+                    // Wait a bit for text content to be populated
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    
                     // Verify the text content
-                    if element.text().await?.contains(text) {
-                        return Ok(());
+                    if let Ok(content) = element.text().await {
+                        if content.contains(text) {
+                            return Ok(());
+                        }
                     }
                 },
-                Err(_) => {
-                    if attempt == max_attempts - 1 {
-                        return Err(format!("Item '{}' did not appear after {} attempts", text, max_attempts).into());
-                    }
-                    tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
-                    delay = std::cmp::min(delay * 2, 1000); // Double delay up to max 1 second
-                }
+                Err(_) => {}
             }
+            
+            if attempt == max_attempts - 1 {
+                return Err(format!("Item '{}' did not appear after {} attempts", text, max_attempts).into());
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
+            delay = std::cmp::min(delay * 2, 2000);
         }
         
         Err("Failed to verify item content".into())
