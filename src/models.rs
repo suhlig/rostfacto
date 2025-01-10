@@ -16,7 +16,7 @@ pub struct Item {
     pub text: String,
     pub category: Category,
     pub created_at: chrono::DateTime<chrono::Utc>,
-    pub status: ItemStatus,
+    pub status: Status,
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type)]
@@ -28,15 +28,15 @@ pub enum Category {
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, PartialEq)]
-#[sqlx(type_name = "item_status", rename_all = "UPPERCASE")]
-pub enum ItemStatus {
+#[sqlx(type_name = "status", rename_all = "UPPERCASE")]
+pub enum Status {
     Default,
     Highlighted,
     Completed,
     Archived,
 }
 
-impl Default for ItemStatus {
+impl Default for Status {
     fn default() -> Self {
         Self::Default
     }
