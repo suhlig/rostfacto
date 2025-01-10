@@ -72,29 +72,45 @@ async fn test_retro_workflow() -> Result<(), Box<dyn std::error::Error>> {
     let client = setup().await?;
     
     // Test 1: Create a new retro
-    client.goto("http://localhost:3000").await.unwrap();
-    let input = client.find(fantoccini::Locator::Css("input[name='title']")).await.unwrap();
-    input.send_keys("Test Retro").await.unwrap();
-    client.find(fantoccini::Locator::Css("button[type='submit']")).await.unwrap().click().await.unwrap();
+    client.goto("http://localhost:3000").await?;
+    
+    // Wait for the page to load
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    
+    let input = client.find(fantoccini::Locator::Css("input[name='title']")).await?;
+    input.send_keys("Test Retro").await?;
+    client.find(fantoccini::Locator::Css("button[type='submit']")).await?.click().await?;
+    
+    // Wait for the page to update
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     
     // Click the newly created retro link
-    client.find(fantoccini::Locator::Css("a")).await.unwrap().click().await.unwrap();
+    client.find(fantoccini::Locator::Css("a")).await?.click().await?;
     
-    // Wait a moment for navigation
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    // Wait for navigation
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     
     // Test 2: Add items to different columns
-    let good_input = client.find(fantoccini::Locator::Css("form[hx-post*='/items/Good/'] input")).await.unwrap();
-    good_input.send_keys("Good item").await.unwrap();
-    good_input.send_keys("\n").await.unwrap();
+    let good_input = client.find(fantoccini::Locator::Css("form[hx-post*='/items/Good/'] input")).await?;
+    good_input.send_keys("Good item").await?;
+    good_input.send_keys("\n").await?;
     
-    let bad_input = client.find(fantoccini::Locator::Css("form[hx-post*='/items/Bad/'] input")).await.unwrap();
-    bad_input.send_keys("Bad item").await.unwrap();
-    bad_input.send_keys("\n").await.unwrap();
+    // Wait for HTMX to update the DOM
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     
-    let watch_input = client.find(fantoccini::Locator::Css("form[hx-post*='/items/Watch/'] input")).await.unwrap();
-    watch_input.send_keys("Watch item").await.unwrap();
-    watch_input.send_keys("\n").await.unwrap();
+    let bad_input = client.find(fantoccini::Locator::Css("form[hx-post*='/items/Bad/'] input")).await?;
+    bad_input.send_keys("Bad item").await?;
+    bad_input.send_keys("\n").await?;
+    
+    // Wait for HTMX to update the DOM
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    
+    let watch_input = client.find(fantoccini::Locator::Css("form[hx-post*='/items/Watch/'] input")).await?;
+    watch_input.send_keys("Watch item").await?;
+    watch_input.send_keys("\n").await?;
+    
+    // Wait for HTMX to update the DOM
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     
     // Test 3: Toggle item status (Default -> Highlighted -> Completed)
     let good_item = client.find(fantoccini::Locator::Css("#good-items .card")).await.unwrap();
