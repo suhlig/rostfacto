@@ -25,7 +25,7 @@ pub async fn archive_retro(
 use askama::Template;
 use sqlx::PgPool;
 use serde::Deserialize;
-use crate::models::{Retrospective, Item, ItemCategory, ItemStatus};
+use crate::models::{Retrospective, Item, Category, ItemStatus};
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -256,7 +256,7 @@ pub struct NewItem {
 
 pub async fn add_item(
     State(pool): State<PgPool>,
-    Path((category, retro_id)): Path<(ItemCategory, i32)>,
+    Path((category, retro_id)): Path<(Category, i32)>,
     Form(form): Form<NewItem>,
 ) -> Html<String> {
     let item = sqlx::query_as!(
@@ -267,7 +267,7 @@ pub async fn add_item(
                      category as "category: _", created_at as "created_at!", status as "status: _""#,
         retro_id,
         form.text,
-        category as ItemCategory
+        category as Category
     )
     .fetch_one(&pool)
     .await

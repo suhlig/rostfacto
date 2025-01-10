@@ -14,14 +14,14 @@ pub struct Item {
     pub id: i32,
     pub retro_id: i32,
     pub text: String,
-    pub category: ItemCategory,
+    pub category: Category,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub status: ItemStatus,
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(type_name = "item_category", rename_all = "UPPERCASE")]
-pub enum ItemCategory {
+#[sqlx(type_name = "category", rename_all = "UPPERCASE")]
+pub enum Category {
     Good,
     Bad,
     Watch,
@@ -42,12 +42,12 @@ impl Default for ItemStatus {
     }
 }
 
-impl ToString for ItemCategory {
+impl ToString for Category {
     fn to_string(&self) -> String {
         match self {
-            ItemCategory::Good => "GOOD".to_string(),
-            ItemCategory::Bad => "BAD".to_string(),
-            ItemCategory::Watch => "WATCH".to_string(),
+            Category::Good => "GOOD".to_string(),
+            Category::Bad => "BAD".to_string(),
+            Category::Watch => "WATCH".to_string(),
         }
     }
 }
