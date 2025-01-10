@@ -106,14 +106,14 @@ pub async fn toggle_status(
     .await
     .unwrap();
 
-    let template = if all_completed {
+    let template = if all_completed.unwrap_or(false) {
         format!(
             r#"<div class="card {}" hx-post="/items/{}/toggle-status" hx-swap="outerHTML">
                 {}
                 <div class="archive-prompt" style="margin-top: 10px;">
                     <button class="archive-btn" 
                             hx-post="/retro/{}/archive" 
-                            hx-target="#good-items, #bad-items, #watch-items"
+                            hx-target='#good-items, #bad-items, #watch-items'
                             hx-swap="innerHTML">
                         Archive All Cards
                     </button>
