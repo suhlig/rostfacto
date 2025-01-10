@@ -33,6 +33,7 @@ pub enum ItemStatus {
     Default,
     Highlighted,
     Completed,
+    Archived,
 }
 
 impl Default for ItemStatus {

@@ -20,6 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/retro/:id", get(handlers::show_retro))
         .route("/items/:category/:retro_id", post(handlers::add_item))
         .route("/items/:id/toggle-status", post(handlers::toggle_status))
+        .route("/retro/:id/archive", post(handlers::archive_retro))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(pool);
 

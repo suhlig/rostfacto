@@ -3,6 +3,25 @@ use axum::{
     response::Html,
     Form,
 };
+
+pub async fn archive_retro(
+    State(pool): State<PgPool>,
+    Path(retro_id): Path<i32>,
+) -> Html<String> {
+    sqlx::query!(
+        r#"
+        UPDATE retro_items 
+        SET status = 'ARCHIVED'::item_status
+        WHERE retro_id = $1
+        "#,
+        retro_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    Html("".to_string())
+}
 use askama::Template;
 use sqlx::PgPool;
 use serde::Deserialize;
@@ -71,10 +90,43 @@ pub async fn toggle_status(
         ItemStatus::Default => "",
     };
 
-    let template = format!(
-        r#"<div class="card {}" hx-post="/items/{}/toggle-status" hx-swap="outerHTML">{}</div>"#,
-        status_class, item.id, htmlescape::encode_minimal(&item.text)
-    );
+    // Check if all items in this retro are completed
+    let all_completed = sqlx::query_scalar!(
+        r#"
+        SELECT NOT EXISTS (
+            SELECT 1 FROM retro_items 
+            WHERE retro_id = $1 
+            AND status != 'COMPLETED'::item_status
+            AND status != 'ARCHIVED'::item_status
+        )
+        "#,
+        item.retro_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let template = if all_completed {
+        format!(
+            r#"<div class="card {}" hx-post="/items/{}/toggle-status" hx-swap="outerHTML">
+                {}
+                <div class="archive-prompt" style="margin-top: 10px;">
+                    <button class="archive-btn" 
+                            hx-post="/retro/{}/archive" 
+                            hx-target="#good-items, #bad-items, #watch-items"
+                            hx-swap="innerHTML">
+                        Archive All Cards
+                    </button>
+                </div>
+               </div>"#,
+            status_class, item.id, htmlescape::encode_minimal(&item.text), item.retro_id
+        )
+    } else {
+        format!(
+            r#"<div class="card {}" hx-post="/items/{}/toggle-status" hx-swap="outerHTML">{}</div>"#,
+            status_class, item.id, htmlescape::encode_minimal(&item.text)
+        )
+    };
     Html(template)
 }
 
@@ -136,7 +188,10 @@ pub async fn show_retro(
         RetroItem,
         r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", 
                   category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM retro_items WHERE retro_id = $1 AND category = 'GOOD'
+           FROM retro_items 
+           WHERE retro_id = $1 
+           AND category = 'GOOD'
+           AND status != 'ARCHIVED'::item_status
            ORDER BY created_at ASC"#,
         retro_id
     )
@@ -148,7 +203,10 @@ pub async fn show_retro(
         RetroItem,
         r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", 
                   category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM retro_items WHERE retro_id = $1 AND category = 'BAD'
+           FROM retro_items 
+           WHERE retro_id = $1 
+           AND category = 'BAD'
+           AND status != 'ARCHIVED'::item_status
            ORDER BY created_at ASC"#,
         retro_id
     )
@@ -160,7 +218,10 @@ pub async fn show_retro(
         RetroItem,
         r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", 
                   category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM retro_items WHERE retro_id = $1 AND category = 'WATCH'
+           FROM retro_items 
+           WHERE retro_id = $1 
+           AND category = 'WATCH'
+           AND status != 'ARCHIVED'::item_status
            ORDER BY created_at ASC"#,
         retro_id
     )
