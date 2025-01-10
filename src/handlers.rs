@@ -54,7 +54,7 @@ pub async fn create_retro(
     State(pool): State<PgPool>,
     Form(form): Form<NewRetro>,
 ) -> Html<String> {
-    let retro = sqlx::query_as!(
+    let _retro = sqlx::query_as!(
         Retrospective,
         "INSERT INTO retrospectives (title) VALUES ($1) RETURNING *",
         form.title

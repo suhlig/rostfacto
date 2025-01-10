@@ -27,7 +27,7 @@ pub enum ItemCategory {
     Watch,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "item_status", rename_all = "UPPERCASE")]
 pub enum ItemStatus {
     Default,
