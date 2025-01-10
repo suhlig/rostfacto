@@ -1,4 +1,4 @@
 CREATE TYPE item_status AS ENUM ('DEFAULT', 'HIGHLIGHTED', 'COMPLETED');
 
-ALTER TABLE retro_items
+ALTER TABLE items
 ADD COLUMN status item_status NOT NULL DEFAULT 'DEFAULT';
