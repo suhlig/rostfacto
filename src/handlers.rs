@@ -171,9 +171,9 @@ pub async fn index(
 #[template(path = "retro.html")]
 struct RetroTemplate {
     retro: Retrospective,
-    good_items: Vec<RetroItem>,
-    bad_items: Vec<RetroItem>,
-    watch_items: Vec<RetroItem>,
+    good_items: Vec<Item>,
+    bad_items: Vec<Item>,
+    watch_items: Vec<Item>,
 }
 
 pub async fn show_retro(
@@ -190,10 +190,10 @@ pub async fn show_retro(
     .unwrap();
 
     let good_items = sqlx::query_as!(
-        RetroItem,
+        Item,
         r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!",
                   category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM retro_items
+           FROM items
            WHERE retro_id = $1
            AND category = 'GOOD'
            AND status != 'ARCHIVED'::item_status
@@ -205,10 +205,10 @@ pub async fn show_retro(
     .unwrap();
 
     let bad_items = sqlx::query_as!(
-        RetroItem,
+        Item,
         r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!",
                   category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM retro_items
+           FROM items
            WHERE retro_id = $1
            AND category = 'BAD'
            AND status != 'ARCHIVED'::item_status
@@ -220,10 +220,10 @@ pub async fn show_retro(
     .unwrap();
 
     let watch_items = sqlx::query_as!(
-        RetroItem,
+        Item,
         r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!",
                   category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM retro_items
+           FROM items
            WHERE retro_id = $1
            AND category = 'WATCH'
            AND status != 'ARCHIVED'::item_status
@@ -260,8 +260,8 @@ pub async fn add_item(
     Form(form): Form<NewItem>,
 ) -> Html<String> {
     let item = sqlx::query_as!(
-        RetroItem,
-        r#"INSERT INTO retro_items (retro_id, text, category, status)
+        Item,
+        r#"INSERT INTO items (retro_id, text, category, status)
            VALUES ($1, $2, $3, 'DEFAULT')
            RETURNING id as "id!", retro_id as "retro_id!", text as "text!",
                      category as "category: _", created_at as "created_at!", status as "status: _""#,
