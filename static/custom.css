@@ -1,3 +1,7 @@
+:root {
+    --block-spacing-vertical: 1rem;
+}
+
 .site-header {
     background-color: #b7410e;
     padding: 1rem 0;
