@@ -136,7 +136,8 @@ pub async fn show_retro(
         RetroItem,
         r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", 
                   category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM retro_items WHERE retro_id = $1 AND category = 'GOOD'"#,
+           FROM retro_items WHERE retro_id = $1 AND category = 'GOOD'
+           ORDER BY created_at ASC"#,
         retro_id
     )
     .fetch_all(&pool)
@@ -147,7 +148,8 @@ pub async fn show_retro(
         RetroItem,
         r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", 
                   category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM retro_items WHERE retro_id = $1 AND category = 'BAD'"#,
+           FROM retro_items WHERE retro_id = $1 AND category = 'BAD'
+           ORDER BY created_at ASC"#,
         retro_id
     )
     .fetch_all(&pool)
@@ -158,7 +160,8 @@ pub async fn show_retro(
         RetroItem,
         r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", 
                   category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM retro_items WHERE retro_id = $1 AND category = 'WATCH'"#,
+           FROM retro_items WHERE retro_id = $1 AND category = 'WATCH'
+           ORDER BY created_at ASC"#,
         retro_id
     )
     .fetch_all(&pool)
