@@ -70,7 +70,9 @@
         
         <div id="bad-items">
             {% for item in bad_items %}
-                <div class="card">
+                <div class="card {% if item.status == ItemStatus::Highlighted %}highlighted{% else if item.status == ItemStatus::Completed %}completed{% endif %}"
+                     hx-post="/items/{{ item.id }}/toggle-status"
+                     hx-swap="outerHTML">
                     {{ item.text }}
                 </div>
             {% endfor %}
