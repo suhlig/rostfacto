@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -7,7 +7,6 @@ pub struct Retrospective {
     pub id: i32,
     pub title: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
-    pub status: ItemStatus,
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]

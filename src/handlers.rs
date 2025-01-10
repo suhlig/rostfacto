@@ -6,7 +6,7 @@ use axum::{
 use askama::Template;
 use sqlx::PgPool;
 use serde::Deserialize;
-use crate::models::{Retrospective, RetroItem, ItemCategory};
+use crate::models::{Retrospective, RetroItem, ItemCategory, ItemStatus};
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -23,9 +23,9 @@ pub async fn toggle_status(
         r#"
         UPDATE retro_items 
         SET status = CASE 
-            WHEN status = 'DEFAULT' THEN 'HIGHLIGHTED'
-            WHEN status = 'HIGHLIGHTED' THEN 'COMPLETED'
-            ELSE 'DEFAULT'
+            WHEN status = 'DEFAULT'::item_status THEN 'HIGHLIGHTED'::item_status
+            WHEN status = 'HIGHLIGHTED'::item_status THEN 'COMPLETED'::item_status
+            ELSE 'DEFAULT'::item_status
         END
         WHERE id = $1
         RETURNING id as "id!", retro_id as "retro_id!", text as "text!", 
@@ -106,7 +106,7 @@ pub async fn show_retro(
 
     let good_items = sqlx::query_as!(
         RetroItem,
-        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", category as "category: _", created_at as "created_at!" 
+        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", category as "category: _", created_at as "created_at!", status as "status: _"
            FROM retro_items WHERE retro_id = $1 AND category = 'GOOD'"#,
         retro_id
     )
