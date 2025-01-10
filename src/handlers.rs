@@ -121,7 +121,6 @@ pub async fn toggle_status(
                 </div>
                </div>"##,
             status_class = status_class,
-            id = item.id,
             text = htmlescape::encode_minimal(&item.text),
             retro_id = item.retro_id
         )
