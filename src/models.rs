@@ -16,6 +16,7 @@ pub struct RetroItem {
     pub text: String,
     pub category: ItemCategory,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    pub status: ItemStatus,
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type)]

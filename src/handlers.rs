@@ -116,7 +116,8 @@ pub async fn show_retro(
 
     let bad_items = sqlx::query_as!(
         RetroItem,
-        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", category as "category: _", created_at as "created_at!"
+        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", 
+                  category as "category: _", created_at as "created_at!", status as "status: _"
            FROM retro_items WHERE retro_id = $1 AND category = 'BAD'"#,
         retro_id
     )
@@ -126,7 +127,8 @@ pub async fn show_retro(
 
     let watch_items = sqlx::query_as!(
         RetroItem,
-        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", category as "category: _", created_at as "created_at!"
+        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", 
+                  category as "category: _", created_at as "created_at!", status as "status: _"
            FROM retro_items WHERE retro_id = $1 AND category = 'WATCH'"#,
         retro_id
     )
@@ -161,9 +163,10 @@ pub async fn add_item(
 ) -> Html<String> {
     let item = sqlx::query_as!(
         RetroItem,
-        r#"INSERT INTO retro_items (retro_id, text, category) 
-           VALUES ($1, $2, $3) 
-           RETURNING id as "id!", retro_id as "retro_id!", text as "text!", category as "category: _", created_at as "created_at!""#,
+        r#"INSERT INTO retro_items (retro_id, text, category, status) 
+           VALUES ($1, $2, $3, 'DEFAULT') 
+           RETURNING id as "id!", retro_id as "retro_id!", text as "text!", 
+                     category as "category: _", created_at as "created_at!", status as "status: _""#,
         retro_id,
         form.text,
         category as ItemCategory
