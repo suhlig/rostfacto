@@ -1,8 +1,18 @@
 use fantoccini::{Client, ClientBuilder};
-use std::time::Duration;
+use std::{process::Command, time::Duration};
 use tokio::time::sleep;
 
 async fn setup() -> Result<Client, fantoccini::error::NewSessionError> {
+    // Kill any existing Firefox processes
+    Command::new("pkill")
+        .arg("-f")
+        .arg("firefox")
+        .output()
+        .ok();
+    
+    // Give processes time to clean up
+    sleep(Duration::from_secs(1)).await;
+    
     let mut caps = serde_json::Map::new();
     caps.insert("browserName".to_string(), serde_json::json!("firefox"));
     caps.insert(
@@ -13,8 +23,28 @@ async fn setup() -> Result<Client, fantoccini::error::NewSessionError> {
         }),
     );
     
-    // Add a retry mechanism for connecting to WebDriver
-    for _ in 0..3 {
+    // Restart geckodriver
+    Command::new("pkill")
+        .arg("-f")
+        .arg("geckodriver")
+        .output()
+        .ok();
+    
+    // Give geckodriver time to shut down
+    sleep(Duration::from_secs(1)).await;
+    
+    // Start new geckodriver instance
+    Command::new("geckodriver")
+        .arg("--port")
+        .arg("4444")
+        .spawn()
+        .ok();
+    
+    // Wait for geckodriver to be ready
+    sleep(Duration::from_secs(2)).await;
+    
+    // Try to connect with retries
+    for i in 0..3 {
         match ClientBuilder::native()
             .capabilities(caps.clone())
             .connect("http://localhost:4444")
@@ -22,8 +52,10 @@ async fn setup() -> Result<Client, fantoccini::error::NewSessionError> {
         {
             Ok(client) => return Ok(client),
             Err(e) => {
-                eprintln!("Failed to connect to WebDriver: {}", e);
-                sleep(Duration::from_secs(1)).await;
+                eprintln!("Attempt {} failed to connect to WebDriver: {}", i + 1, e);
+                if i < 2 {
+                    sleep(Duration::from_secs(2)).await;
+                }
             }
         }
     }
