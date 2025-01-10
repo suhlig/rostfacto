@@ -7,6 +7,7 @@ pub struct Retrospective {
     pub id: i32,
     pub title: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    pub status: ItemStatus,
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
@@ -24,6 +25,20 @@ pub enum ItemCategory {
     Good,
     Bad,
     Watch,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "item_status", rename_all = "UPPERCASE")]
+pub enum ItemStatus {
+    Default,
+    Highlighted,
+    Completed,
+}
+
+impl Default for ItemStatus {
+    fn default() -> Self {
+        Self::Default
+    }
 }
 
 impl ToString for ItemCategory {

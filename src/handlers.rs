@@ -14,6 +14,42 @@ struct IndexTemplate {
     retros: Vec<Retrospective>,
 }
 
+pub async fn toggle_status(
+    State(pool): State<PgPool>,
+    Path(item_id): Path<i32>,
+) -> Html<String> {
+    let item = sqlx::query_as!(
+        RetroItem,
+        r#"
+        UPDATE retro_items 
+        SET status = CASE 
+            WHEN status = 'DEFAULT' THEN 'HIGHLIGHTED'
+            WHEN status = 'HIGHLIGHTED' THEN 'COMPLETED'
+            ELSE 'DEFAULT'
+        END
+        WHERE id = $1
+        RETURNING id as "id!", retro_id as "retro_id!", text as "text!", 
+                  category as "category: _", created_at as "created_at!",
+                  status as "status: _"
+        "#,
+        item_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let status_class = match item.status {
+        ItemStatus::Highlighted => "highlighted",
+        ItemStatus::Completed => "completed",
+        ItemStatus::Default => "",
+    };
+
+    Html(format!(
+        "<div class=\"card {}\" hx-post=\"/items/{}/toggle-status\" hx-swap=\"outerHTML\">{}</div>",
+        status_class, item.id, item.text
+    ))
+}
+
 pub async fn create_retro(
     State(pool): State<PgPool>,
     Form(form): Form<NewRetro>,
@@ -136,5 +172,5 @@ pub async fn add_item(
     .await
     .unwrap();
 
-    Html(format!("<div class=\"card\">{}</div>", item.text))
+    Html(format!("<div class=\"card\" hx-post=\"/items/{}/toggle-status\" hx-swap=\"outerHTML\">{}</div>", item.id, item.text))
 }
