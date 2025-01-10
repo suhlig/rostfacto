@@ -57,11 +57,11 @@ pub async fn toggle_status(
             UPDATE items
             SET status = 'DEFAULT'::status
             WHERE retro_id = (SELECT retro_id FROM item_info)
-            AND status = 'HIGHLIGHTED'::item_status
+            AND status = 'HIGHLIGHTED'::status
             AND id != $1
             AND NOT EXISTS (
                 SELECT 1 FROM item_info
-                WHERE current_status = 'DEFAULT'::item_status
+                WHERE current_status = 'DEFAULT'::status
             )
         )
         UPDATE items
@@ -85,10 +85,10 @@ pub async fn toggle_status(
     .unwrap();
 
     let status_class = match item.status {
-        ItemStatus::Highlighted => "highlighted",
-        ItemStatus::Completed => "completed",
-        ItemStatus::Default => "",
-        ItemStatus::Archived => "archived", // Archived items will use the same style as completed
+        Status::Highlighted => "highlighted",
+        Status::Completed => "completed",
+        Status::Default => "",
+        Status::Archived => "archived", // Archived items will use the same style as completed
     };
 
     // Check if all items in this retro are completed
@@ -196,7 +196,7 @@ pub async fn show_retro(
            FROM items
            WHERE retro_id = $1
            AND category = 'GOOD'
-           AND status != 'ARCHIVED'::item_status
+           AND status != 'ARCHIVED'::status
            ORDER BY created_at ASC"#,
         retro_id
     )
