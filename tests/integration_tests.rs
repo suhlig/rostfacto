@@ -92,18 +92,38 @@ async fn test_retro_workflow() -> Result<(), Box<dyn std::error::Error>> {
     
     // Test 2: Add items to different columns
     async fn add_item(client: &Client, category: &str, text: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let input = client.find(fantoccini::Locator::Css(&format!("form[hx-post*='/items/{}/'] input", category))).await?;
+        // Find and fill the input field
+        let input_selector = format!("form[hx-post*='/items/{}/'] input", category);
+        let input = client.find(fantoccini::Locator::Css(&input_selector)).await?;
         input.send_keys(text).await?;
+        
+        // Submit the form
         input.send_keys("\n").await?;
         
-        // Wait longer for HTMX to update the DOM and verify the item appears
-        for _ in 0..5 {
-            if client.find(fantoccini::Locator::Css(&format!("#{}-items .card", category.to_lowercase()))).await.is_ok() {
-                return Ok(());
+        // Wait for the item to appear with exponential backoff
+        let item_selector = format!("#{}-items .card", category.to_lowercase());
+        let mut delay = 100; // Start with 100ms
+        let max_attempts = 10;
+        
+        for attempt in 0..max_attempts {
+            match client.find(fantoccini::Locator::Css(&item_selector)).await {
+                Ok(element) => {
+                    // Verify the text content
+                    if element.text().await?.contains(text) {
+                        return Ok(());
+                    }
+                },
+                Err(_) => {
+                    if attempt == max_attempts - 1 {
+                        return Err(format!("Item '{}' did not appear after {} attempts", text, max_attempts).into());
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
+                    delay = std::cmp::min(delay * 2, 1000); // Double delay up to max 1 second
+                }
             }
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         }
-        Err("Item did not appear after waiting".into())
+        
+        Err("Failed to verify item content".into())
     }
 
     add_item(&client, "Good", "Good item").await?;
