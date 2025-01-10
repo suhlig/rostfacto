@@ -6,7 +6,7 @@ async fn setup() -> Client {
         "moz:firefoxOptions".to_string(),
         serde_json::json!({
             "args": ["--headless"],
-            "binary": "/Applications/Firefox.app/Contents/MacOS/firefox"
+            "binary": "/Applications/Firefox.app/Contents/MacOS/Firefox"
         }),
     );
     
