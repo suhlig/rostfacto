@@ -18,7 +18,7 @@ async fn setup() -> Client {
         .expect("Failed to connect to WebDriver")
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_retro_workflow() {
     let client = setup().await;
     
