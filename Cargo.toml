@@ -16,3 +16,5 @@ htmlescape = "0.3"
 
 [dev-dependencies]
 cargo-watch = "8.4"
+fantoccini = "0.19"
+tokio-test = "0.4"
