@@ -10,7 +10,7 @@ pub async fn archive_retro(
 ) -> Html<String> {
     sqlx::query!(
         r#"
-        UPDATE retro_items
+        UPDATE items
         SET status = 'ARCHIVED'::item_status
         WHERE retro_id = $1
         "#,
@@ -25,7 +25,7 @@ pub async fn archive_retro(
 use askama::Template;
 use sqlx::PgPool;
 use serde::Deserialize;
-use crate::models::{Retrospective, RetroItem, ItemCategory, ItemStatus};
+use crate::models::{Retrospective, Item, ItemCategory, ItemStatus};
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -38,23 +38,23 @@ pub async fn toggle_status(
     Path(item_id): Path<i32>,
 ) -> Html<String> {
     let item = sqlx::query_as!(
-        RetroItem,
+        Item,
         r#"
         WITH item_info AS (
             SELECT retro_id, status as current_status
-            FROM retro_items
+            FROM items
             WHERE id = $1
         ),
         highlighted_check AS (
             SELECT EXISTS (
-                SELECT 1 FROM retro_items
+                SELECT 1 FROM items
                 WHERE retro_id = (SELECT retro_id FROM item_info)
                 AND status = 'HIGHLIGHTED'::item_status
                 AND id != $1
             ) as has_highlighted
         ),
         reset_highlighted AS (
-            UPDATE retro_items
+            UPDATE items
             SET status = 'DEFAULT'::item_status
             WHERE retro_id = (SELECT retro_id FROM item_info)
             AND status = 'HIGHLIGHTED'::item_status
@@ -64,7 +64,7 @@ pub async fn toggle_status(
                 WHERE current_status = 'DEFAULT'::item_status
             )
         )
-        UPDATE retro_items
+        UPDATE items
         SET status = CASE
             WHEN status = 'COMPLETED'::item_status THEN 'COMPLETED'::item_status
             WHEN status = 'DEFAULT'::item_status AND NOT EXISTS (
@@ -95,7 +95,7 @@ pub async fn toggle_status(
     let all_completed = sqlx::query_scalar!(
         r#"
         SELECT NOT EXISTS (
-            SELECT 1 FROM retro_items
+            SELECT 1 FROM items
             WHERE retro_id = $1
             AND status != 'COMPLETED'::item_status
             AND status != 'ARCHIVED'::item_status

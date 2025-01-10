@@ -6,7 +6,7 @@ CREATE TABLE retrospectives (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE retro_items (
+CREATE TABLE items (
     id SERIAL PRIMARY KEY,
     retro_id INTEGER REFERENCES retrospectives(id),
     text TEXT NOT NULL,

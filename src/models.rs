@@ -10,7 +10,7 @@ pub struct Retrospective {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
-pub struct RetroItem {
+pub struct Item {
     pub id: i32,
     pub retro_id: i32,
     pub text: String,
