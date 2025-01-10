@@ -5,7 +5,8 @@ async fn setup() -> Client {
     caps.insert(
         "moz:firefoxOptions".to_string(),
         serde_json::json!({
-            "args": ["--headless"]
+            "args": ["--headless"],
+            "binary": "/Applications/Firefox.app/Contents/MacOS/firefox"
         }),
     );
     
