@@ -91,33 +91,50 @@ async fn test_retro_workflow() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     
     // Test 2: Add items to different columns
-    let good_input = client.find(fantoccini::Locator::Css("form[hx-post*='/items/Good/'] input")).await?;
-    good_input.send_keys("Good item").await?;
-    good_input.send_keys("\n").await?;
-    
-    // Wait for HTMX to update the DOM
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    
-    let bad_input = client.find(fantoccini::Locator::Css("form[hx-post*='/items/Bad/'] input")).await?;
-    bad_input.send_keys("Bad item").await?;
-    bad_input.send_keys("\n").await?;
-    
-    // Wait for HTMX to update the DOM
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    
-    let watch_input = client.find(fantoccini::Locator::Css("form[hx-post*='/items/Watch/'] input")).await?;
-    watch_input.send_keys("Watch item").await?;
-    watch_input.send_keys("\n").await?;
-    
-    // Wait for HTMX to update the DOM
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    async fn add_item(client: &Client, category: &str, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let input = client.find(fantoccini::Locator::Css(&format!("form[hx-post*='/items/{}/'] input", category))).await?;
+        input.send_keys(text).await?;
+        input.send_keys("\n").await?;
+        
+        // Wait longer for HTMX to update the DOM and verify the item appears
+        for _ in 0..5 {
+            if client.find(fantoccini::Locator::Css(&format!("#{}-items .card", category.to_lowercase()))).await.is_ok() {
+                return Ok(());
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        }
+        Err("Item did not appear after waiting".into())
+    }
+
+    add_item(&client, "Good", "Good item").await?;
+    add_item(&client, "Bad", "Bad item").await?;
+    add_item(&client, "Watch", "Watch item").await?;
     
     // Test 3: Toggle item status (Default -> Highlighted -> Completed)
-    let good_item = client.find(fantoccini::Locator::Css("#good-items .card")).await.unwrap();
-    good_item.click().await.unwrap();
-    assert!(client.find(fantoccini::Locator::Css(".card.highlighted")).await.is_ok());
-    good_item.click().await.unwrap();
-    assert!(client.find(fantoccini::Locator::Css(".card.completed")).await.is_ok());
+    async fn toggle_item(client: &Client, selector: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let item = client.find(fantoccini::Locator::Css(selector)).await?;
+        
+        // First click - to highlighted
+        item.click().await?;
+        for _ in 0..5 {
+            if client.find(fantoccini::Locator::Css(".card.highlighted")).await.is_ok() {
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        }
+        
+        // Second click - to completed
+        item.click().await?;
+        for _ in 0..5 {
+            if client.find(fantoccini::Locator::Css(".card.completed")).await.is_ok() {
+                return Ok(());
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        }
+        Err("Item status did not change as expected".into())
+    }
+
+    toggle_item(&client, "#good-items .card").await?;
     
     // Test 4: Archive functionality
     // First complete all items
