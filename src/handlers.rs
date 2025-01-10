@@ -23,6 +23,7 @@ pub async fn toggle_status(
         r#"
         UPDATE retro_items 
         SET status = CASE 
+            WHEN status = 'COMPLETED'::item_status THEN 'COMPLETED'::item_status
             WHEN status = 'DEFAULT'::item_status THEN 'HIGHLIGHTED'::item_status
             WHEN status = 'HIGHLIGHTED'::item_status THEN 'COMPLETED'::item_status
             ELSE 'DEFAULT'::item_status
