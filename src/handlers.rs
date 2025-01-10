@@ -211,7 +211,7 @@ pub async fn show_retro(
            FROM items
            WHERE retro_id = $1
            AND category = 'BAD'
-           AND status != 'ARCHIVED'::item_status
+           AND status != 'ARCHIVED'::status
            ORDER BY created_at ASC"#,
         retro_id
     )

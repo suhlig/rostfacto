@@ -48,7 +48,7 @@
         <div id="watch-items">
             {% for item in watch_items %}
                 <div class="card {% if item.status == Status::Highlighted %}highlighted{% else if item.status == Status::Completed %}completed{% endif %}"
-                     {% if item.status != ItemStatus::Completed %}
+                     {% if item.status != Status::Completed %}
                      hx-post="/items/{{ item.id }}/toggle-status"
                      hx-swap="outerHTML"
                      {% endif %}>
@@ -74,7 +74,7 @@
         
         <div id="bad-items">
             {% for item in bad_items %}
-                <div class="card {% if item.status == ItemStatus::Highlighted %}highlighted{% else if item.status == ItemStatus::Completed %}completed{% endif %}"
+                <div class="card {% if item.status == Status::Highlighted %}highlighted{% else if item.status == Status::Completed %}completed{% endif %}"
                      {% if item.status != ItemStatus::Completed %}
                      hx-post="/items/{{ item.id }}/toggle-status"
                      hx-swap="outerHTML"
