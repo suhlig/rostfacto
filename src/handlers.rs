@@ -109,7 +109,7 @@ pub async fn toggle_status(
 
     let template = if all_completed.unwrap_or(false) {
         format!(
-            r##"<div class="card {status_class}" hx-post="/items/{id}/toggle-status" hx-swap="outerHTML">
+            r##"<div class="card {status_class}">
                 {text}
                 <div class="archive-prompt" style="margin-top: 10px;">
                     <button class="archive-btn"
