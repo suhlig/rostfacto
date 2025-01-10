@@ -29,6 +29,10 @@ main {
     padding: 0;
 }
 
+body > main {
+    padding: 0;
+}
+
 .retro-title {
     text-align: center;
     margin: 0.5rem 0;
