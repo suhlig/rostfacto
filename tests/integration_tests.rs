@@ -1,6 +1,4 @@
 use fantoccini::{Client, ClientBuilder};
-use tokio;
-
 async fn setup() -> Client {
     let mut caps = serde_json::Map::new();
     caps.insert("browserName".to_string(), serde_json::json!("firefox"));
@@ -18,9 +16,9 @@ async fn setup() -> Client {
         .expect("Failed to connect to WebDriver")
 }
 
-#[test]
-fn test_retro_workflow() {
-    let client = tokio_test::block_on(setup());
+#[tokio::test]
+async fn test_retro_workflow() {
+    let client = setup().await;
     
     // Test 1: Create a new retro
     client.goto("http://localhost:3000").await.unwrap();
@@ -60,5 +58,5 @@ fn test_retro_workflow() {
         assert!(client.find(fantoccini::Locator::Css(selector)).await.is_err());
     }
     
-    tokio_test::block_on(client.close()).unwrap();
+    client.close().await.unwrap();
 }
