@@ -109,23 +109,28 @@ pub async fn toggle_status(
 
     let template = if all_completed.unwrap_or(false) {
         format!(
-            r#"<div class="card {}" hx-post="/items/{}/toggle-status" hx-swap="outerHTML">
-                {}
+            r##"<div class="card {status_class}" hx-post="/items/{id}/toggle-status" hx-swap="outerHTML">
+                {text}
                 <div class="archive-prompt" style="margin-top: 10px;">
                     <button class="archive-btn"
-                            hx-post="/retro/{}/archive"
-                            hx-target='#good-items, #bad-items, #watch-items'
+                            hx-post="/retro/{retro_id}/archive"
+                            hx-target="#good-items, #bad-items, #watch-items"
                             hx-swap="innerHTML">
                         Archive All Cards
                     </button>
                 </div>
-               </div>"#,
-            status_class, item.id, htmlescape::encode_minimal(&item.text), item.retro_id
+               </div>"##,
+            status_class = status_class,
+            id = item.id,
+            text = htmlescape::encode_minimal(&item.text),
+            retro_id = item.retro_id
         )
     } else {
         format!(
-            r#"<div class="card {}" hx-post="/items/{}/toggle-status" hx-swap="outerHTML">{}</div>"#,
-            status_class, item.id, htmlescape::encode_minimal(&item.text)
+            r##"<div class="card {status_class}" hx-post="/items/{id}/toggle-status" hx-swap="outerHTML">{text}</div>"##,
+            status_class = status_class,
+            id = item.id,
+            text = htmlescape::encode_minimal(&item.text)
         )
     };
     Html(template)
