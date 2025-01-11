@@ -10,7 +10,7 @@ async fn test_home_page() -> WebDriverResult<()> {
 
     // Find the h1 element and verify its text
     let h1 = driver.find(By::Tag("h1")).await?;
-    assert_eq!(h1.text().await?, "Retrospectives");
+    assert_eq!(h1.text().await?, "RETROSPECTIVES");
 
     // Always close the browser
     driver.quit().await?;
