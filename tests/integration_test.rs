@@ -1,6 +1,5 @@
 use thirtyfour::prelude::*;
 
-#[cfg(test)]
 #[tokio::test]
 async fn test_home_page() -> WebDriverResult<()> {
     let caps = DesiredCapabilities::firefox();
