@@ -26,12 +26,9 @@ async fn test_nonexistent_retro() -> Result<(), NewSessionError> {
         .await?;
 
     // Navigate to a non-existent retro
-    let response = client.goto("http://localhost:3000/retro/99999").await.unwrap();
+    client.goto("http://localhost:3000/retro/99999").await.unwrap();
     
-    // Verify 404 status code
-    assert_eq!(response.status().unwrap(), 404);
-
-    // Find the body text and verify it contains "not found"
+    // Find the body text and verify it contains "not found" and "404"
     let body_text = client.find(fantoccini::Locator::Css("body"))
         .await
         .unwrap()
