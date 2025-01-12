@@ -3,13 +3,13 @@
 {% block content %}
 <div class="container">
     <h1 class="retro-title">Retrospectives</h1>
-    
+
     <div class="grid">
         <div>
             <a href="/retros/new" class="button">New Retrospective</a>
         </div>
     </div>
-    <div class="grid">
+    <div id="retros" class="grid">
         {% for retro in retros %}
             <div class="card">
                 <div class="card-content">
