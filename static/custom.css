@@ -4,6 +4,18 @@
     --primary-hover: #993609;
 }
 
+/* Form submit button styling */
+input[type="submit"] {
+    background-color: #b7410e;
+    border-color: #b7410e;
+    color: white;
+}
+
+input[type="submit"]:hover {
+    background-color: #993609;
+    border-color: #993609;
+}
+
 /* Button styling */
 .button {
     background-color: #b7410e;
