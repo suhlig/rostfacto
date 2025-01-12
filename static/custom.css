@@ -164,6 +164,28 @@ body > main {
     padding: 1rem;
     margin-bottom: 0.75rem;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-content {
+    flex-grow: 1;
+}
+
+.delete-btn {
+    background-color: #ff6b6b;
+    border-color: #ff6b6b;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 1rem;
+}
+
+.delete-btn:hover {
+    background-color: #fa5252;
+    border-color: #fa5252;
 }
 
 .card a {

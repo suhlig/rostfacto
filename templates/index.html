@@ -7,8 +7,17 @@
     <a href="/retros/new" class="button">New Retrospective</a>
     {% for retro in retros %}
         <div class="card">
-            <a href="/retro/{{ retro.id }}">{{ retro.title }}</a>
-            <span class="date">{{ retro.created_at }}</span>
+            <div class="card-content">
+                <a href="/retro/{{ retro.id }}">{{ retro.title }}</a>
+                <span class="date">{{ retro.created_at }}</span>
+            </div>
+            <button class="delete-btn"
+                    hx-delete="/retro/{{ retro.id }}/delete"
+                    hx-confirm="Are you sure you want to delete this retrospective?"
+                    hx-target="closest .card"
+                    hx-swap="outerHTML">
+                Delete
+            </button>
         </div>
     {% endfor %}
 </div>
