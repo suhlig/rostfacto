@@ -1,26 +1,29 @@
 <!DOCTYPE html>
-<html>
-<head>
+<html lang="en">
+  <head>
     <title>Rostfacto</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
     <link rel="stylesheet" href="/static/custom.css">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
 </head>
 <body>
-    <header class="site-header">
-        <nav class="container">
-            <a href="/" class="brand">Rostfacto</a>
-            <span class="header-blurb">Where Teams Reflect and Grow</span>
-        </nav>
+    <header class="container">
+      <hgroup>
+        <h1><a href="/" class="brand">Rostfacto</a></h1>
+        <p>Where Teams Reflect and Grow</p>
+      </hgroup>
     </header>
-    <main>
-        {% block content %}{% endblock %}
+
+    <main class="container">
+      {% block content %}{% endblock %}
     </main>
-    <footer class="site-footer">
-        <div class="container">
-            <p>© 2025 The Rostfacto Team</p>
-        </div>
+
+    <footer class="container">
+      <small>© 2025 The Rostfacto Team</small>
     </footer>
 </body>
 </html>

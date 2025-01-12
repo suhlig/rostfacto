@@ -1,91 +1,19 @@
-:root {
-    --block-spacing-vertical: 1rem;
-    --primary: #b7410e;
-    --primary-hover: #993609;
-}
-
-/* Form submit button styling */
-input[type="submit"] {
-    background-color: #b7410e;
-    border-color: #b7410e;
-    color: white;
-}
-
-input[type="submit"]:hover {
-    background-color: #993609;
-    border-color: #993609;
-}
-
-/* Button styling */
-.button {
-    background-color: #b7410e;
-    border-color: #b7410e;
-    color: white;
-    padding: 0.75rem 1.5rem;
-    border-radius: 4px;
-    text-decoration: none;
-    display: inline-block;
-    margin-bottom: 1rem;
-}
-
-.button:hover {
-    background-color: #993609;
-    border-color: #993609;
-}
-
-/* Global link styling */
-a {
-    color: var(--primary);
-    text-decoration: none;
-    transition: color 0.2s ease;
-}
-
-a:hover {
-    color: var(--primary-hover);
-}
-
-.site-header {
-    background-color: #b7410e;
-    padding: 1rem 0;
-}
-
-.site-header nav {
-    display: flex;
-    align-items: center;
-}
-
-.site-header .brand {
-    color: white !important;
-    font-size: 1.5rem;
-    font-weight: bold;
-    text-decoration: none;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.site-header .brand:hover {
-    color: #ffe8dd;
-}
-
-.header-blurb {
-    color: #ffe8dd;
-    margin-left: 1rem;
-    font-size: 1rem;
-    font-style: italic;
-}
-
-main {
-    padding: 0;
-}
-
-body > main {
-    padding: 0;
+[data-theme=light],
+:root:not([data-theme=dark]) {
+  --pico-primary: #b7410e;
+  --pico-primary-inverse: #fff;
+  --pico-primary-background: #b7410e;
+  --pico-primary-underline: rgba(183, 65, 14, 0.5);
+  --pico-primary-hover: #b7410e;
+  --pico-primary-hover-background: #b7410e;
+  --pico-primary-focus: rgba(183, 65, 14, 0.5);
+  --pico-text-selection-color: rgba(183, 65, 14, 0.25);
 }
 
 .retro-title {
     text-align: center;
     margin: 0.5rem 0;
-    color: #b7410e;
+    color: var(--pico-primary-background);
     font-size: 2.5rem;
     font-weight: bold;
     text-transform: uppercase;
@@ -98,8 +26,8 @@ body > main {
 }
 
 .card.highlighted {
-    background-color: #fff3bf;
-    border-color: #ffd43b;
+    color: var(--pico-primary-inverse);
+    background-color: var(--pico-primary-background);
     transform: scale(1.02);
 }
 
@@ -141,20 +69,6 @@ body > main {
     box-shadow: 0 0 0 2px rgba(77, 171, 247, 0.2);
 }
 
-
-.site-footer {
-    background-color: #f8f9fa;
-    padding: 1rem 0;
-    margin-top: 2rem;
-    text-align: center;
-    border-top: 1px solid #e9ecef;
-}
-
-.site-footer p {
-    margin: 0;
-    color: #6c757d;
-}
-
 .card {
     cursor: pointer;
     transition: all 0.2s ease;
@@ -188,30 +102,6 @@ body > main {
 
 .card-content {
     flex-grow: 1;
-}
-
-.delete-btn {
-    background-color: var(--primary);
-    border-color: var(--primary);
-    color: white;
-    padding: 0.1rem 0.2rem;
-    border-radius: 4px;
-    cursor: pointer;
-    max-width: fit-content;
-}
-
-.delete-btn:hover {
-    background-color: var(--primary-hover);
-    border-color: var(--primary-hover);
-}
-
-.card a {
-    color: #b7410e;
-    text-decoration: none;
-}
-
-.card a:hover {
-    color: #993609;
 }
 
 .good-column { border-top: 4px solid #51cf66; border-radius: 8px 8px 0 0; }

@@ -24,7 +24,7 @@ async fn test_home_page() -> Result<(), NewSessionError> {
         client.goto("http://localhost:3000").await.unwrap();
 
         // Find the h1 element and verify its text
-        let h1 = client.find(fantoccini::Locator::Css("h1")).await.unwrap();
+        let h1 = client.find(fantoccini::Locator::Css(".retro-title")).await.unwrap();
         assert_eq!(h1.text().await.unwrap(), "RETROSPECTIVES");
 
         // Always close the browser
@@ -92,7 +92,7 @@ async fn test_create_retro() -> Result<(), NewSessionError> {
         let retro_links = client.find_all(fantoccini::Locator::Css(".card a"))
             .await
             .unwrap();
-        
+
         let mut found = false;
         for link in retro_links {
             if link.text().await.unwrap() == test_title {
@@ -134,7 +134,7 @@ async fn test_nonexistent_retro() -> Result<(), NewSessionError> {
 
         // Navigate to a non-existent retro
         client.goto("http://localhost:3000/retro/99999").await.unwrap();
-        
+
         // Find the body text and verify it contains "not found" and "404"
         let body_text = client.find(fantoccini::Locator::Css("body"))
             .await

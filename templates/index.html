@@ -4,17 +4,16 @@
 <div class="container">
     <h1 class="retro-title">Retrospectives</h1>
 
-    <div class="grid">
-        <div>
-            <a href="/retros/new" class="button">New Retrospective</a>
-        </div>
+    <div>
+        <a href="/retros/new" role="button">New Retrospective</a>
     </div>
+
     <div id="retros" class="retro-stack">
         {% for retro in retros %}
             <div class="card">
                 <div class="card-content">
                     <div><a href="/retro/{{ retro.id }}">{{ retro.title }}</a></div>
-                    <small class="text-muted">Created at {{ retro.created_at | strftime("%Y-%m-%d %H:%M") }}</small>
+                    <small class="text-muted">Created at {{ retro.created_at }}</small>
                 </div>
                 <button class="delete-btn"
                         hx-delete="/retro/{{ retro.id }}/delete"
