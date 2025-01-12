@@ -1,4 +1,5 @@
 use fantoccini::{ClientBuilder, error::NewSessionError};
+use std::process::{Child, Command};
 
 #[tokio::test]
 async fn test_home_page() -> Result<(), NewSessionError> {
@@ -17,11 +18,28 @@ async fn test_home_page() -> Result<(), NewSessionError> {
     client.close().await.unwrap();
 
     Ok(())
+    }.await;
+
+    // Always stop geckodriver
+    geckodriver.kill().expect("Failed to kill geckodriver");
+
+    result
 }
 
 #[tokio::test]
 async fn test_create_retro() -> Result<(), NewSessionError> {
-    let client = ClientBuilder::native()
+    // Start geckodriver
+    let mut geckodriver = Command::new("geckodriver")
+        .arg("--port")
+        .arg("4444")
+        .spawn()
+        .expect("Failed to start geckodriver");
+
+    // Give geckodriver time to start up
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    let result = async {
+        let client = ClientBuilder::native()
         .connect("http://localhost:4444")
         .await?;
 
