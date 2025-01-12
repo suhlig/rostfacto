@@ -1,5 +1,5 @@
 use fantoccini::{ClientBuilder, error::NewSessionError};
-use std::process::{Child, Command};
+use std::process::Command;
 use serial_test::serial;
 
 #[tokio::test]
