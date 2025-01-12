@@ -197,6 +197,7 @@ body > main {
     padding: 0.1rem 0.2rem;
     border-radius: 4px;
     cursor: pointer;
+    max-width: fit-content;
 }
 
 .delete-btn:hover {
