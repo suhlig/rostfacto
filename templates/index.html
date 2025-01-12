@@ -4,21 +4,27 @@
 <div class="container">
     <h1 class="retro-title">Retrospectives</h1>
     
-    <a href="/retros/new" class="button">New Retrospective</a>
-    {% for retro in retros %}
-        <div class="card">
-            <div class="card-content">
-                <a href="/retro/{{ retro.id }}">{{ retro.title }}</a>
-                <span class="date">{{ retro.created_at }}</span>
-            </div>
-            <button class="delete-btn"
-                    hx-delete="/retro/{{ retro.id }}/delete"
-                    hx-confirm="Are you sure you want to delete this retrospective?"
-                    hx-target="closest .card"
-                    hx-swap="outerHTML">
-                Delete
-            </button>
+    <div class="grid">
+        <div>
+            <a href="/retros/new" class="button">New Retrospective</a>
         </div>
-    {% endfor %}
+    </div>
+    <div class="grid">
+        {% for retro in retros %}
+            <div class="card">
+                <div class="card-content">
+                    <a href="/retro/{{ retro.id }}">{{ retro.title }}</a>
+                    <span class="date">{{ retro.created_at }}</span>
+                </div>
+                <button class="delete-btn"
+                        hx-delete="/retro/{{ retro.id }}/delete"
+                        hx-confirm="Are you sure you want to delete this retrospective?"
+                        hx-target="closest .card"
+                        hx-swap="outerHTML">
+                    Delete
+                </button>
+            </div>
+        {% endfor %}
+    </div>
 </div>
 {% endblock %}
