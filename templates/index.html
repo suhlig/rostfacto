@@ -4,10 +4,7 @@
 <div class="container">
     <h1 class="retro-title">Retrospectives</h1>
     
-    <form action="/retros" method="post">
-        <input type="text" name="title" placeholder="Retro title" required>
-        <button type="submit">Create Retro</button>
-    </form>
+    <a href="/retros/new" class="button">New Retrospective</a>
     {% for retro in retros %}
         <div class="card">
             <a href="/retro/{{ retro.id }}">{{ retro.title }}</a>
