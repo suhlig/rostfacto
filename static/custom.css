@@ -169,6 +169,12 @@ body > main {
     align-items: center;
 }
 
+.card-content {
+    border-right: 1px solid #e9ecef;
+    padding-right: 1rem;
+    margin-right: 1rem;
+}
+
 .retro-stack {
     display: flex;
     flex-direction: column;
@@ -188,10 +194,9 @@ body > main {
     background-color: var(--primary);
     border-color: var(--primary);
     color: white;
-    padding: 0.25rem 0.5rem;
+    padding: 0.1rem 0.2rem;
     border-radius: 4px;
     cursor: pointer;
-    margin-left: 1rem;
 }
 
 .delete-btn:hover {
