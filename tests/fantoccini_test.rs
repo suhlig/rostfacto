@@ -20,6 +20,63 @@ async fn test_home_page() -> Result<(), NewSessionError> {
 }
 
 #[tokio::test]
+async fn test_create_retro() -> Result<(), NewSessionError> {
+    let client = ClientBuilder::native()
+        .connect("http://localhost:4444")
+        .await?;
+
+    // Navigate to the homepage
+    client.goto("http://localhost:3000").await.unwrap();
+
+    // Click the "New Retrospective" button
+    client.find(fantoccini::Locator::Css("a[href='/retro/new']"))
+        .await
+        .unwrap()
+        .click()
+        .await
+        .unwrap();
+
+    // Fill in the title
+    let test_title = format!("Test Retro {}", chrono::Utc::now().timestamp());
+    client.find(fantoccini::Locator::Css("input[name='title']"))
+        .await
+        .unwrap()
+        .send_keys(&test_title)
+        .await
+        .unwrap();
+
+    // Submit the form
+    client.find(fantoccini::Locator::Css("form"))
+        .await
+        .unwrap()
+        .submit()
+        .await
+        .unwrap();
+
+    // Navigate back to homepage
+    client.goto("http://localhost:3000").await.unwrap();
+
+    // Verify the new retro appears in the list
+    let retro_links = client.find_all(fantoccini::Locator::Css("ul.retros li a"))
+        .await
+        .unwrap();
+    
+    let mut found = false;
+    for link in retro_links {
+        if link.text().await.unwrap() == test_title {
+            found = true;
+            break;
+        }
+    }
+    assert!(found, "Newly created retro not found in list");
+
+    // Always close the browser
+    client.close().await.unwrap();
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_nonexistent_retro() -> Result<(), NewSessionError> {
     let client = ClientBuilder::native()
         .connect("http://localhost:4444")
