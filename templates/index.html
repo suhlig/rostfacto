@@ -13,8 +13,8 @@
         {% for retro in retros %}
             <div class="card">
                 <div class="card-content">
-                    <a href="/retro/{{ retro.id }}">{{ retro.title }}</a>
-                    <span class="date">{{ retro.created_at }}</span>
+                    <div><a href="/retro/{{ retro.id }}">{{ retro.title }}</a></div>
+                    <small class="text-muted">{{ retro.created_at }}</small>
                 </div>
                 <button class="delete-btn"
                         hx-delete="/retro/{{ retro.id }}/delete"
