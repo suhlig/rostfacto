@@ -29,6 +29,15 @@ use serde::Deserialize;
 use crate::models::{Retrospective, Item, Category, Status};
 
 #[derive(Template)]
+#[template(path = "new_retro.html")]
+struct NewRetroTemplate {}
+
+pub async fn new_retro() -> Html<String> {
+    let template = NewRetroTemplate {};
+    Html(template.render().unwrap())
+}
+
+#[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
     retros: Vec<Retrospective>,
