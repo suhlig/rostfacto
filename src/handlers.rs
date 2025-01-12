@@ -257,7 +257,7 @@ pub async fn show_retro(
         watch_items,
     };
 
-    Html(template.render().unwrap())
+    Html(template.render().unwrap()).into_response()
 }
 
 #[derive(Deserialize)]
