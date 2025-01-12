@@ -1,0 +1,15 @@
+name: rostfacto
+root: ~/workspace/rostfacto
+
+windows:
+  - editor:
+      layout: c84c,250x100,0,0[250x49,0,0,182,250x50,0,50{125x50,0,50,190,124x50,126,50[124x25,126,50,191,124x24,126,76,192]}]
+      panes:
+        - python:
+            - python
+        - shell:
+            - zsh
+        - driver:
+            - geckodriver
+        - watcher:
+            - cargo watch
