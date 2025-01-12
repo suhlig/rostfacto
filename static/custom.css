@@ -154,6 +154,15 @@ body > main {
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
+.card a {
+    color: #b7410e;
+    text-decoration: none;
+}
+
+.card a:hover {
+    color: #993609;
+}
+
 .good-column { border-top: 4px solid #51cf66; border-radius: 8px 8px 0 0; }
 .bad-column { border-top: 4px solid #ff6b6b; border-radius: 8px 8px 0 0; }
 .watch-column { border-top: 4px solid #4dabf7; border-radius: 8px 8px 0 0; }
