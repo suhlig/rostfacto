@@ -1,9 +1,11 @@
 :root {
     --block-spacing-vertical: 1rem;
+    --primary: #b7410e;
+    --primary-hover: #993609;
 }
 
 .site-header {
-    background-color: #b7410e;
+    background-color: var(--primary);
     padding: 1rem 0;
 }
 
@@ -43,7 +45,7 @@ body > main {
 .retro-title {
     text-align: center;
     margin: 0.5rem 0;
-    color: #b7410e;
+    color: var(--primary);
     font-size: 2.5rem;
     font-weight: bold;
     text-transform: uppercase;
@@ -99,15 +101,6 @@ body > main {
     box-shadow: 0 0 0 2px rgba(77, 171, 247, 0.2);
 }
 
-button {
-    background-color: #b7410e !important;
-    border-color: #b7410e !important;
-}
-
-button:hover {
-    background-color: #993609 !important;
-    border-color: #993609 !important;
-}
 
 .site-footer {
     background-color: #f8f9fa;
