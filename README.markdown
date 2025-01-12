@@ -4,11 +4,13 @@ This project aims to revive [Postfacto](https://github.com/vmware-archive/postfa
 
 # Run
 
+
 ```command
-brew services start postgresql@14
+brew install postgresql@17
+brew services start postgresql@17
 createdb retro_db
-cargo install sqlx-cli
 export DATABASE_URL=postgres://localhost/retro_db
+cargo install sqlx-cli
 sqlx migrate run
 cargo run
 ```
