@@ -174,8 +174,8 @@ body > main {
 }
 
 .delete-btn {
-    background-color: #ff6b6b;
-    border-color: #ff6b6b;
+    background-color: var(--primary);
+    border-color: var(--primary);
     color: white;
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
@@ -184,8 +184,8 @@ body > main {
 }
 
 .delete-btn:hover {
-    background-color: #fa5252;
-    border-color: #fa5252;
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
 }
 
 .card a {
