@@ -169,8 +169,15 @@ body > main {
     align-items: center;
 }
 
-.grid > .card {
+.retro-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.retro-stack > .card {
     margin: 0;
+    width: 100%;
 }
 
 .card-content {
