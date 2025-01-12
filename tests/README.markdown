@@ -2,9 +2,9 @@
 
 1. Basic Retro Management:
 
-- Create a new retrospective with a title
 - View the list of retrospectives
 - Open a specific retrospective
+- Create a new retrospective with a title
 
 2. Item Management:
 
