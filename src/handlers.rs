@@ -1,6 +1,7 @@
 use axum::{
     extract::{Path, State},
-    response::Html,
+    response::{Html, IntoResponse},
+    http::StatusCode,
     Form,
 };
 
@@ -168,6 +169,13 @@ pub async fn index(
 }
 
 #[derive(Template)]
+#[template(path = "error.html")]
+struct ErrorTemplate {
+    code: &'static str,
+    message: String,
+}
+
+#[derive(Template)]
 #[template(path = "retro.html")]
 struct RetroTemplate {
     retro: Retrospective,
@@ -179,15 +187,23 @@ struct RetroTemplate {
 pub async fn show_retro(
     State(pool): State<PgPool>,
     Path(retro_id): Path<i32>,
-) -> Html<String> {
-    let retro = sqlx::query_as!(
+) -> impl IntoResponse {
+    let retro = match sqlx::query_as!(
         Retrospective,
         "SELECT * FROM retrospectives WHERE id = $1",
         retro_id
     )
     .fetch_one(&pool)
-    .await
-    .unwrap();
+    .await {
+        Ok(retro) => retro,
+        Err(_) => {
+            let template = ErrorTemplate {
+                code: "404",
+                message: format!("Retrospective #{} not found", retro_id),
+            };
+            return (StatusCode::NOT_FOUND, Html(template.render().unwrap())).into_response();
+        }
+    };
 
     let good_items = sqlx::query_as!(
         Item,
