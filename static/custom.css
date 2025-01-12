@@ -5,7 +5,7 @@
 }
 
 .site-header {
-    background-color: var(--primary);
+    background-color: #b7410e;
     padding: 1rem 0;
 }
 
@@ -45,7 +45,7 @@ body > main {
 .retro-title {
     text-align: center;
     margin: 0.5rem 0;
-    color: var(--primary);
+    color: #b7410e;
     font-size: 2.5rem;
     font-weight: bold;
     text-transform: uppercase;
