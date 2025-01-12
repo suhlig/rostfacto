@@ -29,7 +29,7 @@ async fn test_create_retro() -> Result<(), NewSessionError> {
     client.goto("http://localhost:3000").await.unwrap();
 
     // Click the "New Retrospective" button
-    client.find(fantoccini::Locator::Css("a[href='/retro/new']"))
+    client.find(fantoccini::Locator::Css("a[href='/retros/new']"))
         .await
         .unwrap()
         .click()
