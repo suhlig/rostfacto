@@ -45,11 +45,11 @@ async fn test_create_retro() -> Result<(), NewSessionError> {
         .await
         .unwrap();
 
-    // Submit the form
-    client.find(fantoccini::Locator::Css("form"))
+    // Click the submit button
+    client.find(fantoccini::Locator::Css("input[type='submit']"))
         .await
         .unwrap()
-        .submit()
+        .click()
         .await
         .unwrap();
 
