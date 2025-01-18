@@ -7,8 +7,8 @@ This project aims to revive [Postfacto](https://github.com/vmware-archive/postfa
 ```command
 brew install postgresql@17
 brew services start postgresql@17
-createdb retro_db
-export DATABASE_URL=postgres://localhost/retro_db
+createdb rostfacto-dev
+export DATABASE_URL=postgres://localhost/rostfacto-dev
 cargo install sqlx-cli
 sqlx migrate run
 cargo run

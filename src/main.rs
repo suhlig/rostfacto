@@ -10,7 +10,7 @@ mod models;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let pool = PgPool::connect("postgres://localhost/retro_db")
+    let pool = PgPool::connect("postgres://localhost/rostfacto-dev") // TODO Read from env var
         .await
         .unwrap();
 
