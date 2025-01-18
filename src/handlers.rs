@@ -9,7 +9,7 @@ pub async fn delete_retro(
     State(pool): State<PgPool>,
     Path(retro_id): Path<i32>,
 ) -> impl IntoResponse {
-    // Delete the retro and all its items (due to ON DELETE CASCADE)
+    // Delete the retro (items will be deleted automatically due to ON DELETE CASCADE)
     sqlx::query!(
         "DELETE FROM retrospectives WHERE id = $1",
         retro_id
