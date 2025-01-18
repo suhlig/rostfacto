@@ -88,19 +88,55 @@ async fn test_create_retro() -> Result<(), NewSessionError> {
         // Navigate back to homepage
         client.goto("http://localhost:3000").await.unwrap();
 
-        // Verify the new retro appears in the list
-        let retro_links = client.find_all(fantoccini::Locator::Css(".card a"))
-            .await
-            .unwrap();
-
-        let mut found = false;
-        for link in retro_links {
-            if link.text().await.unwrap() == test_title {
-                found = true;
+        // Find the card containing our test retro
+        let cards = client.find_all(fantoccini::Locator::Css(".card")).await.unwrap();
+        let mut our_card = None;
+        for card in cards {
+            let links = card.find_all(fantoccini::Locator::Css("a")).await.unwrap();
+            for link in links {
+                if link.text().await.unwrap() == test_title {
+                    our_card = Some(card);
+                    break;
+                }
+            }
+            if our_card.is_some() {
                 break;
             }
         }
-        assert!(found, "Newly created retro not found in list");
+        
+        let our_card = our_card.expect("Newly created retro not found in list");
+        
+        // Extract the retro ID from the card's link href
+        let link = our_card.find(fantoccini::Locator::Css("a"))
+            .await
+            .unwrap();
+        let href = link.attr("href").await.unwrap().unwrap();
+        let retro_id = href.split('/').last().unwrap();
+
+        // Set up confirmation dialog handler before clicking delete
+        client.execute("window.confirm = () => true", vec![])
+            .await
+            .unwrap();
+
+        // Find and click the delete button within our card by its hx-delete attribute
+        our_card.find(fantoccini::Locator::Css(format!("button[hx-delete='/retro/{}/delete']", retro_id).as_str()))
+            .await
+            .unwrap()
+            .click()
+            .await
+            .unwrap();
+
+        // Wait a moment for the deletion to complete
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        // Verify the retro is deleted by checking it's no longer in the list
+        let cards = client.find_all(fantoccini::Locator::Css(".card")).await.unwrap();
+        for card in cards {
+            let links = card.find_all(fantoccini::Locator::Css("a")).await.unwrap();
+            for link in links {
+                assert_ne!(link.text().await.unwrap(), test_title, "Retro was not deleted!");
+            }
+        }
 
         // Always close the browser
         client.close().await.unwrap();
