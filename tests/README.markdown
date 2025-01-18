@@ -15,7 +15,7 @@
 3. Item Status Workflow:
 
 - Click an item to toggle its status
-- Verify status progression: Default -> Highlighted -> Completed
+- Verify status progression: Created -> Highlighted -> Completed
 - Verify only one item can be highlighted at a time
 - Verify completed items can't be toggled further
 

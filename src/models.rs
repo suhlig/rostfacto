@@ -30,7 +30,7 @@ pub enum Category {
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "status", rename_all = "UPPERCASE")]
 pub enum Status {
-    Default,
+    Created,
     Highlighted,
     Completed,
     Archived,
@@ -38,7 +38,7 @@ pub enum Status {
 
 impl Default for Status {
     fn default() -> Self {
-        Self::Default
+        Self::Created
     }
 }
 

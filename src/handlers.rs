@@ -82,19 +82,19 @@ pub async fn toggle_status(
         ),
         reset_highlighted AS (
             UPDATE items
-            SET status = 'DEFAULT'::status
+            SET status = 'CREATED'::status
             WHERE retro_id = (SELECT retro_id FROM item_info)
             AND status = 'HIGHLIGHTED'::status
             AND id != $1
             AND NOT EXISTS (
                 SELECT 1 FROM item_info
-                WHERE current_status = 'DEFAULT'::status
+                WHERE current_status = 'CREATED'::status
             )
         )
         UPDATE items
         SET status = CASE
             WHEN status = 'COMPLETED'::status THEN 'COMPLETED'::status
-            WHEN status = 'DEFAULT'::status AND NOT EXISTS (
+            WHEN status = 'CREATED'::status AND NOT EXISTS (
                 SELECT 1 FROM highlighted_check WHERE has_highlighted
             ) THEN 'HIGHLIGHTED'::status
             WHEN status = 'HIGHLIGHTED'::status THEN 'COMPLETED'::status
@@ -114,7 +114,7 @@ pub async fn toggle_status(
     let status_class = match item.status {
         Status::Highlighted => "highlighted",
         Status::Completed => "completed",
-        Status::Default => "",
+        Status::Created => "",
         Status::Archived => "archived", // Archived items will use the same style as completed
     };
 
@@ -304,7 +304,7 @@ pub async fn add_item(
     let item = sqlx::query_as!(
         Item,
         r#"INSERT INTO items (retro_id, text, category, status)
-           VALUES ($1, $2, $3, 'DEFAULT')
+           VALUES ($1, $2, $3, 'CREATED')
            RETURNING id as "id!", retro_id as "retro_id!", text as "text!",
                      category as "category: _", created_at as "created_at!", status as "status: _""#,
         retro_id,
