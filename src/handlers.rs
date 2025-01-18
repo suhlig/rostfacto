@@ -165,8 +165,8 @@ pub async fn toggle_status(
 pub async fn create_retro(
     State(pool): State<PgPool>,
     Form(form): Form<NewRetro>,
-) -> Html<String> {
-    let _retro = sqlx::query_as!(
+) -> impl IntoResponse {
+    let retro = sqlx::query_as!(
         Retrospective,
         "INSERT INTO retrospectives (title) VALUES ($1) RETURNING *",
         form.title
@@ -175,8 +175,8 @@ pub async fn create_retro(
     .await
     .unwrap();
 
-    // Redirect to the index page by re-using our index handler
-    index(State(pool)).await
+    // Redirect to the new retro's page
+    (StatusCode::SEE_OTHER, [("Location", format!("/retro/{}", retro.id))]).into_response()
 }
 
 pub async fn index(
@@ -304,7 +304,7 @@ pub async fn add_item(
     let item = sqlx::query_as!(
         Item,
         r#"INSERT INTO items (retro_id, text, category, status)
-           VALUES ($1, $2, $3, 'CREATED')
+           VALUES ($1, $2, $3, 'CREATED'::status)
            RETURNING id as "id!", retro_id as "retro_id!", text as "text!",
                      category as "category: _", created_at as "created_at!", status as "status: _""#,
         retro_id,

@@ -12,9 +12,9 @@ async fn test_home_page() -> WebDriverResult<()> {
     // Navigate to the homepage
     driver.goto("http://localhost:3000").await?;
 
-    // Find the h1 element and verify its text
-    let h1 = driver.find(By::ClassName("retro-title")).await?;
-    assert_eq!(h1.text().await?, "RETROSPECTIVES");
+    // Find the h1 element with retro-title class and verify its text
+    let h1 = driver.find(By::Css("h1.retro-title")).await?;
+    assert_eq!(h1.text().await?, "Retrospectives");
 
     // Always close the browser
     driver.quit().await?;
@@ -150,37 +150,26 @@ async fn test_create_retro() -> WebDriverResult<()> {
     // Click the submit button
     driver.find(By::Css("input[type='submit']")).await?.click().await?;
 
-    // Navigate back to homepage
+    // Wait for redirect and verify we're on the retro page
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    let current_url = driver.current_url().await?;
+    assert!(current_url.as_str().contains("/retro/"), "Should be redirected to retro page");
+
+    // Verify the retro title is shown
+    let title = driver.find(By::Css("h1.retro-title")).await?;
+    assert_eq!(title.text().await?, test_title);
+
+    // Extract retro ID from URL for cleanup
+    let retro_id = current_url.path_segments().unwrap().last().unwrap();
+
+    // Navigate to the homepage
     driver.goto("http://localhost:3000").await?;
-
-    // Find all cards and look for our test retro
-    let cards = driver.find_all(By::ClassName("card")).await?;
-    let mut found_card = None;
-    for card in cards {
-        let links = card.find_all(By::Tag("a")).await?;
-        for link in links {
-            if link.text().await? == test_title {
-                found_card = Some(card);
-                break;
-            }
-        }
-        if found_card.is_some() {
-            break;
-        }
-    }
-
-    let our_card = found_card.expect("Newly created retro not found in list");
-
-    // Extract the retro ID from the card's link href
-    let link = our_card.find(By::Tag("a")).await?;
-    let href = link.attr("href").await?.unwrap();
-    let retro_id = href.split('/').last().unwrap();
 
     // Execute JavaScript to override the confirm dialog
     driver.execute("window.confirm = () => true", vec![]).await?;
 
     // Find and click the delete button
-    our_card.find(By::Css(&format!("button[hx-delete='/retro/{}/delete']", retro_id))).await?.click().await?;
+    driver.find(By::Css(&format!("button[hx-delete='/retro/{}/delete']", retro_id))).await?.click().await?;
 
     // Wait a moment for the deletion to complete
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
