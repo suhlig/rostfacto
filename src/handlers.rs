@@ -25,7 +25,8 @@ pub async fn delete_retro(
 pub async fn archive_retro(
     State(pool): State<PgPool>,
     Path(retro_id): Path<i32>,
-) -> Html<String> {
+) -> impl IntoResponse {
+    // Archive all items
     sqlx::query!(
         r#"
         UPDATE items
@@ -38,7 +39,73 @@ pub async fn archive_retro(
     .await
     .unwrap();
 
-    Html("".to_string())
+    // Get the retro data
+    let retro = sqlx::query_as!(
+        Retrospective,
+        "SELECT * FROM retrospectives WHERE id = $1",
+        retro_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    // Return just the inner content HTML - note the r###" syntax for more #s
+    Html(format!(
+        r###"<div class="container-fluid">
+            <h1 class="retro-title">{}</h1>
+            <div class="retro-grid">
+                <div class="retro-column good-column">
+                    <h2 style="text-align: center;">Good</h2>
+                    <form hx-post="/items/Good/{}"
+                          hx-target="#good-items"
+                          hx-swap="beforeend"
+                          hx-trigger="submit"
+                          hx-on::after-request="this.reset()">
+                        <input type="text" 
+                               name="text" 
+                               required 
+                               placeholder="Add a good item..."
+                               style="width: 100%;">
+                    </form>
+                    <div id="good-items"></div>
+                </div>
+                <div class="retro-column watch-column">
+                    <h2 style="text-align: center;">Watch</h2>
+                    <form hx-post="/items/Watch/{}"
+                          hx-target="#watch-items"
+                          hx-swap="beforeend"
+                          hx-trigger="submit"
+                          hx-on::after-request="this.reset()">
+                        <input type="text" 
+                               name="text" 
+                               required 
+                               placeholder="Add a watch item..."
+                               style="width: 100%;">
+                    </form>
+                    <div id="watch-items"></div>
+                </div>
+                <div class="retro-column bad-column">
+                    <h2 style="text-align: center;">Bad</h2>
+                    <form hx-post="/items/Bad/{}"
+                          hx-target="#bad-items"
+                          hx-swap="beforeend"
+                          hx-trigger="submit"
+                          hx-on::after-request="this.reset()">
+                        <input type="text" 
+                               name="text" 
+                               required 
+                               placeholder="Add a bad item..."
+                               style="width: 100%;">
+                    </form>
+                    <div id="bad-items"></div>
+                </div>
+            </div>
+        </div>"###,
+        htmlescape::encode_minimal(&retro.title),
+        retro.id,
+        retro.id,
+        retro.id
+    ))
 }
 use askama::Template;
 use sqlx::PgPool;
@@ -137,16 +204,26 @@ pub async fn toggle_status(
     let template = if all_completed.unwrap_or(false) {
         format!(
             r##"<div class="card {status_class}">
-                {text}
-                <div class="archive-prompt" style="margin-top: 10px;">
-                    <button class="archive-btn"
-                            hx-post="/retro/{retro_id}/archive"
-                            hx-target="#good-items, #bad-items, #watch-items"
-                            hx-swap="innerHTML">
-                        Archive All Cards
-                    </button>
-                </div>
-               </div>"##,
+            {text}
+            <dialog id="archive-modal-{retro_id}" open>
+                <article>
+                    <h3>Archive All Cards?</h3>
+                    <footer>
+                        <button class="secondary" 
+                                onclick="this.closest('dialog').close()">
+                            No
+                        </button>
+                        <button class="primary"
+                                hx-post="/retro/{retro_id}/archive"
+                                hx-target=".container-fluid"
+                                hx-swap="innerHTML">
+                            Yes
+                        </button>
+                    </footer>
+                </article>
+            </dialog>
+            {text}
+           </div>"##,
             status_class = status_class,
             text = htmlescape::encode_minimal(&item.text),
             retro_id = item.retro_id
