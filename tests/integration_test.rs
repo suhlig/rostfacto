@@ -1,4 +1,4 @@
-use thirtyfour::prelude::*;
+use thirtyfour::{prelude::*, common::capabilities::firefox::FirefoxPreferences};
 use portpicker::pick_unused_port;
 use std::process::{Command, Child};
 use rand::Rng;
@@ -21,6 +21,8 @@ fn start_geckodriver() -> GeckoDriver {
     let process = Command::new("geckodriver")
         .arg("--port")
         .arg(port.to_string())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .spawn()
         .expect("Failed to start geckodriver");
 
@@ -36,6 +38,12 @@ async fn test_home_page() -> WebDriverResult<()> {
 
     let mut caps = DesiredCapabilities::firefox();
     caps.set_headless()?;
+    caps.add_firefox_arg("--log-level=3")?; // Only show fatal errors
+    
+    // Create Firefox preferences and set them
+    let mut prefs = FirefoxPreferences::new();
+    let _ = prefs.set("webdriver.log.level", "error");
+    caps.set_preferences(prefs)?;
 
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
@@ -58,6 +66,11 @@ async fn test_create_cards() -> WebDriverResult<()> {
 
     let mut caps = DesiredCapabilities::firefox();
     caps.set_headless()?;
+    
+    // Create Firefox preferences and set them
+    let mut prefs = FirefoxPreferences::new();
+    let _ = prefs.set("webdriver.log.level", "error");
+    caps.set_preferences(prefs)?;
 
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
@@ -165,6 +178,11 @@ async fn test_create_retro() -> WebDriverResult<()> {
 
     let mut caps = DesiredCapabilities::firefox();
     caps.set_headless()?;
+    
+    // Create Firefox preferences and set them
+    let mut prefs = FirefoxPreferences::new();
+    let _ = prefs.set("webdriver.log.level", "error");
+    caps.set_preferences(prefs)?;
 
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
@@ -227,6 +245,11 @@ async fn test_nonexistent_retro() -> WebDriverResult<()> {
 
     let mut caps = DesiredCapabilities::firefox();
     caps.set_headless()?;
+    
+    // Create Firefox preferences and set them
+    let mut prefs = FirefoxPreferences::new();
+    let _ = prefs.set("webdriver.log.level", "error");
+    caps.set_preferences(prefs)?;
 
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
