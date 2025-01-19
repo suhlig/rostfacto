@@ -1,13 +1,43 @@
 use thirtyfour::prelude::*;
-use serial_test::serial;
+use portpicker::pick_unused_port;
+use std::process::{Command, Child};
+use rand::Rng;
+
+struct GeckoDriver {
+    process: Child,
+    port: u16,
+}
+
+impl Drop for GeckoDriver {
+    fn drop(&mut self) {
+        let _ = self.process.kill();
+        let _ = self.process.wait();
+    }
+}
+
+fn start_geckodriver() -> GeckoDriver {
+    let port = pick_unused_port().expect("No ports available");
+
+    let process = Command::new("geckodriver")
+        .arg("--port")
+        .arg(port.to_string())
+        .spawn()
+        .expect("Failed to start geckodriver");
+
+    // Give geckodriver a moment to start
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    GeckoDriver { process, port }
+}
 
 #[tokio::test]
-#[serial]
 async fn test_home_page() -> WebDriverResult<()> {
+    let gecko = start_geckodriver();
+
     let mut caps = DesiredCapabilities::firefox();
     caps.set_headless()?;
 
-    let driver = WebDriver::new("http://localhost:4444", caps).await?;
+    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Navigate to the homepage
     driver.goto("http://localhost:3000").await?;
@@ -23,12 +53,13 @@ async fn test_home_page() -> WebDriverResult<()> {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_create_cards() -> WebDriverResult<()> {
+    let gecko = start_geckodriver();
+
     let mut caps = DesiredCapabilities::firefox();
     caps.set_headless()?;
 
-    let driver = WebDriver::new("http://localhost:4444", caps).await?;
+    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Navigate to the homepage
     driver.goto("http://localhost:3000").await?;
@@ -37,7 +68,7 @@ async fn test_create_cards() -> WebDriverResult<()> {
     driver.find(By::Css("a[href='/retros/new']")).await?.click().await?;
 
     // Fill in the title
-    let test_title = format!("Test Retro {}", chrono::Utc::now().timestamp());
+    let test_title = format!("Test Retro {}", rand::thread_rng().gen::<u32>());
     let title_input = driver.find(By::Css("input[name='title']")).await?;
     title_input.send_keys(&test_title).await?;
 
@@ -129,12 +160,13 @@ async fn test_create_cards() -> WebDriverResult<()> {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_create_retro() -> WebDriverResult<()> {
+    let gecko = start_geckodriver();
+
     let mut caps = DesiredCapabilities::firefox();
     caps.set_headless()?;
 
-    let driver = WebDriver::new("http://localhost:4444", caps).await?;
+    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Navigate to the homepage
     driver.goto("http://localhost:3000").await?;
@@ -143,7 +175,7 @@ async fn test_create_retro() -> WebDriverResult<()> {
     driver.find(By::Css("a[href='/retros/new']")).await?.click().await?;
 
     // Fill in the title
-    let test_title = format!("Test Retro {}", chrono::Utc::now().timestamp());
+    let test_title = format!("Test Retro {}", rand::thread_rng().gen::<u32>());
     let title_input = driver.find(By::Css("input[name='title']")).await?;
     title_input.send_keys(&test_title).await?;
 
@@ -190,12 +222,13 @@ async fn test_create_retro() -> WebDriverResult<()> {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_nonexistent_retro() -> WebDriverResult<()> {
+    let gecko = start_geckodriver();
+
     let mut caps = DesiredCapabilities::firefox();
     caps.set_headless()?;
 
-    let driver = WebDriver::new("http://localhost:4444", caps).await?;
+    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Navigate to a non-existent retro
     driver.goto("http://localhost:3000/retro/99999").await?;
