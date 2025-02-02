@@ -1,4 +1,8 @@
 use thirtyfour::{prelude::*, common::capabilities::firefox::FirefoxPreferences};
+
+fn should_show_browser() -> bool {
+    std::env::var("SHOW_BROWSER").is_ok()
+}
 use portpicker::pick_unused_port;
 use std::process::{Command, Child};
 use rand::Rng;
@@ -37,7 +41,9 @@ async fn test_home_page() -> WebDriverResult<()> {
     let gecko = start_geckodriver();
 
     let mut caps = DesiredCapabilities::firefox();
-    caps.set_headless()?;
+    if !should_show_browser() {
+        caps.set_headless()?;
+    }
     caps.add_firefox_arg("--log-level=3")?; // Only show fatal errors
 
     // Create Firefox preferences and set them
@@ -65,7 +71,9 @@ async fn test_create_cards() -> WebDriverResult<()> {
     let gecko = start_geckodriver();
 
     let mut caps = DesiredCapabilities::firefox();
-    caps.set_headless()?;
+    if !should_show_browser() {
+        caps.set_headless()?;
+    }
 
     // Create Firefox preferences and set them
     let mut prefs = FirefoxPreferences::new();
@@ -177,7 +185,9 @@ async fn test_create_retro() -> WebDriverResult<()> {
     let gecko = start_geckodriver();
 
     let mut caps = DesiredCapabilities::firefox();
-    caps.set_headless()?;
+    if !should_show_browser() {
+        caps.set_headless()?;
+    }
 
     // Create Firefox preferences and set them
     let mut prefs = FirefoxPreferences::new();
@@ -244,7 +254,9 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
     let gecko = start_geckodriver();
 
     let mut caps = DesiredCapabilities::firefox();
-    caps.set_headless()?;
+    if !should_show_browser() {
+        caps.set_headless()?;
+    }
 
     // Create Firefox preferences and set them
     let mut prefs = FirefoxPreferences::new();
@@ -309,24 +321,24 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
     // Re-fetch cards again after second click attempt
     let final_good_card = driver.find(By::Css("#good-items .card")).await?;
     let final_bad_card = driver.find(By::Css("#bad-items .card")).await?;
-    
+
     // Verify good card is still highlighted and bad card is still in default state
     let final_good_class = final_good_card.attr("class").await?.unwrap();
     let final_bad_class = final_bad_card.attr("class").await?.unwrap();
     assert_eq!(final_good_class.trim(), "card highlighted", "Good card should remain highlighted");
     assert_eq!(final_bad_class.trim(), "card", "Bad card should still be in default state after attempted click");
-        
+
     // Click the highlighted card and verify it transitions into Completed
     let final_good_card = driver.find(By::Css("#good-items .card")).await?;
     final_good_card.click().await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        
+
     // Verify the card has transitioned to Completed
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     let completed_card = driver.find(By::Css("#good-items .card")).await?;
     let completed_class = completed_card.attr("class").await?.unwrap();
     assert_eq!(completed_class.trim(), "card completed", "Good card should transition to Completed");
-        
+
     // Ensure it's now possible to click another card
     let other_card = driver.find(By::Css(".card:not(.completed)")).await?;
     other_card.click().await?;
@@ -356,7 +368,9 @@ async fn test_nonexistent_retro() -> WebDriverResult<()> {
     let gecko = start_geckodriver();
 
     let mut caps = DesiredCapabilities::firefox();
-    caps.set_headless()?;
+    if !should_show_browser() {
+        caps.set_headless()?;
+    }
 
     // Create Firefox preferences and set them
     let mut prefs = FirefoxPreferences::new();
