@@ -67,6 +67,82 @@ async fn test_home_page() -> WebDriverResult<()> {
 }
 
 #[tokio::test]
+async fn test_archive_retro() -> WebDriverResult<()> {
+    let gecko = start_geckodriver();
+
+    let mut caps = DesiredCapabilities::firefox();
+    if !should_show_browser() {
+        caps.set_headless()?;
+    }
+
+    // Create Firefox preferences and set them
+    let mut prefs = FirefoxPreferences::new();
+    let _ = prefs.set("webdriver.log.level", "error");
+    caps.set_preferences(prefs)?;
+
+    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
+
+    // Create a new retro
+    driver.goto("http://localhost:3000").await?;
+    driver.find(By::Css("a[href='/retros/new']")).await?.click().await?;
+
+    let test_title = format!("Archive Test Retro {}", rand::thread_rng().gen::<u32>());
+    let title_input = driver.find(By::Css("input[name='title']")).await?;
+    title_input.send_keys(&test_title).await?;
+    driver.find(By::Css("input[type='submit']")).await?.click().await?;
+
+    // Add a single card to Good column
+    let good_form = driver.find(By::Css("form[hx-target='#good-items']")).await?;
+    let good_input = good_form.find(By::Tag("input")).await?;
+    good_input.send_keys("Card to archive").await?;
+    good_input.send_keys("\u{E007}").await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Click the card to highlight it
+    let card = driver.find(By::Css("#good-items .card")).await?;
+    card.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Click again to complete it
+    let highlighted_card = driver.find(By::Css("#good-items .card.highlighted")).await?;
+    highlighted_card.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Verify the archive dialog appears
+    let archive_dialog = driver.find(By::Id("archive-modal")).await?;
+    assert!(archive_dialog.is_displayed().await?, "Archive dialog should be visible");
+
+    // Click "Yes" on the archive dialog
+    driver.execute("window.confirm = () => true", vec![]).await?;
+    let archive_button = archive_dialog.find(By::Css("#archive-modal .primary")).await?;
+    archive_button.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    // Verify all cards are gone
+    let remaining_cards = driver.find_all(By::ClassName("card")).await?;
+    assert_eq!(remaining_cards.len(), 0, "All cards should be archived");
+
+    // Clean up - delete the retro
+    driver.goto("http://localhost:3000").await?;
+    let cards = driver.find_all(By::ClassName("card")).await?;
+    for card in cards {
+        let links = card.find_all(By::Tag("a")).await?;
+        for link in links {
+            if link.text().await? == test_title {
+                driver.execute("window.confirm = () => true", vec![]).await?;
+                let delete_button = card.find(By::Tag("button")).await?;
+                delete_button.click().await?;
+                break;
+            }
+        }
+    }
+
+    driver.quit().await?;
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_create_cards() -> WebDriverResult<()> {
     let gecko = start_geckodriver();
 

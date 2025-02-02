@@ -61,9 +61,9 @@ pub async fn archive_retro(
                           hx-swap="beforeend"
                           hx-trigger="submit"
                           hx-on::after-request="this.reset()">
-                        <input type="text" 
-                               name="text" 
-                               required 
+                        <input type="text"
+                               name="text"
+                               required
                                placeholder="Add a good item..."
                                style="width: 100%;">
                     </form>
@@ -76,9 +76,9 @@ pub async fn archive_retro(
                           hx-swap="beforeend"
                           hx-trigger="submit"
                           hx-on::after-request="this.reset()">
-                        <input type="text" 
-                               name="text" 
-                               required 
+                        <input type="text"
+                               name="text"
+                               required
                                placeholder="Add a watch item..."
                                style="width: 100%;">
                     </form>
@@ -91,9 +91,9 @@ pub async fn archive_retro(
                           hx-swap="beforeend"
                           hx-trigger="submit"
                           hx-on::after-request="this.reset()">
-                        <input type="text" 
-                               name="text" 
-                               required 
+                        <input type="text"
+                               name="text"
+                               required
                                placeholder="Add a bad item..."
                                style="width: 100%;">
                     </form>
@@ -205,11 +205,11 @@ pub async fn toggle_status(
         format!(
             r##"<div class="card {status_class}">
             {text}
-            <dialog id="archive-modal-{retro_id}" open>
+            <dialog id="archive-modal" open>
                 <article>
                     <h3>Archive All Cards?</h3>
                     <footer>
-                        <button class="secondary" 
+                        <button class="secondary"
                                 onclick="this.closest('dialog').close()">
                             No
                         </button>
