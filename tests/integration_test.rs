@@ -39,7 +39,7 @@ async fn test_home_page() -> WebDriverResult<()> {
     let mut caps = DesiredCapabilities::firefox();
     caps.set_headless()?;
     caps.add_firefox_arg("--log-level=3")?; // Only show fatal errors
-    
+
     // Create Firefox preferences and set them
     let mut prefs = FirefoxPreferences::new();
     let _ = prefs.set("webdriver.log.level", "error");
@@ -66,7 +66,7 @@ async fn test_create_cards() -> WebDriverResult<()> {
 
     let mut caps = DesiredCapabilities::firefox();
     caps.set_headless()?;
-    
+
     // Create Firefox preferences and set them
     let mut prefs = FirefoxPreferences::new();
     let _ = prefs.set("webdriver.log.level", "error");
@@ -178,7 +178,7 @@ async fn test_create_retro() -> WebDriverResult<()> {
 
     let mut caps = DesiredCapabilities::firefox();
     caps.set_headless()?;
-    
+
     // Create Firefox preferences and set them
     let mut prefs = FirefoxPreferences::new();
     let _ = prefs.set("webdriver.log.level", "error");
@@ -240,12 +240,124 @@ async fn test_create_retro() -> WebDriverResult<()> {
 }
 
 #[tokio::test]
+async fn test_card_state_transitions() -> WebDriverResult<()> {
+    let gecko = start_geckodriver();
+
+    let mut caps = DesiredCapabilities::firefox();
+    caps.set_headless()?;
+
+    // Create Firefox preferences and set them
+    let mut prefs = FirefoxPreferences::new();
+    let _ = prefs.set("webdriver.log.level", "error");
+    caps.set_preferences(prefs)?;
+
+    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
+
+    // Create a new retro
+    driver.goto("http://localhost:3000").await?;
+    driver.find(By::Css("a[href='/retros/new']")).await?.click().await?;
+
+    let test_title = format!("State Test Retro {}", rand::thread_rng().gen::<u32>());
+    let title_input = driver.find(By::Css("input[name='title']")).await?;
+    title_input.send_keys(&test_title).await?;
+    driver.find(By::Css("input[type='submit']")).await?.click().await?;
+
+    // Add first card to Good column
+    let good_form = driver.find(By::Css("form[hx-target='#good-items']")).await?;
+    let good_input = good_form.find(By::Tag("input")).await?;
+    good_input.send_keys("First card").await?;
+    good_input.send_keys("\u{E007}").await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Add second card to Bad column
+    let bad_form = driver.find(By::Css("form[hx-target='#bad-items']")).await?;
+    let bad_input = bad_form.find(By::Tag("input")).await?;
+    bad_input.send_keys("Second card").await?;
+    bad_input.send_keys("\u{E007}").await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Verify initial state of both cards
+    let good_card = driver.find(By::Css("#good-items .card")).await?;
+    let bad_card = driver.find(By::Css("#bad-items .card")).await?;
+
+    let good_class = good_card.attr("class").await?.unwrap();
+    let bad_class = bad_card.attr("class").await?.unwrap();
+    assert_eq!(good_class.trim(), "card", "Good card should start in default state");
+    assert_eq!(bad_class.trim(), "card", "Bad card should start in default state");
+
+    // Click the first card (in Good column) and verify states
+    good_card.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Re-fetch cards after the click
+    let updated_good_card = driver.find(By::Css("#good-items .card")).await?;
+    let updated_bad_card = driver.find(By::Css("#bad-items .card")).await?;
+
+    // Verify first card is now highlighted
+    let good_card_class = updated_good_card.attr("class").await?.unwrap();
+    assert_eq!(good_card_class.trim(), "card highlighted", "Good card should be highlighted after click");
+
+    // Verify bad card is still in default state
+    let bad_card_class = updated_bad_card.attr("class").await?.unwrap();
+    assert_eq!(bad_card_class.trim(), "card", "Bad card should remain in default state");
+
+    // Try to click the second card (in Bad column) and verify states
+    let fresh_bad_card = driver.find(By::Css("#bad-items .card")).await?;
+    fresh_bad_card.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Re-fetch cards again after second click attempt
+    let final_good_card = driver.find(By::Css("#good-items .card")).await?;
+    let final_bad_card = driver.find(By::Css("#bad-items .card")).await?;
+    
+    // Verify good card is still highlighted and bad card is still in default state
+    let final_good_class = final_good_card.attr("class").await?.unwrap();
+    let final_bad_class = final_bad_card.attr("class").await?.unwrap();
+    assert_eq!(final_good_class.trim(), "card highlighted", "Good card should remain highlighted");
+    assert_eq!(final_bad_class.trim(), "card", "Bad card should still be in default state after attempted click");
+        
+    // Click the highlighted card and verify it transitions into Completed
+    let final_good_card = driver.find(By::Css("#good-items .card")).await?;
+    final_good_card.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        
+    // Verify the card has transitioned to Completed
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    let completed_card = driver.find(By::Css("#good-items .card")).await?;
+    let completed_class = completed_card.attr("class").await?.unwrap();
+    assert_eq!(completed_class.trim(), "card completed", "Good card should transition to Completed");
+        
+    // Ensure it's now possible to click another card
+    let other_card = driver.find(By::Css(".card:not(.completed)")).await?;
+    other_card.click().await?;
+
+    // Clean up - delete the retro
+    driver.goto("http://localhost:3000").await?;
+    let cards = driver.find_all(By::ClassName("card")).await?;
+    for card in cards {
+        let links = card.find_all(By::Tag("a")).await?;
+        for link in links {
+            if link.text().await? == test_title {
+                driver.execute("window.confirm = () => true", vec![]).await?;
+                let delete_button = card.find(By::Tag("button")).await?;
+                delete_button.click().await?;
+                break;
+            }
+        }
+    }
+
+    driver.quit().await?;
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_nonexistent_retro() -> WebDriverResult<()> {
     let gecko = start_geckodriver();
 
     let mut caps = DesiredCapabilities::firefox();
     caps.set_headless()?;
-    
+
     // Create Firefox preferences and set them
     let mut prefs = FirefoxPreferences::new();
     let _ = prefs.set("webdriver.log.level", "error");
