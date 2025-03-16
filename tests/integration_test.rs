@@ -99,13 +99,11 @@ async fn test_archive_retro() -> WebDriverResult<()> {
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
     // Click the card to highlight it
-    let card = driver.find(By::Css("#good-items .card")).await?;
-    card.click().await?;
+    driver.find(By::Css("#good-items .card")).await?.click().await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-    // Click again to complete it
-    let highlighted_card = driver.find(By::Css("#good-items .card.highlighted")).await?;
-    highlighted_card.click().await?;
+    // Click again to complete it - get a fresh reference to avoid stale element
+    driver.find(By::Css("#good-items .card.highlighted")).await?.click().await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
     // Verify the archive dialog appears
@@ -114,9 +112,10 @@ async fn test_archive_retro() -> WebDriverResult<()> {
 
     // Click "Yes" on the archive dialog
     driver.execute("window.confirm = () => true", vec![]).await?;
-    let archive_button = archive_dialog.find(By::Css("#archive-modal .primary")).await?;
-    archive_button.click().await?;
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    driver.find(By::Css("#archive-modal .primary")).await?.click().await?;
+
+    // Wait for the archive operation to complete and UI to update
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
     // Verify all cards are gone
     let remaining_cards = driver.find_all(By::ClassName("card")).await?;
@@ -377,7 +376,7 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
     good_card.click().await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-    // Re-fetch cards after the click
+    // Re-fetch cards after the click to avoid stale element references
     let updated_good_card = driver.find(By::Css("#good-items .card")).await?;
     let updated_bad_card = driver.find(By::Css("#bad-items .card")).await?;
 
@@ -405,13 +404,11 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
     assert_eq!(final_bad_class.trim(), "card", "Bad card should still be in default state after attempted click");
 
     // Click the highlighted card and verify it transitions into Completed
-    let final_good_card = driver.find(By::Css("#good-items .card")).await?;
-    final_good_card.click().await?;
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    driver.find(By::Css("#good-items .card.highlighted")).await?.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
     // Verify the card has transitioned to Completed
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    let completed_card = driver.find(By::Css("#good-items .card")).await?;
+    let completed_card = driver.find(By::Css("#good-items .card.completed")).await?;
     let completed_class = completed_card.attr("class").await?.unwrap();
     assert_eq!(completed_class.trim(), "card completed", "Good card should transition to Completed");
 
@@ -466,5 +463,73 @@ async fn test_nonexistent_retro() -> WebDriverResult<()> {
     // Always close the browser
     driver.quit().await?;
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_archived_card_display() -> WebDriverResult<()> {
+    let gecko = start_geckodriver();
+    let mut caps = DesiredCapabilities::firefox();
+    if !should_show_browser() {
+        caps.set_headless()?;
+    }
+
+    let mut prefs = FirefoxPreferences::new();
+    prefs.set("webdriver.log.level", "error")?;
+    caps.set_preferences(prefs)?;
+
+    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
+
+    // Create test retro
+    driver.goto("http://localhost:3000").await?;
+    driver.find(By::Css("a[href='/retros/new']")).await?.click().await?;
+
+    let test_title = format!("Archive Display Test {}", rand::thread_rng().gen::<u32>());
+    driver.find(By::Css("input[name='title']")).await?.send_keys(&test_title).await?;
+    driver.find(By::Css("input[type='submit']")).await?.click().await?;
+
+    // Add and archive test card
+    let card_text = "Ephemeral test card";
+    let form = driver.find(By::Css("form[hx-target='#good-items']")).await?;
+    let input = form.find(By::Tag("input")).await?;
+    input.send_keys(card_text).await?;
+    input.send_keys("\u{E007}").await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Highlight the card
+    driver.find(By::Css(".card")).await?.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Complete the card - get fresh reference to avoid stale element
+    driver.find(By::Css(".card.highlighted")).await?.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+    driver.execute("window.confirm = () => true", vec![]).await?;
+    driver.find(By::Css("#archive-modal .secondary")).await?.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    // Verify card display
+    let cards = driver.find_all(By::Css(".card")).await?;
+    assert_eq!(cards.len(), 1, "Should only show one card instance");
+
+    let completed_card = driver.find(By::Css(".card.completed")).await?;
+    assert_eq!(
+        completed_card.text().await?.trim(),
+        card_text,
+        "Card should display original text with completed styling"
+    );
+
+    // Verify no duplicate text appears on the page
+    let page_text = driver.find(By::Tag("body")).await?.text().await?;
+    let card_text_count = page_text.matches(card_text).count();
+    assert_eq!(card_text_count, 1, "Card text should appear exactly once on the page");
+
+    // Cleanup
+    driver.goto("http://localhost:3000").await?;
+    let retro_card = driver.find(By::XPath(&format!("//a[contains(text(), '{}')]/ancestor::div[contains(@class, 'card')]", test_title))).await?;
+    driver.execute("window.confirm = () => true", vec![]).await?;
+    retro_card.find(By::Tag("button")).await?.click().await?;
+
+    driver.quit().await?;
     Ok(())
 }

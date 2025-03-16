@@ -222,7 +222,6 @@ pub async fn toggle_status(
                     </footer>
                 </article>
             </dialog>
-            {text}
            </div>"##,
             status_class = status_class,
             text = htmlescape::encode_minimal(&item.text),
