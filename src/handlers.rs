@@ -241,7 +241,7 @@ pub async fn toggle_status(
                         <button class="btn-revert"
                                 hx-post="/items/{id}/toggle-status"
                                 hx-swap="outerHTML">
-                            Revert
+                            Cancel
                         </button>
                     </div>
                 </div>"##,
