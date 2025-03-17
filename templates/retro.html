@@ -35,7 +35,7 @@
                             Complete
                         </button>
                         <button class="secondary"
-                                hx-post="/items/{{ item.id }}/toggle-status"
+                                hx-post="/items/{{ item.id }}/toggle-status?status=Created"
                                 hx-swap="outerHTML">
                             Cancel
                         </button>
