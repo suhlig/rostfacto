@@ -67,6 +67,20 @@
                      hx-swap="outerHTML"
                      {% endif %}>
                     {{ item.text }}
+                    {% if item.status == Status::Highlighted %}
+                    <div class="card-actions">
+                        <button class="btn-complete"
+                                hx-post="/items/{{ item.id }}/toggle-status"
+                                hx-swap="outerHTML">
+                            Complete
+                        </button>
+                        <button class="btn-revert"
+                                hx-post="/items/{{ item.id }}/toggle-status?status=Created"
+                                hx-swap="outerHTML">
+                            Cancel
+                        </button>
+                    </div>
+                    {% endif %}
                 </div>
             {% endfor %}
         </div>
@@ -94,6 +108,20 @@
                      hx-swap="outerHTML"
                      {% endif %}>
                     {{ item.text }}
+                    {% if item.status == Status::Highlighted %}
+                    <div class="card-actions">
+                        <button class="btn-complete"
+                                hx-post="/items/{{ item.id }}/toggle-status"
+                                hx-swap="outerHTML">
+                            Complete
+                        </button>
+                        <button class="btn-revert"
+                                hx-post="/items/{{ item.id }}/toggle-status?status=Created"
+                                hx-swap="outerHTML">
+                            Cancel
+                        </button>
+                    </div>
+                    {% endif %}
                 </div>
             {% endfor %}
         </div>
