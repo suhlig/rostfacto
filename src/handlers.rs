@@ -228,12 +228,34 @@ pub async fn toggle_status(
             retro_id = item.retro_id
         )
     } else {
-        format!(
-            r##"<div class="card {status_class}" hx-post="/items/{id}/toggle-status" hx-swap="outerHTML">{text}</div>"##,
-            status_class = status_class,
-            id = item.id,
-            text = htmlescape::encode_minimal(&item.text)
-        )
+        match item.status {
+            Status::Highlighted => format!(
+                r##"<div class="card {status_class}" hx-post="/items/{id}/toggle-status" hx-swap="outerHTML">
+                    {text}
+                    <div class="card-actions">
+                        <button class="btn-complete"
+                                hx-post="/items/{id}/toggle-status"
+                                hx-swap="outerHTML">
+                            Complete
+                        </button>
+                        <button class="btn-revert"
+                                hx-post="/items/{id}/toggle-status"
+                                hx-swap="outerHTML">
+                            Revert
+                        </button>
+                    </div>
+                </div>"##,
+                status_class = status_class,
+                id = item.id,
+                text = htmlescape::encode_minimal(&item.text)
+            ),
+            _ => format!(
+                r##"<div class="card {status_class}" hx-post="/items/{id}/toggle-status" hx-swap="outerHTML">{text}</div>"##,
+                status_class = status_class,
+                id = item.id,
+                text = htmlescape::encode_minimal(&item.text)
+            )
+        }
     };
     Html(template)
 }
