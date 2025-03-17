@@ -230,15 +230,15 @@ pub async fn toggle_status(
     } else {
         match item.status {
             Status::Highlighted => format!(
-                r##"<div class="card {status_class}" hx-post="/items/{id}/toggle-status" hx-swap="outerHTML" style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem;">
+                r##"<div class="card {status_class}" hx-post="/items/{id}/toggle-status" hx-swap="outerHTML" style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);">
                     <div class="card-text">{text}</div>
-                    <div class="card-actions" style="margin-top: auto;">
-                        <button class="btn-complete"
+                    <div class="card-actions" style="margin-top: auto; display: flex; gap: 0.5rem;">
+                        <button class="primary"
                                 hx-post="/items/{id}/toggle-status"
                                 hx-swap="outerHTML">
                             Complete
                         </button>
-                        <button class="btn-revert"
+                        <button class="secondary"
                                 hx-post="/items/{id}/toggle-status"
                                 hx-swap="outerHTML">
                             Cancel
