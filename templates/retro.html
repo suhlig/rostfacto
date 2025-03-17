@@ -24,10 +24,11 @@
                      {% if item.status != Status::Completed %}
                      hx-post="/items/{{ item.id }}/toggle-status"
                      hx-swap="outerHTML"
-                     {% endif %}>
-                    {{ item.text }}
+                     {% endif %}
+                     {% if item.status == Status::Highlighted %}style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem;"{% endif %}>
+                    <div class="card-text">{{ item.text }}</div>
                     {% if item.status == Status::Highlighted %}
-                    <div class="card-actions">
+                    <div class="card-actions" style="margin-top: auto;">
                         <button class="btn-complete"
                                 hx-post="/items/{{ item.id }}/toggle-status"
                                 hx-swap="outerHTML">
@@ -65,10 +66,11 @@
                      {% if item.status != Status::Completed %}
                      hx-post="/items/{{ item.id }}/toggle-status"
                      hx-swap="outerHTML"
-                     {% endif %}>
-                    {{ item.text }}
+                     {% endif %}
+                     {% if item.status == Status::Highlighted %}style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem;"{% endif %}>
+                    <div class="card-text">{{ item.text }}</div>
                     {% if item.status == Status::Highlighted %}
-                    <div class="card-actions">
+                    <div class="card-actions" style="margin-top: auto;">
                         <button class="btn-complete"
                                 hx-post="/items/{{ item.id }}/toggle-status"
                                 hx-swap="outerHTML">
@@ -106,10 +108,11 @@
                      {% if item.status != Status::Completed %}
                      hx-post="/items/{{ item.id }}/toggle-status"
                      hx-swap="outerHTML"
-                     {% endif %}>
-                    {{ item.text }}
+                     {% endif %}
+                     {% if item.status == Status::Highlighted %}style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem;"{% endif %}>
+                    <div class="card-text">{{ item.text }}</div>
                     {% if item.status == Status::Highlighted %}
-                    <div class="card-actions">
+                    <div class="card-actions" style="margin-top: auto;">
                         <button class="btn-complete"
                                 hx-post="/items/{{ item.id }}/toggle-status"
                                 hx-swap="outerHTML">
