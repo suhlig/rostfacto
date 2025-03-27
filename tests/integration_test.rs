@@ -533,3 +533,59 @@ async fn test_archived_card_display() -> WebDriverResult<()> {
     driver.quit().await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
+    let gecko = start_geckodriver();
+    let mut caps = DesiredCapabilities::firefox();
+    if !should_show_browser() {
+        caps.set_headless()?;
+    }
+
+    let mut prefs = FirefoxPreferences::new();
+    prefs.set("webdriver.log.level", "error")?;
+    caps.set_preferences(prefs)?;
+
+    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
+
+    // Create test retro
+    driver.goto("http://localhost:3000").await?;
+    driver.find(By::Css("a[href='/retros/new']")).await?.click().await?;
+
+    let test_title = format!("Cancel Test Retro {}", rand::thread_rng().gen::<u32>());
+    driver.find(By::Css("input[name='title']")).await?.send_keys(&test_title).await?;
+    driver.find(By::Css("input[type='submit']")).await?.click().await?;
+
+    // Add test card
+    let form = driver.find(By::Css("form[hx-target='#good-items']")).await?;
+    let input = form.find(By::Tag("input")).await?;
+    input.send_keys("Cancel test card").await?;
+    input.send_keys("\u{E007}").await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Click to highlight
+    let card = driver.find(By::Css(".card")).await?;
+    card.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Click cancel button
+    let cancel_btn = driver.find(By::Css(".card-actions .secondary")).await?;
+    cancel_btn.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+    // Verify card state
+    let updated_card = driver.find(By::Css(".card")).await?;
+    let class_attr = updated_card.attr("class").await?.unwrap();
+    assert!(!class_attr.contains("highlighted"), "Card should not be highlighted after cancel");
+    assert!(!class_attr.contains("completed"), "Card should not be completed after cancel");
+    assert_eq!(class_attr.trim(), "card", "Card should be in default state");
+
+    // Cleanup
+    driver.goto("http://localhost:3000").await?;
+    let retro_card = driver.find(By::XPath(&format!("//a[contains(text(), '{}')]/ancestor::div[contains(@class, 'card')]", test_title))).await?;
+    driver.execute("window.confirm = () => true", vec![]).await?;
+    retro_card.find(By::Tag("button")).await?.click().await?;
+
+    driver.quit().await?;
+    Ok(())
+}
