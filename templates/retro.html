@@ -71,12 +71,12 @@
                     <div class="card-text">{{ item.text }}</div>
                     {% if item.status == Status::Highlighted %}
                     <div class="card-actions" style="margin-top: auto;">
-                        <button class="btn-complete"
+                        <button class="primary"
                                 hx-post="/items/{{ item.id }}/status?action=complete"
                                 hx-swap="outerHTML">
                             Complete
                         </button>
-                        <button class="btn-revert"
+                        <button class="secondary"
                                 hx-post="/items/{{ item.id }}/status?action=cancel"
                                 hx-swap="outerHTML">
                             Cancel
@@ -113,12 +113,12 @@
                     <div class="card-text">{{ item.text }}</div>
                     {% if item.status == Status::Highlighted %}
                     <div class="card-actions" style="margin-top: auto;">
-                        <button class="btn-complete"
+                        <button class="primary"
                                 hx-post="/items/{{ item.id }}/status?action=complete"
                                 hx-swap="outerHTML">
                             Complete
                         </button>
-                        <button class="btn-revert"
+                        <button class="secondary"
                                 hx-post="/items/{{ item.id }}/status?action=cancel"
                                 hx-swap="outerHTML">
                             Cancel
