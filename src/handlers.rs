@@ -127,10 +127,15 @@ struct IndexTemplate {
     retros: Vec<Retrospective>,
 }
 
+use axum::extract::Query;
+use std::collections::HashMap;
+
 pub async fn change_item_status(
     State(pool): State<PgPool>,
     Path(item_id): Path<i32>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> Html<String> {
+    let action = params.get("action").map(|s| s.as_str());
     let item = sqlx::query_as!(
         Item,
         r#"
@@ -161,10 +166,9 @@ pub async fn change_item_status(
         UPDATE items
         SET status = CASE
             WHEN status = 'COMPLETED'::status THEN 'COMPLETED'::status
-            WHEN status = 'CREATED'::status AND NOT EXISTS (
-                SELECT 1 FROM highlighted_check WHERE has_highlighted
-            ) THEN 'HIGHLIGHTED'::status
-            WHEN status = 'HIGHLIGHTED'::status THEN 'COMPLETED'::status
+            WHEN status = 'CREATED'::status AND $2 = 'highlight' THEN 'HIGHLIGHTED'::status
+            WHEN status = 'HIGHLIGHTED'::status AND $2 = 'complete' THEN 'COMPLETED'::status
+            WHEN status = 'HIGHLIGHTED'::status AND $2 = 'cancel' THEN 'CREATED'::status
             ELSE status
         END
         WHERE id = $1
@@ -172,7 +176,8 @@ pub async fn change_item_status(
                   category as "category: _", created_at as "created_at!",
                   status as "status: _"
         "#,
-        item_id
+        item_id,
+        action
     )
     .fetch_one(&pool)
     .await
