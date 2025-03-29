@@ -139,30 +139,6 @@ pub async fn change_item_status(
     let item = sqlx::query_as!(
         Item,
         r#"
-        WITH item_info AS (
-            SELECT retro_id, status as current_status
-            FROM items
-            WHERE id = $1
-        ),
-        highlighted_check AS (
-            SELECT EXISTS (
-                SELECT 1 FROM items
-                WHERE retro_id = (SELECT retro_id FROM item_info)
-                AND status = 'HIGHLIGHTED'::status
-                AND id != $1
-            ) as has_highlighted
-        ),
-        reset_highlighted AS (
-            UPDATE items
-            SET status = 'CREATED'::status
-            WHERE retro_id = (SELECT retro_id FROM item_info)
-            AND status = 'HIGHLIGHTED'::status
-            AND id != $1
-            AND NOT EXISTS (
-                SELECT 1 FROM item_info
-                WHERE current_status = 'CREATED'::status
-            )
-        )
         UPDATE items
         SET status = CASE
             WHEN status = 'COMPLETED'::status THEN 'COMPLETED'::status
@@ -181,6 +157,24 @@ pub async fn change_item_status(
     )
     .fetch_one(&pool)
     .await
+    .map_err(|e| {
+        if e.as_database_error()
+            .and_then(|de| de.constraint())
+            .map_or(false, |c| c.contains("single_highlighted_item_per_retro"))
+        {
+            // Return the original item with a message
+            return Html(format!(
+                r##"<div class="card">
+                    {}
+                    <div class="error-message" style="color: red; margin-top: 0.5rem;">
+                        Only one item can be highlighted at a time
+                    </div>
+                </div>"##,
+                htmlescape::encode_minimal(&e.to_string())
+            ));
+        }
+        panic!("Database error: {}", e);
+    })
     .unwrap();
 
     let status_class = match item.status {
