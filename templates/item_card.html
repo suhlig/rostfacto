@@ -1,0 +1,29 @@
+{% match item.status %}
+  {% when Status::Highlighted %}
+    <div class="card highlighted" 
+         hx-post="/items/{{ item.id }}/status?action=highlight" 
+         hx-swap="outerHTML"
+         style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);">
+      <div class="card-text">{{ item.text }}</div>
+      <div class="card-actions" style="margin-top: auto; display: flex; gap: 0.5rem;">
+        <button class="primary"
+                hx-post="/items/{{ item.id }}/status?action=complete"
+                hx-swap="outerHTML">
+          Complete
+        </button>
+        <button class="secondary"
+                hx-post="/items/{{ item.id }}/status?action=cancel"
+                hx-swap="outerHTML">
+          Cancel
+        </button>
+      </div>
+    </div>
+  {% when Status::Completed %}
+    <div class="card completed">{{ item.text }}</div>
+  {% else %}
+    <div class="card" 
+         hx-post="/items/{{ item.id }}/status?action=highlight" 
+         hx-swap="outerHTML">
+      {{ item.text }}
+    </div>
+{% endmatch %}

@@ -1,0 +1,50 @@
+<div class="container-fluid">
+  <h1 class="retro-title">{{ retro.title }}</h1>
+  <div class="retro-grid">
+    <div class="retro-column good-column">
+      <h2 style="text-align: center;">Good</h2>
+      <form hx-post="/items/Good/{{ retro.id }}"
+            hx-target="#good-items"
+            hx-swap="beforeend"
+            hx-trigger="submit"
+            hx-on::after-request="this.reset()">
+        <input type="text"
+               name="text"
+               required
+               placeholder="Add a good item..."
+               style="width: 100%;">
+      </form>
+      <div id="good-items"></div>
+    </div>
+    <div class="retro-column watch-column">
+      <h2 style="text-align: center;">Watch</h2>
+      <form hx-post="/items/Watch/{{ retro.id }}"
+            hx-target="#watch-items"
+            hx-swap="beforeend"
+            hx-trigger="submit"
+            hx-on::after-request="this.reset()">
+        <input type="text"
+               name="text"
+               required
+               placeholder="Add a watch item..."
+               style="width: 100%;">
+      </form>
+      <div id="watch-items"></div>
+    </div>
+    <div class="retro-column bad-column">
+      <h2 style="text-align: center;">Bad</h2>
+      <form hx-post="/items/Bad/{{ retro.id }}"
+            hx-target="#bad-items"
+            hx-swap="beforeend"
+            hx-trigger="submit"
+            hx-on::after-request="this.reset()">
+        <input type="text"
+               name="text"
+               required
+               placeholder="Add a bad item..."
+               style="width: 100%;">
+      </form>
+      <div id="bad-items"></div>
+    </div>
+  </div>
+</div>

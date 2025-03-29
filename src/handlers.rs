@@ -49,68 +49,33 @@ pub async fn archive_retro(
     .await
     .unwrap();
 
-    // Return just the inner content HTML - note the r###" syntax for more #s
-    Html(format!(
-        r###"<div class="container-fluid">
-            <h1 class="retro-title">{}</h1>
-            <div class="retro-grid">
-                <div class="retro-column good-column">
-                    <h2 style="text-align: center;">Good</h2>
-                    <form hx-post="/items/Good/{}"
-                          hx-target="#good-items"
-                          hx-swap="beforeend"
-                          hx-trigger="submit"
-                          hx-on::after-request="this.reset()">
-                        <input type="text"
-                               name="text"
-                               required
-                               placeholder="Add a good item..."
-                               style="width: 100%;">
-                    </form>
-                    <div id="good-items"></div>
-                </div>
-                <div class="retro-column watch-column">
-                    <h2 style="text-align: center;">Watch</h2>
-                    <form hx-post="/items/Watch/{}"
-                          hx-target="#watch-items"
-                          hx-swap="beforeend"
-                          hx-trigger="submit"
-                          hx-on::after-request="this.reset()">
-                        <input type="text"
-                               name="text"
-                               required
-                               placeholder="Add a watch item..."
-                               style="width: 100%;">
-                    </form>
-                    <div id="watch-items"></div>
-                </div>
-                <div class="retro-column bad-column">
-                    <h2 style="text-align: center;">Bad</h2>
-                    <form hx-post="/items/Bad/{}"
-                          hx-target="#bad-items"
-                          hx-swap="beforeend"
-                          hx-trigger="submit"
-                          hx-on::after-request="this.reset()">
-                        <input type="text"
-                               name="text"
-                               required
-                               placeholder="Add a bad item..."
-                               style="width: 100%;">
-                    </form>
-                    <div id="bad-items"></div>
-                </div>
-            </div>
-        </div>"###,
-        htmlescape::encode_minimal(&retro.title),
-        retro.id,
-        retro.id,
-        retro.id
-    ))
+    let template = ArchivedRetroTemplate { retro };
+    Html(template.render().unwrap())
 }
 use askama::Template;
 use sqlx::PgPool;
 use serde::Deserialize;
 use crate::models::{Retrospective, Item, Category, Status};
+
+#[derive(Template)]
+#[template(path = "item_card.html")]
+struct ItemCardTemplate {
+    item: Item,
+}
+
+#[derive(Template)]
+#[template(path = "archived_retro.html")] 
+struct ArchivedRetroTemplate {
+    retro: Retrospective,
+}
+
+#[derive(Template)]
+#[template(path = "archive_modal.html")]
+struct ArchiveModalTemplate {
+    status_class: String,
+    text: String,
+    retro_id: i32,
+}
 
 #[derive(Template)]
 #[template(path = "new_retro.html")]
@@ -201,61 +166,17 @@ pub async fn change_item_status(
     .unwrap();
 
     let template = if all_completed.unwrap_or(false) {
-        format!(
-            r##"<div class="card {status_class}">
-            {text}
-            <dialog id="archive-modal" open>
-                <article>
-                    <h3>Archive All Cards?</h3>
-                    <footer>
-                        <button class="secondary"
-                                onclick="this.closest('dialog').close()">
-                            No
-                        </button>
-                        <button class="primary"
-                                hx-post="/retro/{retro_id}/archive"
-                                hx-target=".container-fluid"
-                                hx-swap="innerHTML">
-                            Yes
-                        </button>
-                    </footer>
-                </article>
-            </dialog>
-           </div>"##,
-            status_class = status_class,
-            text = htmlescape::encode_minimal(&item.text),
-            retro_id = item.retro_id
-        )
+        let archive_modal = ArchiveModalTemplate {
+            status_class: status_class.to_string(),
+            text: htmlescape::encode_minimal(&item.text),
+            retro_id: item.retro_id,
+        };
+        archive_modal.render().unwrap()
     } else {
-        match item.status {
-            Status::Highlighted => format!(
-                r##"<div class="card {status_class}" hx-post="/items/{id}/status?action=highlight" hx-swap="outerHTML" style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);">
-                    <div class="card-text">{text}</div>
-                    <div class="card-actions" style="margin-top: auto; display: flex; gap: 0.5rem;">
-                        <button class="primary"
-                                hx-post="/items/{id}/status?action=complete"
-                                hx-swap="outerHTML">
-                            Complete
-                        </button>
-                        <button class="secondary"
-                                hx-post="/items/{id}/status?action=cancel"
-                                hx-swap="outerHTML">
-                            Cancel
-                        </button>
-                    </div>
-                </div>"##,
-                status_class = status_class,
-                id = item.id,
-                text = htmlescape::encode_minimal(&item.text)
-            ),
-            _ => format!(
-                r##"<div class="card {status_class}" hx-post="/items/{id}/status?action=highlight" hx-swap="outerHTML">{text}</div>"##,
-                status_class = status_class,
-                id = item.id,
-                text = htmlescape::encode_minimal(&item.text)
-            )
-        }
+        let item_card = ItemCardTemplate { item };
+        item_card.render().unwrap()
     };
+    
     Html(template)
 }
 
@@ -412,10 +333,6 @@ pub async fn add_item(
     .await
     .unwrap();
 
-    let template = format!(
-        r#"<div class="card" hx-post="/items/{}/status?action=highlight" hx-swap="outerHTML">{}</div>"#,
-        item.id,
-        htmlescape::encode_minimal(&item.text)
-    );
-    Html(template)
+    let template = ItemCardTemplate { item };
+    Html(template.render().unwrap())
 }
