@@ -23,6 +23,7 @@
   {% else %}
     <div class="card"
          hx-post="/items/{{ item.id }}/status?action=highlight"
+         hx-target="closest .card"
          hx-swap="outerHTML">
         <div class="card-text">{{ item.text }}</div>
     </div>
