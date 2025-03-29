@@ -11,7 +11,7 @@ createdb rostfacto-dev
 export DATABASE_URL=postgres://localhost/rostfacto-dev
 cargo install sqlx-cli
 sqlx migrate run
-cargo run
+cargo watch -x run
 ```
 
 # TODO
