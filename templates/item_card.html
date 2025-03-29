@@ -6,11 +6,13 @@
       <div class="card-actions" style="margin-top: auto; display: flex; gap: 0.5rem;">
         <button class="primary"
                 hx-post="/items/{{ item.id }}/status?action=complete"
+                hx-target="closest .card"
                 hx-swap="outerHTML">
           Complete
         </button>
         <button class="secondary"
                 hx-post="/items/{{ item.id }}/status?action=cancel"
+                hx-target="closest .card"
                 hx-swap="outerHTML">
           Cancel
         </button>

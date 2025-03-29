@@ -23,6 +23,7 @@
                 <div class="card {% if item.status == Status::Highlighted %}highlighted{% else if item.status == Status::Completed %}completed{% endif %}"
                      {% if item.status == Status::Created %}
                      hx-post="/items/{{ item.id }}/status?action=highlight"
+                     hx-target="this"
                      hx-swap="outerHTML"
                      {% endif %}
                      {% if item.status == Status::Highlighted %}style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);"{% endif %}>
@@ -65,6 +66,7 @@
                 <div class="card {% if item.status == Status::Highlighted %}highlighted{% else if item.status == Status::Completed %}completed{% endif %}"
                      {% if item.status == Status::Created %}
                      hx-post="/items/{{ item.id }}/status?action=highlight"
+                     hx-target="this"
                      hx-swap="outerHTML"
                      {% endif %}
                      {% if item.status == Status::Highlighted %}style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);"{% endif %}>
@@ -107,6 +109,7 @@
                 <div class="card {% if item.status == Status::Highlighted %}highlighted{% else if item.status == Status::Completed %}completed{% endif %}"
                      {% if item.status == Status::Created %}
                      hx-post="/items/{{ item.id }}/status?action=highlight"
+                     hx-target="this"
                      hx-swap="outerHTML"
                      {% endif %}
                      {% if item.status == Status::Highlighted %}style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);"{% endif %}>
