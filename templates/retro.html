@@ -11,18 +11,18 @@
               hx-swap="beforeend"
               hx-trigger="submit"
               hx-on::after-request="this.reset()">
-            <input type="text" 
-                   name="text" 
-                   required 
+            <input type="text"
+                   name="text"
+                   required
                    placeholder="Add a good item..."
                    style="width: 100%;">
         </form>
-        
+
         <div id="good-items">
             {% for item in good_items %}
                 <div class="card {% if item.status == Status::Highlighted %}highlighted{% else if item.status == Status::Completed %}completed{% endif %}"
                      {% if item.status != Status::Completed %}
-                     hx-post="/items/{{ item.id }}/toggle-status"
+                     hx-post="/items/{{ item.id }}/status?action=highlight"
                      hx-swap="outerHTML"
                      {% endif %}
                      {% if item.status == Status::Highlighted %}style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);"{% endif %}>
@@ -30,12 +30,12 @@
                     {% if item.status == Status::Highlighted %}
                     <div class="card-actions" style="margin-top: auto;">
                         <button class="primary"
-                                hx-post="/items/{{ item.id }}/toggle-status"
+                                hx-post="/items/{{ item.id }}/status?action=complete"
                                 hx-swap="outerHTML">
                             Complete
                         </button>
                         <button class="secondary"
-                                hx-post="/items/{{ item.id }}/toggle-status?status=Created"
+                                hx-post="/items/{{ item.id }}/status?action=cancel"
                                 hx-swap="outerHTML">
                             Cancel
                         </button>
@@ -53,18 +53,18 @@
               hx-swap="beforeend"
               hx-trigger="submit"
               hx-on::after-request="this.reset()">
-            <input type="text" 
-                   name="text" 
-                   required 
+            <input type="text"
+                   name="text"
+                   required
                    placeholder="Add a watch item..."
                    style="width: 100%;">
         </form>
-        
+
         <div id="watch-items">
             {% for item in watch_items %}
                 <div class="card {% if item.status == Status::Highlighted %}highlighted{% else if item.status == Status::Completed %}completed{% endif %}"
                      {% if item.status != Status::Completed %}
-                     hx-post="/items/{{ item.id }}/toggle-status"
+                     hx-post="/items/{{ item.id }}/status?action=highlight"
                      hx-swap="outerHTML"
                      {% endif %}
                      {% if item.status == Status::Highlighted %}style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);"{% endif %}>
@@ -72,12 +72,12 @@
                     {% if item.status == Status::Highlighted %}
                     <div class="card-actions" style="margin-top: auto;">
                         <button class="btn-complete"
-                                hx-post="/items/{{ item.id }}/toggle-status"
+                                hx-post="/items/{{ item.id }}/status?action=complete"
                                 hx-swap="outerHTML">
                             Complete
                         </button>
                         <button class="btn-revert"
-                                hx-post="/items/{{ item.id }}/toggle-status?status=Created"
+                                hx-post="/items/{{ item.id }}/status?action=cancel"
                                 hx-swap="outerHTML">
                             Cancel
                         </button>
@@ -95,18 +95,18 @@
               hx-swap="beforeend"
               hx-trigger="submit"
               hx-on::after-request="this.reset()">
-            <input type="text" 
-                   name="text" 
-                   required 
+            <input type="text"
+                   name="text"
+                   required
                    placeholder="Add a bad item..."
                    style="width: 100%;">
         </form>
-        
+
         <div id="bad-items">
             {% for item in bad_items %}
                 <div class="card {% if item.status == Status::Highlighted %}highlighted{% else if item.status == Status::Completed %}completed{% endif %}"
                      {% if item.status != Status::Completed %}
-                     hx-post="/items/{{ item.id }}/toggle-status"
+                     hx-post="/items/{{ item.id }}/status?action=highlight"
                      hx-swap="outerHTML"
                      {% endif %}
                      {% if item.status == Status::Highlighted %}style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);"{% endif %}>
@@ -114,12 +114,12 @@
                     {% if item.status == Status::Highlighted %}
                     <div class="card-actions" style="margin-top: auto;">
                         <button class="btn-complete"
-                                hx-post="/items/{{ item.id }}/toggle-status"
+                                hx-post="/items/{{ item.id }}/status?action=complete"
                                 hx-swap="outerHTML">
                             Complete
                         </button>
                         <button class="btn-revert"
-                                hx-post="/items/{{ item.id }}/toggle-status?status=Created"
+                                hx-post="/items/{{ item.id }}/status?action=cancel"
                                 hx-swap="outerHTML">
                             Cancel
                         </button>

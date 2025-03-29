@@ -127,7 +127,7 @@ struct IndexTemplate {
     retros: Vec<Retrospective>,
 }
 
-pub async fn toggle_status(
+pub async fn change_item_status(
     State(pool): State<PgPool>,
     Path(item_id): Path<i32>,
 ) -> Html<String> {
@@ -230,16 +230,16 @@ pub async fn toggle_status(
     } else {
         match item.status {
             Status::Highlighted => format!(
-                r##"<div class="card {status_class}" hx-post="/items/{id}/toggle-status" hx-swap="outerHTML" style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);">
+                r##"<div class="card {status_class}" hx-post="/items/{id}/status?action=highlight" hx-swap="outerHTML" style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);">
                     <div class="card-text">{text}</div>
                     <div class="card-actions" style="margin-top: auto; display: flex; gap: 0.5rem;">
                         <button class="primary"
-                                hx-post="/items/{id}/toggle-status"
+                                hx-post="/items/{id}/status?action=complete"
                                 hx-swap="outerHTML">
                             Complete
                         </button>
                         <button class="secondary"
-                                hx-post="/items/{id}/toggle-status"
+                                hx-post="/items/{id}/status?action=cancel"
                                 hx-swap="outerHTML">
                             Cancel
                         </button>
@@ -250,7 +250,7 @@ pub async fn toggle_status(
                 text = htmlescape::encode_minimal(&item.text)
             ),
             _ => format!(
-                r##"<div class="card {status_class}" hx-post="/items/{id}/toggle-status" hx-swap="outerHTML">{text}</div>"##,
+                r##"<div class="card {status_class}" hx-post="/items/{id}/status?action=highlight" hx-swap="outerHTML">{text}</div>"##,
                 status_class = status_class,
                 id = item.id,
                 text = htmlescape::encode_minimal(&item.text)
@@ -414,7 +414,7 @@ pub async fn add_item(
     .unwrap();
 
     let template = format!(
-        r#"<div class="card" hx-post="/items/{}/toggle-status" hx-swap="outerHTML">{}</div>"#,
+        r#"<div class="card" hx-post="/items/{}/status?action=highlight" hx-swap="outerHTML">{}</div>"#,
         item.id,
         htmlescape::encode_minimal(&item.text)
     );
