@@ -16,6 +16,7 @@ cargo watch -x run
 
 # TODO
 
+- retro-title
 - Retro slug
 - Only admin users can create and delete retros
 - Retro is password-protected by default with a generated password

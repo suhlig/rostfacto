@@ -1,30 +1,33 @@
 {% match item.status %}
   {% when Status::Highlighted %}
-    <div class="card highlighted"
-         style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);">
-      <div class="card-text">{{ item.text }}</div>
-      <div class="card-actions" style="margin-top: auto; display: flex; gap: 0.5rem;">
-        <button class="primary"
-                hx-post="/items/{{ item.id }}/status?action=complete"
-                hx-target="closest .card"
-                hx-swap="outerHTML">
-          Complete
-        </button>
-        <button class="secondary"
-                hx-post="/items/{{ item.id }}/status?action=cancel"
-                hx-target="closest .card"
-                hx-swap="outerHTML">
-          Cancel
-        </button>
-      </div>
-    </div>
+    <article class="card highlighted" id="card-{{ item.id }}">
+      <p>{{ item.text }}</p>
+      <form>
+        <fieldset class="grid" style="margin-bottom: 0px; padding-left: 50%">
+          <button class="primary"
+                  hx-post="/items/{{ item.id }}/status?action=complete"
+                  hx-target="closest .card"
+                  hx-swap="outerHTML">
+            Complete
+          </button>
+          <button class="secondary"
+                  hx-post="/items/{{ item.id }}/status?action=cancel"
+                  hx-target="closest .card"
+                  hx-swap="outerHTML">
+            Cancel
+          </button>
+        </fieldset>
+      </form>
+    </article>
   {% when Status::Completed %}
-    <div class="card completed">{{ item.text }}</div>
+    <article class="card completed" id="card-{{ item.id }}">{{ item.text }}</article>
   {% else %}
-    <div class="card"
-         hx-post="/items/{{ item.id }}/status?action=highlight"
-         hx-target="closest .card"
-         hx-swap="outerHTML">
-        <div class="card-text">{{ item.text }}</div>
-    </div>
+    <article class="card"
+              id="card-{{ item.id }}"
+              hx-post="/items/{{ item.id }}/status?action=highlight"
+              hx-target="closest .card"
+              hx-swap="outerHTML"
+    >
+        {{ item.text }}
+    </article>
 {% endmatch %}

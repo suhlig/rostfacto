@@ -1,137 +1,151 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid">
-  <h1 class="retro-title">{{ retro.title }}</h1>
-  <div class="retro-grid">
-    <div class="retro-column good-column">
-        <h2 style="text-align: center;">Good</h2>
+<div class="grid">
+  <div class="column-happy">
+    <hgroup>
+      <section>
+        <p><img src="/static/happy.svg"></p>
         <form hx-post="/items/Good/{{ retro.id }}"
-              hx-target="#good-items"
-              hx-swap="beforeend"
-              hx-trigger="submit"
-              hx-on::after-request="this.reset()">
-            <input type="text"
-                   name="text"
-                   required
-                   placeholder="Add a good item..."
-                   style="width: 100%;">
+              hx-target="#cards-happy"
+              hx-swap="afterbegin"
+              hx-on::after-request="if(event.detail.successful) this.reset()"
+            >
+            <input type="text" name="text" class="add-card-input" placeholder="I'm glad that…" required>
         </form>
-
-        <div id="good-items">
-            {% for item in good_items %}
-                <div class="card {% if item.status == Status::Highlighted %}highlighted{% else if item.status == Status::Completed %}completed{% endif %}"
-                     {% if item.status == Status::Created %}
+      </section>
+      <section id="cards-happy"/>
+      {% for item in good_items %}
+        {% match item.status %}
+          {% when Status::Highlighted %}
+            <article class="card highlighted" id="card-{{ item.id }}">
+              <p>{{ item.text }}</p>
+              <fieldset class="grid" style="margin-bottom: 0px; padding-left: 50%">
+                <button class="primary"
+                        hx-post="/items/{{ item.id }}/status?action=complete"
+                        hx-target="closest .card"
+                        hx-swap="outerHTML">
+                  Complete
+                </button>
+                <button class="secondary"
+                        hx-post="/items/{{ item.id }}/status?action=cancel"
+                        hx-target="closest .card"
+                        hx-swap="outerHTML">
+                  Cancel
+                </button>
+              </fieldset>
+            </article>
+          {% when Status::Completed %}
+            <article class="card completed" id="card-{{ item.id }}">{{ item.text }}</article>
+          {% else %}
+            <article class="card"
+                     id="card-{{ item.id }}"
                      hx-post="/items/{{ item.id }}/status?action=highlight"
-                     hx-target="this"
+                     hx-target="closest .card"
                      hx-swap="outerHTML"
-                     {% endif %}
-                     {% if item.status == Status::Highlighted %}style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);"{% endif %}>
-                    <div class="card-text">{{ item.text }}</div>
-                    {% if item.status == Status::Highlighted %}
-                    <div class="card-actions" style="margin-top: auto;">
-                        <button class="primary"
-                                hx-post="/items/{{ item.id }}/status?action=complete"
-                                hx-swap="outerHTML">
-                            Complete
-                        </button>
-                        <button class="secondary"
-                                hx-post="/items/{{ item.id }}/status?action=cancel"
-                                hx-swap="outerHTML">
-                            Cancel
-                        </button>
-                    </div>
-                    {% endif %}
-                </div>
-            {% endfor %}
-        </div>
-    </div>
-
-    <div class="retro-column watch-column">
-        <h2 style="text-align: center;">Watch</h2>
+            >
+                {{ item.text }}
+            </article>
+        {% endmatch %}
+      {% endfor %}
+      </section>
+    </hgroup>
+  </div>
+  <div class="column-meh">
+    <hgroup>
+      <section>
+        <p><img src="/static/meh.svg"></p>
         <form hx-post="/items/Watch/{{ retro.id }}"
-              hx-target="#watch-items"
-              hx-swap="beforeend"
-              hx-trigger="submit"
-              hx-on::after-request="this.reset()">
-            <input type="text"
-                   name="text"
-                   required
-                   placeholder="Add a watch item..."
-                   style="width: 100%;">
+              hx-target="#cards-meh"
+              hx-swap="afterbegin"
+              hx-on::after-request="if(event.detail.successful) this.reset()">
+            <input type="text" name="text" class="add-card-input" placeholder="I'm wondering about…" required>
         </form>
-
-        <div id="watch-items">
-            {% for item in watch_items %}
-                <div class="card {% if item.status == Status::Highlighted %}highlighted{% else if item.status == Status::Completed %}completed{% endif %}"
-                     {% if item.status == Status::Created %}
+      </section>
+      <section id="cards-meh">
+      {% for item in watch_items %}
+        {% match item.status %}
+          {% when Status::Highlighted %}
+            <article class="card highlighted" id="card-{{ item.id }}">
+              <p>{{ item.text }}</p>
+              <fieldset class="grid" style="margin-bottom: 0px; padding-left: 50%">
+                <button class="primary"
+                        hx-post="/items/{{ item.id }}/status?action=complete"
+                        hx-target="closest .card"
+                        hx-swap="outerHTML">
+                  Complete
+                </button>
+                <button class="secondary"
+                        hx-post="/items/{{ item.id }}/status?action=cancel"
+                        hx-target="closest .card"
+                        hx-swap="outerHTML">
+                  Cancel
+                </button>
+              </fieldset>
+            </article>
+          {% when Status::Completed %}
+            <article class="card completed" id="card-{{ item.id }}">{{ item.text }}</article>
+          {% else %}
+            <article class="card"
+                     id="card-{{ item.id }}"
                      hx-post="/items/{{ item.id }}/status?action=highlight"
-                     hx-target="this"
+                     hx-target="closest .card"
                      hx-swap="outerHTML"
-                     {% endif %}
-                     {% if item.status == Status::Highlighted %}style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);"{% endif %}>
-                    <div class="card-text">{{ item.text }}</div>
-                    {% if item.status == Status::Highlighted %}
-                    <div class="card-actions" style="margin-top: auto;">
-                        <button class="primary"
-                                hx-post="/items/{{ item.id }}/status?action=complete"
-                                hx-swap="outerHTML">
-                            Complete
-                        </button>
-                        <button class="secondary"
-                                hx-post="/items/{{ item.id }}/status?action=cancel"
-                                hx-swap="outerHTML">
-                            Cancel
-                        </button>
-                    </div>
-                    {% endif %}
-                </div>
-            {% endfor %}
-        </div>
-    </div>
-
-    <div class="retro-column bad-column">
-        <h2 style="text-align: center;">Bad</h2>
-        <form hx-post="/items/Bad/{{ retro.id }}"
-              hx-target="#bad-items"
-              hx-swap="beforeend"
-              hx-trigger="submit"
-              hx-on::after-request="this.reset()">
-            <input type="text"
-                   name="text"
-                   required
-                   placeholder="Add a bad item..."
-                   style="width: 100%;">
-        </form>
-
-        <div id="bad-items">
-            {% for item in bad_items %}
-                <div class="card {% if item.status == Status::Highlighted %}highlighted{% else if item.status == Status::Completed %}completed{% endif %}"
-                     {% if item.status == Status::Created %}
+            >
+                {{ item.text }}
+            </article>
+        {% endmatch %}
+      {% endfor %}
+      </section>
+    </hgroup>
+  </div>
+  <div class="column-sad">
+    <hgroup>
+      <section>
+        <p><img src="/static/sad.svg"></p>
+          <form hx-post="/items/Bad/{{ retro.id }}"
+                hx-target="#cards-sad"
+                hx-swap="afterbegin"
+                hx-on::after-request="if(event.detail.successful) this.reset()">
+              <input type="text" name="text" class="add-card-input" placeholder="It wasn't so great that…" required>
+          </form>
+      </section>
+      <section id="cards-sad">
+      {% for item in bad_items %}
+        {% match item.status %}
+          {% when Status::Highlighted %}
+            <article class="card highlighted" id="card-{{ item.id }}">
+              <p>{{ item.text }}</p>
+              <fieldset class="grid" style="margin-bottom: 0px; padding-left: 50%">
+                <button class="primary"
+                        hx-post="/items/{{ item.id }}/status?action=complete"
+                        hx-target="closest .card"
+                        hx-swap="outerHTML">
+                  Complete
+                </button>
+                <button class="secondary"
+                        hx-post="/items/{{ item.id }}/status?action=cancel"
+                        hx-target="closest .card"
+                        hx-swap="outerHTML">
+                  Cancel
+                </button>
+              </fieldset>
+            </article>
+          {% when Status::Completed %}
+            <article class="card completed" id="card-{{ item.id }}">{{ item.text }}</article>
+          {% else %}
+            <article class="card"
+                     id="card-{{ item.id }}"
                      hx-post="/items/{{ item.id }}/status?action=highlight"
-                     hx-target="this"
+                     hx-target="closest .card"
                      hx-swap="outerHTML"
-                     {% endif %}
-                     {% if item.status == Status::Highlighted %}style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; border: 2px solid var(--primary);"{% endif %}>
-                    <div class="card-text">{{ item.text }}</div>
-                    {% if item.status == Status::Highlighted %}
-                    <div class="card-actions" style="margin-top: auto;">
-                        <button class="primary"
-                                hx-post="/items/{{ item.id }}/status?action=complete"
-                                hx-swap="outerHTML">
-                            Complete
-                        </button>
-                        <button class="secondary"
-                                hx-post="/items/{{ item.id }}/status?action=cancel"
-                                hx-swap="outerHTML">
-                            Cancel
-                        </button>
-                    </div>
-                    {% endif %}
-                </div>
-            {% endfor %}
-        </div>
-    </div>
+            >
+                {{ item.text }}
+            </article>
+        {% endmatch %}
+      {% endfor %}
+      </section>
+    </hgroup>
   </div>
 </div>
 {% endblock %}

@@ -4,7 +4,6 @@
     <title>Rostfacto</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
     <link rel="stylesheet" href="/static/custom.css">
@@ -18,12 +17,12 @@
       </hgroup>
     </header>
 
-    <main class="container">
+    <main class="container-fluid" style="padding: 0;">
       {% block content %}{% endblock %}
     </main>
 
     <footer class="container">
-      <small>© 2025 The Rostfacto Team</small>
+      <small>©2025 The Rostfacto Team</small>
     </footer>
 </body>
 </html>
