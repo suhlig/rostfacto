@@ -6,6 +6,7 @@ use sqlx::FromRow;
 pub struct Retrospective {
     pub id: i32,
     pub title: String,
+    pub slug: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 

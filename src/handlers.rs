@@ -7,25 +7,49 @@ use axum::{
 
 pub async fn delete_retro(
     State(pool): State<PgPool>,
-    Path(retro_id): Path<i32>,
+    Path(slug): Path<String>,
 ) -> impl IntoResponse {
+    // Get retro by slug first
+    let retro = match sqlx::query_as!(
+        Retrospective,
+        "SELECT * FROM retrospectives WHERE slug = $1",
+        slug
+    )
+    .fetch_one(&pool)
+    .await {
+        Ok(retro) => retro,
+        Err(_) => return StatusCode::NOT_FOUND.into_response(),
+    };
+
     // Delete the retro (items will be deleted automatically due to ON DELETE CASCADE)
     sqlx::query!(
         "DELETE FROM retrospectives WHERE id = $1",
-        retro_id
+        retro.id
     )
     .execute(&pool)
     .await
     .unwrap();
 
     // Return empty response with 200 status
-    StatusCode::OK
+    StatusCode::OK.into_response()
 }
 
 pub async fn archive_retro(
     State(pool): State<PgPool>,
-    Path(retro_id): Path<i32>,
+    Path(slug): Path<String>,
 ) -> impl IntoResponse {
+    // Get retro by slug first
+    let retro = match sqlx::query_as!(
+        Retrospective,
+        "SELECT * FROM retrospectives WHERE slug = $1",
+        slug
+    )
+    .fetch_one(&pool)
+    .await {
+        Ok(retro) => retro,
+        Err(_) => return StatusCode::NOT_FOUND.into_response(),
+    };
+
     // Archive all items
     sqlx::query!(
         r#"
@@ -33,13 +57,13 @@ pub async fn archive_retro(
         SET status = 'ARCHIVED'::status
         WHERE retro_id = $1
         "#,
-        retro_id
+        retro.id
     )
     .execute(&pool)
     .await
     .unwrap();
 
-    (StatusCode::SEE_OTHER, [("Location", format!("/retro/{}", retro_id))]).into_response()
+    (StatusCode::SEE_OTHER, [("Location", format!("/retro/{}", retro.slug))]).into_response()
 }
 
 use askama::Template;
@@ -163,17 +187,59 @@ pub async fn create_retro(
     State(pool): State<PgPool>,
     Form(form): Form<NewRetro>,
 ) -> impl IntoResponse {
-    let retro = sqlx::query_as!(
+    // Validate slug
+    if form.slug.is_empty() {
+        let template = ErrorTemplate {
+            code: "400",
+            message: "Slug is required".to_string(),
+        };
+        return (StatusCode::BAD_REQUEST, Html(template.render().unwrap())).into_response();
+    }
+    if form.slug.len() > 255 {
+        let template = ErrorTemplate {
+            code: "400",
+            message: "Slug must be 255 characters or less".to_string(),
+        };
+        return (StatusCode::BAD_REQUEST, Html(template.render().unwrap())).into_response();
+    }
+    if !form.slug.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+        let template = ErrorTemplate {
+            code: "400",
+            message: "Slug can only contain lowercase letters, numbers, and dashes".to_string(),
+        };
+        return (StatusCode::BAD_REQUEST, Html(template.render().unwrap())).into_response();
+    }
+
+    let retro = match sqlx::query_as!(
         Retrospective,
-        "INSERT INTO retrospectives (title) VALUES ($1) RETURNING *",
-        form.title
+        "INSERT INTO retrospectives (title, slug) VALUES ($1, $2) RETURNING *",
+        form.title,
+        form.slug
     )
     .fetch_one(&pool)
-    .await
-    .unwrap();
+    .await {
+        Ok(retro) => retro,
+        Err(e) => {
+            // Handle database errors (e.g., duplicate slug)
+            let message = if let Some(db_err) = e.as_database_error() {
+                if db_err.constraint() == Some("retrospectives_slug_key") {
+                    "Slug is already in use".to_string()
+                } else {
+                    format!("Database error: {}", db_err)
+                }
+            } else {
+                format!("Error creating retrospective: {}", e)
+            };
+            let template = ErrorTemplate {
+                code: "500",
+                message,
+            };
+            return (StatusCode::INTERNAL_SERVER_ERROR, Html(template.render().unwrap())).into_response();
+        }
+    };
 
-    // Redirect to the new retro's page
-    (StatusCode::SEE_OTHER, [("Location", format!("/retro/{}", retro.id))]).into_response()
+    // Redirect to the new retro's page using slug
+    (StatusCode::SEE_OTHER, [("Location", format!("/retro/{}", retro.slug))]).into_response()
 }
 
 pub async fn home() -> Html<String> {
@@ -214,12 +280,12 @@ struct RetroTemplate {
 
 pub async fn show_retro(
     State(pool): State<PgPool>,
-    Path(retro_id): Path<i32>,
+    Path(slug): Path<String>,
 ) -> impl IntoResponse {
     let retro = match sqlx::query_as!(
         Retrospective,
-        "SELECT * FROM retrospectives WHERE id = $1",
-        retro_id
+        "SELECT * FROM retrospectives WHERE slug = $1",
+        slug
     )
     .fetch_one(&pool)
     .await {
@@ -227,7 +293,7 @@ pub async fn show_retro(
         Err(_) => {
             let template = ErrorTemplate {
                 code: "404",
-                message: format!("Retrospective #{} not found", retro_id),
+                message: format!("Retrospective '{}' not found", slug),
             };
             return (StatusCode::NOT_FOUND, Html(template.render().unwrap())).into_response();
         }
@@ -242,7 +308,7 @@ pub async fn show_retro(
            AND category = 'GOOD'
            AND status != 'ARCHIVED'::status
            ORDER BY created_at ASC"#,
-        retro_id
+        retro.id
     )
     .fetch_all(&pool)
     .await
@@ -257,7 +323,7 @@ pub async fn show_retro(
            AND category = 'BAD'
            AND status != 'ARCHIVED'::status
            ORDER BY created_at ASC"#,
-        retro_id
+        retro.id
     )
     .fetch_all(&pool)
     .await
@@ -272,7 +338,7 @@ pub async fn show_retro(
            AND category = 'WATCH'
            AND status != 'ARCHIVED'::status
            ORDER BY created_at ASC"#,
-        retro_id
+        retro.id
     )
     .fetch_all(&pool)
     .await
@@ -291,6 +357,7 @@ pub async fn show_retro(
 #[derive(Deserialize)]
 pub struct NewRetro {
     title: String,
+    slug: String,
 }
 
 #[derive(Deserialize)]

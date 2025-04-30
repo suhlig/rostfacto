@@ -25,6 +25,31 @@ async fn cleanup_retro(driver: &WebDriver, test_title: &str) -> WebDriverResult<
     Ok(())
 }
 
+async fn create_test_retro(driver: &WebDriver, title_prefix: &str) -> WebDriverResult<String> {
+    driver.goto("http://localhost:3000/retros/new").await?;
+    let test_title = format!("{} {}", title_prefix, rand::thread_rng().gen::<u32>());
+
+    // Generate slug from title that meets validation rules
+    let slug = test_title
+        .to_lowercase()
+        .replace(' ', "-")
+        .chars()
+        .filter(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-')
+        .collect::<String>()
+        .chars()
+        .take(255)
+        .collect::<String>();
+
+    // Fill both title and slug fields
+    let title_input = driver.find(By::Css("input[name='title']")).await?;
+    title_input.send_keys(&test_title).await?;
+    let slug_input = driver.find(By::Css("input[name='slug']")).await?;
+    slug_input.send_keys(&slug).await?;
+
+    driver.find(By::Css("input[type='submit']")).await?.click().await?;
+    Ok(test_title)
+}
+
 struct GeckoDriver {
     process: Child,
     port: u16,
@@ -101,11 +126,7 @@ async fn test_archive_retro() -> WebDriverResult<()> {
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Create a new retro
-    driver.goto("http://localhost:3000/retros/new").await?;
-    let test_title = format!("Archive Test Retro {}", rand::thread_rng().gen::<u32>());
-    let title_input = driver.find(By::Css("input[name='title']")).await?;
-    title_input.send_keys(&test_title).await?;
-    driver.find(By::Css("input[type='submit']")).await?.click().await?;
+    let test_title = create_test_retro(&driver, "Archive Test Retro").await?;
 
     // Add a single card to Good column
     let good_form = driver.find(By::Css("form[hx-target='#good-items']")).await?;
@@ -166,13 +187,7 @@ async fn test_create_cards() -> WebDriverResult<()> {
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Navigate to the retros page
-    driver.goto("http://localhost:3000/retros/new").await?;
-    let test_title = format!("Test Retro {}", rand::thread_rng().gen::<u32>());
-    let title_input = driver.find(By::Css("input[name='title']")).await?;
-    title_input.send_keys(&test_title).await?;
-
-    // Click the submit button; it will navigate us to the new retro
-    driver.find(By::Css("input[type='submit']")).await?.click().await?;
+    let test_title = create_test_retro(&driver, "Test Retro").await?;
 
     // Add a card to each column
     for (target, text) in [
@@ -232,13 +247,7 @@ async fn test_create_retro() -> WebDriverResult<()> {
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Navigate to the retros page
-    driver.goto("http://localhost:3000/retros/new").await?;
-    let test_title = format!("Test Retro {}", rand::thread_rng().gen::<u32>());
-    let title_input = driver.find(By::Css("input[name='title']")).await?;
-    title_input.send_keys(&test_title).await?;
-
-    // Click the submit button; it will navigate us to the new retro
-    driver.find(By::Css("input[type='submit']")).await?.click().await?;
+    let test_title = create_test_retro(&driver, "Test Retro").await?;
 
     // Wait for redirect and verify we're on the retro page
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -272,11 +281,7 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Create a new retro
-    driver.goto("http://localhost:3000/retros/new").await?;
-    let test_title = format!("State Test Retro {}", rand::thread_rng().gen::<u32>());
-    let title_input = driver.find(By::Css("input[name='title']")).await?;
-    title_input.send_keys(&test_title).await?;
-    driver.find(By::Css("input[type='submit']")).await?.click().await?;
+    let test_title = create_test_retro(&driver, "State Test Retro").await?;
 
     // Add first card to Good column
     let good_form = driver.find(By::Css("form[hx-target='#good-items']")).await?;
@@ -399,10 +404,7 @@ async fn test_archived_card_display() -> WebDriverResult<()> {
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Create test retro
-    driver.goto("http://localhost:3000/retros/new").await?;
-    let test_title = format!("Archive Display Test {}", rand::thread_rng().gen::<u32>());
-    driver.find(By::Css("input[name='title']")).await?.send_keys(&test_title).await?;
-    driver.find(By::Css("input[type='submit']")).await?.click().await?;
+    let test_title = create_test_retro(&driver, "Archive Display Test").await?;
 
     // Add and archive test card
     let card_text = "Ephemeral test card";
@@ -450,10 +452,7 @@ async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Create test retro
-    driver.goto("http://localhost:3000/retros/new").await?;
-    let test_title = format!("Cancel Test Retro {}", rand::thread_rng().gen::<u32>());
-    driver.find(By::Css("input[name='title']")).await?.send_keys(&test_title).await?;
-    driver.find(By::Css("input[type='submit']")).await?.click().await?;
+    let test_title = create_test_retro(&driver, "Cancel Test Retro").await?;
 
     // Add test card
     let form = driver.find(By::Css("form[hx-target='#good-items']")).await?;

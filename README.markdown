@@ -16,7 +16,6 @@ cargo watch -x run
 
 # TODO
 
-- Retro slug
 - Only admin users can create and delete retros
 - Retro is password-protected by default with a generated password
 - Timer for each retro card
