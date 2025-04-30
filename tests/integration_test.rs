@@ -7,6 +7,25 @@ use portpicker::pick_unused_port;
 use std::process::{Command, Child};
 use rand::Rng;
 
+async fn cleanup_retro(driver: &WebDriver, test_title: &str) -> WebDriverResult<()> {
+    driver.goto("http://localhost:3000").await?;
+    let cards = driver.find_all(By::ClassName("card")).await?;
+    for card in cards {
+        let links = card.find_all(By::Tag("a")).await?;
+        for link in links {
+            if link.text().await? == test_title {
+                // Execute JavaScript to override the confirm dialog
+                driver.execute("window.confirm = () => true", vec![]).await?;
+
+                let delete_button = card.find(By::Tag("button")).await?;
+                delete_button.click().await?;
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
 struct GeckoDriver {
     process: Child,
     port: u16,
@@ -125,21 +144,7 @@ async fn test_archive_retro() -> WebDriverResult<()> {
     assert_eq!(remaining_cards.len(), 0, "All cards should be archived");
 
     // Clean up - delete the retro
-    driver.goto("http://localhost:3000").await?;
-    let cards = driver.find_all(By::ClassName("card")).await?;
-    for card in cards {
-        let links = card.find_all(By::Tag("a")).await?;
-        for link in links {
-            if link.text().await? == test_title {
-                // Execute JavaScript to override the confirm dialog
-                driver.execute("window.confirm = () => true", vec![]).await?;
-
-                let delete_button = card.find(By::Tag("button")).await?;
-                delete_button.click().await?;
-                break;
-            }
-        }
-    }
+    cleanup_retro(&driver, &test_title).await?;
 
     // Always close the browser
     driver.quit().await?;
@@ -239,21 +244,7 @@ async fn test_create_cards() -> WebDriverResult<()> {
     }
 
     // Clean up - delete the retro
-    driver.goto("http://localhost:3000").await?;
-    let cards = driver.find_all(By::ClassName("card")).await?;
-    for card in cards {
-        let links = card.find_all(By::Tag("a")).await?;
-        for link in links {
-            if link.text().await? == test_title {
-                // Execute JavaScript to override the confirm dialog
-                driver.execute("window.confirm = () => true", vec![]).await?;
-
-                let delete_button = card.find(By::Tag("button")).await?;
-                delete_button.click().await?;
-                break;
-            }
-        }
-    }
+    cleanup_retro(&driver, &test_title).await?;
 
     // Always close the browser
     driver.quit().await?;
@@ -420,21 +411,7 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
     other_card.click().await?;
 
     // Clean up - delete the retro
-    driver.goto("http://localhost:3000").await?;
-    let cards = driver.find_all(By::ClassName("card")).await?;
-    for card in cards {
-        let links = card.find_all(By::Tag("a")).await?;
-        for link in links {
-            if link.text().await? == test_title {
-                // Execute JavaScript to override the confirm dialog
-                driver.execute("window.confirm = () => true", vec![]).await?;
-
-                let delete_button = card.find(By::Tag("button")).await?;
-                delete_button.click().await?;
-                break;
-            }
-        }
-    }
+    cleanup_retro(&driver, &test_title).await?;
 
     // Always close the browser
     driver.quit().await?;
@@ -517,21 +494,7 @@ async fn test_archived_card_display() -> WebDriverResult<()> {
     // TODO verify only complete cards are displayed
 
     // Clean up - delete the retro
-    driver.goto("http://localhost:3000").await?;
-    let cards = driver.find_all(By::ClassName("card")).await?;
-    for card in cards {
-        let links = card.find_all(By::Tag("a")).await?;
-        for link in links {
-            if link.text().await? == test_title {
-                // Execute JavaScript to override the confirm dialog
-                driver.execute("window.confirm = () => true", vec![]).await?;
-
-                let delete_button = card.find(By::Tag("button")).await?;
-                delete_button.click().await?;
-                break;
-            }
-        }
-    }
+    cleanup_retro(&driver, &test_title).await?;
 
     // Always close the browser
     driver.quit().await?;
@@ -585,21 +548,7 @@ async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
     assert_eq!(class_attr.trim(), "card", "Card should be in default state");
 
     // Clean up - delete the retro
-    driver.goto("http://localhost:3000").await?;
-    let cards = driver.find_all(By::ClassName("card")).await?;
-    for card in cards {
-        let links = card.find_all(By::Tag("a")).await?;
-        for link in links {
-            if link.text().await? == test_title {
-                // Execute JavaScript to override the confirm dialog
-                driver.execute("window.confirm = () => true", vec![]).await?;
-
-                let delete_button = card.find(By::Tag("button")).await?;
-                delete_button.click().await?;
-                break;
-            }
-        }
-    }
+    cleanup_retro(&driver, &test_title).await?;
 
     // Always close the browser
     driver.quit().await?;
