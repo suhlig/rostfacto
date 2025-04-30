@@ -22,6 +22,7 @@ cargo watch -x run
 - Retro is password-protected by default with a generated password
 - Timer for each retro card
 - Archive button (if opportunity to archive after last card complete was not used)
+- Archive display, grouped by the day the items were created
 - Sync across all clients with SSE, triggers and LISTEN/NOTIFY
   * A new card appears
   * A card changes status
