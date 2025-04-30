@@ -25,21 +25,6 @@ async fn cleanup_retro(driver: &WebDriver, test_title: &str) -> WebDriverResult<
     Ok(())
 }
 
-async fn navigate_to_retro(driver: &WebDriver, test_title: &str) -> WebDriverResult<String> {
-    driver.goto("http://localhost:3000/retros").await?;
-    let rows = driver.find_all(By::Css("table tr")).await?;
-    for row in rows {
-        if let Ok(link) = row.find(By::Tag("a")).await {
-            if link.text().await? == test_title {
-                let href = link.attr("href").await?.unwrap();
-                link.click().await?;
-                return Ok(href);
-            }
-        }
-    }
-    Err(WebDriverError::CustomError(format!("Retro '{}' not found", test_title)))
-}
-
 struct GeckoDriver {
     process: Child,
     port: u16,
