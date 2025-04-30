@@ -8,16 +8,15 @@ use std::process::{Command, Child};
 use rand::Rng;
 
 async fn cleanup_retro(driver: &WebDriver, test_title: &str) -> WebDriverResult<()> {
-    driver.goto("http://localhost:3000").await?;
-    let cards = driver.find_all(By::ClassName("card")).await?;
-    for card in cards {
-        let links = card.find_all(By::Tag("a")).await?;
-        for link in links {
+    driver.goto("http://localhost:3000/retros").await?;
+    let rows = driver.find_all(By::Css("table tr")).await?;
+    for row in rows {
+        if let Ok(link) = row.find(By::Tag("a")).await {
             if link.text().await? == test_title {
                 // Execute JavaScript to override the confirm dialog
                 driver.execute("window.confirm = () => true", vec![]).await?;
 
-                let delete_button = card.find(By::Tag("button")).await?;
+                let delete_button = row.find(By::Tag("button")).await?;
                 delete_button.click().await?;
                 break;
             }
