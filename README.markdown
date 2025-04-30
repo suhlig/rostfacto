@@ -17,6 +17,7 @@ cargo watch -x run
 # TODO
 
 - retro-title
+- Re-use templates/item_card.html in retro.html
 - Retro slug
 - Only admin users can create and delete retros
 - Retro is password-protected by default with a generated password
