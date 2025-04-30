@@ -24,37 +24,7 @@
       </section>
       <section  id="good-items"/>
       {% for item in good_items %}
-        {% match item.status %}
-          {% when Status::Highlighted %}
-            <article class="card highlighted" id="card-{{ item.id }}">
-              <p>{{ item.text }}</p>
-              <fieldset class="grid" style="margin-bottom: 0px; padding-left: 50%">
-                <button class="secondary"
-                        hx-post="/items/{{ item.id }}/status?action=cancel"
-                        hx-target="closest .card"
-                        hx-swap="outerHTML">
-                  Cancel
-                </button>
-                <button class="primary"
-                        hx-post="/items/{{ item.id }}/status?action=complete"
-                        hx-target="closest .card"
-                        hx-swap="outerHTML">
-                  Complete
-                </button>
-              </fieldset>
-            </article>
-          {% when Status::Completed %}
-            <article class="card completed" id="card-{{ item.id }}">{{ item.text }}</article>
-          {% else %}
-            <article class="card"
-                     id="card-{{ item.id }}"
-                     hx-post="/items/{{ item.id }}/status?action=highlight"
-                     hx-target="closest .card"
-                     hx-swap="outerHTML"
-            >
-                {{ item.text }}
-            </article>
-        {% endmatch %}
+        {% include "item_card.html" %}
       {% endfor %}
       </section>
     </hgroup>
@@ -72,37 +42,7 @@
       </section>
       <section id="watch-items">
       {% for item in watch_items %}
-        {% match item.status %}
-          {% when Status::Highlighted %}
-            <article class="card highlighted" id="card-{{ item.id }}">
-              <p>{{ item.text }}</p>
-              <fieldset class="grid" style="margin-bottom: 0px; padding-left: 50%">
-                <button class="secondary"
-                        hx-post="/items/{{ item.id }}/status?action=cancel"
-                        hx-target="closest .card"
-                        hx-swap="outerHTML">
-                  Cancel
-                </button>
-                <button class="primary"
-                        hx-post="/items/{{ item.id }}/status?action=complete"
-                        hx-target="closest .card"
-                        hx-swap="outerHTML">
-                  Complete
-                </button>
-              </fieldset>
-            </article>
-          {% when Status::Completed %}
-            <article class="card completed" id="card-{{ item.id }}">{{ item.text }}</article>
-          {% else %}
-            <article class="card"
-                     id="card-{{ item.id }}"
-                     hx-post="/items/{{ item.id }}/status?action=highlight"
-                     hx-target="closest .card"
-                     hx-swap="outerHTML"
-            >
-                {{ item.text }}
-            </article>
-        {% endmatch %}
+        {% include "item_card.html" %}
       {% endfor %}
       </section>
     </hgroup>
@@ -120,37 +60,7 @@
       </section>
       <section id="bad-items">
       {% for item in bad_items %}
-        {% match item.status %}
-          {% when Status::Highlighted %}
-            <article class="card highlighted" id="card-{{ item.id }}">
-              <p>{{ item.text }}</p>
-              <fieldset class="grid" style="margin-bottom: 0px; padding-left: 50%">
-                <button class="secondary"
-                        hx-post="/items/{{ item.id }}/status?action=cancel"
-                        hx-target="closest .card"
-                        hx-swap="outerHTML">
-                  Cancel
-                </button>
-                <button class="primary"
-                        hx-post="/items/{{ item.id }}/status?action=complete"
-                        hx-target="closest .card"
-                        hx-swap="outerHTML">
-                  Complete
-                </button>
-              </fieldset>
-            </article>
-          {% when Status::Completed %}
-            <article class="card completed" id="card-{{ item.id }}">{{ item.text }}</article>
-          {% else %}
-            <article class="card"
-                     id="card-{{ item.id }}"
-                     hx-post="/items/{{ item.id }}/status?action=highlight"
-                     hx-target="closest .card"
-                     hx-swap="outerHTML"
-            >
-                {{ item.text }}
-            </article>
-        {% endmatch %}
+        {% include "item_card.html" %}
       {% endfor %}
       </section>
     </hgroup>
