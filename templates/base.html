@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>Rostfacto</title>
+    <title>{% block title %}Rostfacto{% endblock %}</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
@@ -10,12 +10,14 @@
     <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
 </head>
 <body>
+    {% block header %}
     <header class="container">
       <hgroup>
         <h1><a href="/" class="brand">Rostfacto</a></h1>
         <p>Where Teams Reflect and Grow</p>
       </hgroup>
     </header>
+    {% endblock %}
 
     <main class="container-fluid" style="padding: 0;">
       {% block content %}{% endblock %}
