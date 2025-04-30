@@ -1,20 +1,15 @@
-<div class="card {{ status_class }}">
+<div>
   {{ text }}
   <dialog id="archive-modal" open>
     <article>
       <h3>Archive All Cards?</h3>
-      <footer>
-        <button class="secondary"
-                onclick="this.closest('dialog').close()">
-          No
-        </button>
-        <button class="primary"
-                hx-post="/retro/{{ retro_id }}/archive"
-                hx-target=".container-fluid"
-                hx-swap="innerHTML">
-          Yes
-        </button>
-      </footer>
+      <form method="POST" action="/retro/{{ retro_id }}/archive">
+        <button class="secondary" value="cancel" formmethod="dialog" onclick="this.closest('dialog').close()">No</button>
+        <input  class="primary"   type="submit"  value="Yes"/>
+      </form>
     </article>
   </dialog>
 </div>
+
+
+<button id="confirmBtn" value="default">Confirm</button>

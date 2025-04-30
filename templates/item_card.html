@@ -4,17 +4,17 @@
       <p>{{ item.text }}</p>
       <form>
         <fieldset class="grid" style="margin-bottom: 0px; padding-left: 50%">
-          <button class="primary"
-                  hx-post="/items/{{ item.id }}/status?action=complete"
-                  hx-target="closest .card"
-                  hx-swap="outerHTML">
-            Complete
-          </button>
           <button class="secondary"
                   hx-post="/items/{{ item.id }}/status?action=cancel"
                   hx-target="closest .card"
                   hx-swap="outerHTML">
             Cancel
+          </button>
+          <button class="primary"
+                  hx-post="/items/{{ item.id }}/status?action=complete"
+                  hx-target="closest .card"
+                  hx-swap="outerHTML">
+            Complete
           </button>
         </fieldset>
       </form>

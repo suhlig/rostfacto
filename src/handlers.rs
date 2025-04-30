@@ -39,19 +39,9 @@ pub async fn archive_retro(
     .await
     .unwrap();
 
-    // Get the retro data
-    let retro = sqlx::query_as!(
-        Retrospective,
-        "SELECT * FROM retrospectives WHERE id = $1",
-        retro_id
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-
-    let template = ArchivedRetroTemplate { retro };
-    Html(template.render().unwrap())
+    (StatusCode::SEE_OTHER, [("Location", format!("/retro/{}", retro_id))]).into_response()
 }
+
 use askama::Template;
 use sqlx::PgPool;
 use serde::Deserialize;
@@ -64,15 +54,8 @@ struct ItemCardTemplate {
 }
 
 #[derive(Template)]
-#[template(path = "archived_retro.html")] 
-struct ArchivedRetroTemplate {
-    retro: Retrospective,
-}
-
-#[derive(Template)]
 #[template(path = "archive_modal.html")]
 struct ArchiveModalTemplate {
-    status_class: String,
     text: String,
     retro_id: i32,
 }
@@ -142,13 +125,6 @@ pub async fn change_item_status(
     })
     .unwrap();
 
-    let status_class = match item.status {
-        Status::Highlighted => "highlighted",
-        Status::Completed => "completed",
-        Status::Created => "",
-        Status::Archived => "archived", // Archived items will use the same style as completed
-    };
-
     // Check if all items in this retro are completed
     let all_completed = sqlx::query_scalar!(
         r#"
@@ -167,7 +143,6 @@ pub async fn change_item_status(
 
     let template = if all_completed.unwrap_or(false) {
         let archive_modal = ArchiveModalTemplate {
-            status_class: status_class.to_string(),
             text: htmlescape::encode_minimal(&item.text),
             retro_id: item.retro_id,
         };
@@ -176,7 +151,7 @@ pub async fn change_item_status(
         let item_card = ItemCardTemplate { item };
         item_card.render().unwrap()
     };
-    
+
     Html(template)
 }
 
