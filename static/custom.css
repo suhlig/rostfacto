@@ -41,3 +41,6 @@ div.grid {
   text-decoration: line-through;
   cursor: not-allowed;
 }
+header.container {
+  text-align: center;
+}
