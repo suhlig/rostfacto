@@ -15,7 +15,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
 
     let app = Router::new()
-        .route("/", get(handlers::index))
+        .route("/", get(handlers::home))
+        .route("/retros", get(handlers::index))
         .route("/retros/new", get(handlers::new_retro))
         .route("/retros", post(handlers::create_retro))
         .route("/retro/:id", get(handlers::show_retro))

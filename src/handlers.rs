@@ -70,6 +70,10 @@ pub async fn new_retro() -> Html<String> {
 }
 
 #[derive(Template)]
+#[template(path = "home.html")]
+struct HomeTemplate;
+
+#[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
     retros: Vec<Retrospective>,
@@ -170,6 +174,11 @@ pub async fn create_retro(
 
     // Redirect to the new retro's page
     (StatusCode::SEE_OTHER, [("Location", format!("/retro/{}", retro.id))]).into_response()
+}
+
+pub async fn home() -> Html<String> {
+    let template = HomeTemplate {};
+    Html(template.render().unwrap())
 }
 
 pub async fn index(
