@@ -115,7 +115,6 @@ async fn test_archive_retro() -> WebDriverResult<()> {
     assert!(archive_dialog.is_displayed().await?, "Archive dialog should be visible");
 
     // Click "Yes" on the archive dialog
-    driver.execute("window.confirm = () => true", vec![]).await?;
     driver.find(By::Css("#archive-modal .primary")).await?.click().await?;
 
     // Wait for the archive operation to complete and UI to update
@@ -132,7 +131,9 @@ async fn test_archive_retro() -> WebDriverResult<()> {
         let links = card.find_all(By::Tag("a")).await?;
         for link in links {
             if link.text().await? == test_title {
+                // Execute JavaScript to override the confirm dialog
                 driver.execute("window.confirm = () => true", vec![]).await?;
+
                 let delete_button = card.find(By::Tag("button")).await?;
                 delete_button.click().await?;
                 break;
@@ -140,6 +141,7 @@ async fn test_archive_retro() -> WebDriverResult<()> {
         }
     }
 
+    // Always close the browser
     driver.quit().await?;
 
     Ok(())
@@ -304,10 +306,7 @@ async fn test_create_retro() -> WebDriverResult<()> {
     // Navigate to the homepage
     driver.goto("http://localhost:3000").await?;
 
-    // Execute JavaScript to override the confirm dialog
-    driver.execute("window.confirm = () => true", vec![]).await?;
-
-    // Find and click the delete button
+    // Find and click the delete button for the retro
     driver.find(By::Css(&format!("button[hx-delete='/retro/{}/delete']", retro_id))).await?.click().await?;
 
     // Wait a moment for the deletion to complete
@@ -427,7 +426,9 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
         let links = card.find_all(By::Tag("a")).await?;
         for link in links {
             if link.text().await? == test_title {
+                // Execute JavaScript to override the confirm dialog
                 driver.execute("window.confirm = () => true", vec![]).await?;
+
                 let delete_button = card.find(By::Tag("button")).await?;
                 delete_button.click().await?;
                 break;
@@ -435,6 +436,7 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
         }
     }
 
+    // Always close the browser
     driver.quit().await?;
 
     Ok(())
@@ -508,19 +510,32 @@ async fn test_archived_card_display() -> WebDriverResult<()> {
     driver.find(By::Css(".primary")).await?.click().await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
-    driver.execute("window.confirm = () => true", vec![]).await?;
-    driver.find(By::Css("#archive-modal .primary")).await?.click().await?;
+    // Deny archiving the retro
+    driver.find(By::Css("#archive-modal .secondary")).await?.click().await?;
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
-    // TODO verify no cards displayed
+    // TODO verify only complete cards are displayed
 
-    // Cleanup
+    // Clean up - delete the retro
     driver.goto("http://localhost:3000").await?;
-    let retro_card = driver.find(By::XPath(&format!("//a[contains(text(), '{}')]/ancestor::div[contains(@class, 'card')]", test_title))).await?;
-    driver.execute("window.confirm = () => true", vec![]).await?;
-    retro_card.find(By::Tag("button")).await?.click().await?;
+    let cards = driver.find_all(By::ClassName("card")).await?;
+    for card in cards {
+        let links = card.find_all(By::Tag("a")).await?;
+        for link in links {
+            if link.text().await? == test_title {
+                // Execute JavaScript to override the confirm dialog
+                driver.execute("window.confirm = () => true", vec![]).await?;
 
+                let delete_button = card.find(By::Tag("button")).await?;
+                delete_button.click().await?;
+                break;
+            }
+        }
+    }
+
+    // Always close the browser
     driver.quit().await?;
+
     Ok(())
 }
 
@@ -569,12 +584,25 @@ async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
     assert!(!class_attr.contains("completed"), "Card should not be completed after cancel");
     assert_eq!(class_attr.trim(), "card", "Card should be in default state");
 
-    // Cleanup
+    // Clean up - delete the retro
     driver.goto("http://localhost:3000").await?;
-    let retro_card = driver.find(By::XPath(&format!("//a[contains(text(), '{}')]/ancestor::div[contains(@class, 'card')]", test_title))).await?;
-    driver.execute("window.confirm = () => true", vec![]).await?;
-    retro_card.find(By::Tag("button")).await?.click().await?;
+    let cards = driver.find_all(By::ClassName("card")).await?;
+    for card in cards {
+        let links = card.find_all(By::Tag("a")).await?;
+        for link in links {
+            if link.text().await? == test_title {
+                // Execute JavaScript to override the confirm dialog
+                driver.execute("window.confirm = () => true", vec![]).await?;
 
+                let delete_button = card.find(By::Tag("button")).await?;
+                delete_button.click().await?;
+                break;
+            }
+        }
+    }
+
+    // Always close the browser
     driver.quit().await?;
+
     Ok(())
 }
