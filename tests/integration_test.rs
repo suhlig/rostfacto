@@ -25,6 +25,21 @@ async fn cleanup_retro(driver: &WebDriver, test_title: &str) -> WebDriverResult<
     Ok(())
 }
 
+async fn navigate_to_retro(driver: &WebDriver, test_title: &str) -> WebDriverResult<String> {
+    driver.goto("http://localhost:3000/retros").await?;
+    let rows = driver.find_all(By::Css("table tr")).await?;
+    for row in rows {
+        if let Ok(link) = row.find(By::Tag("a")).await {
+            if link.text().await? == test_title {
+                let href = link.attr("href").await?.unwrap();
+                link.click().await?;
+                return Ok(href);
+            }
+        }
+    }
+    Err(WebDriverError::CustomError(format!("Retro '{}' not found", test_title)))
+}
+
 struct GeckoDriver {
     process: Child,
     port: u16,
@@ -74,11 +89,11 @@ async fn test_home_page() -> WebDriverResult<()> {
     // Navigate to the homepage
     driver.goto("http://localhost:3000").await?;
 
-    // Find the h1 element with retro-title class and verify its text
-    let h1 = driver.find(By::Css("h1.retro-title")).await?;
-    assert_eq!(h1.text().await?, "Retrospectives");
+    // Find the h1 element and verify its text
+    let h1 = driver.find(By::Css("h1")).await?;
+    assert_eq!(h1.text().await?, "Rostfacto");
 
-    // Always close the browser
+    // Close the browser
     driver.quit().await?;
 
     Ok(())
@@ -101,9 +116,7 @@ async fn test_archive_retro() -> WebDriverResult<()> {
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Create a new retro
-    driver.goto("http://localhost:3000").await?;
-    driver.find(By::Css("a[href='/retros/new']")).await?.click().await?;
-
+    driver.goto("http://localhost:3000/retros/new").await?;
     let test_title = format!("Archive Test Retro {}", rand::thread_rng().gen::<u32>());
     let title_input = driver.find(By::Css("input[name='title']")).await?;
     title_input.send_keys(&test_title).await?;
@@ -167,48 +180,14 @@ async fn test_create_cards() -> WebDriverResult<()> {
 
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
-    // Navigate to the homepage
-    driver.goto("http://localhost:3000").await?;
-
-    // Click the "New Retrospective" button
-    driver.find(By::Css("a[href='/retros/new']")).await?.click().await?;
-
-    // Fill in the title
+    // Navigate to the retros page
+    driver.goto("http://localhost:3000/retros/new").await?;
     let test_title = format!("Test Retro {}", rand::thread_rng().gen::<u32>());
     let title_input = driver.find(By::Css("input[name='title']")).await?;
     title_input.send_keys(&test_title).await?;
 
-    // Click the submit button
+    // Click the submit button; it will navigate us to the new retro
     driver.find(By::Css("input[type='submit']")).await?.click().await?;
-
-    // Navigate back to homepage
-    driver.goto("http://localhost:3000").await?;
-
-    // Find all cards and look for our test retro
-    let cards = driver.find_all(By::ClassName("card")).await?;
-    let mut found_card = None;
-    for card in cards {
-        let links = card.find_all(By::Tag("a")).await?;
-        for link in links {
-            if link.text().await? == test_title {
-                found_card = Some(card);
-                break;
-            }
-        }
-        if found_card.is_some() {
-            break;
-        }
-    }
-
-    let our_card = found_card.expect("Newly created retro not found in list");
-
-    // Extract the retro ID from the card's link href
-    let link = our_card.find(By::Tag("a")).await?;
-    let href = link.attr("href").await?.unwrap();
-
-
-    // Go to the retro page
-    driver.goto(&format!("http://localhost:3000{}", href)).await?;
 
     // Add a card to each column
     for (target, text) in [
@@ -267,18 +246,13 @@ async fn test_create_retro() -> WebDriverResult<()> {
 
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
-    // Navigate to the homepage
-    driver.goto("http://localhost:3000").await?;
-
-    // Click the "New Retrospective" button
-    driver.find(By::Css("a[href='/retros/new']")).await?.click().await?;
-
-    // Fill in the title
+    // Navigate to the retros page
+    driver.goto("http://localhost:3000/retros/new").await?;
     let test_title = format!("Test Retro {}", rand::thread_rng().gen::<u32>());
     let title_input = driver.find(By::Css("input[name='title']")).await?;
     title_input.send_keys(&test_title).await?;
 
-    // Click the submit button
+    // Click the submit button; it will navigate us to the new retro
     driver.find(By::Css("input[type='submit']")).await?.click().await?;
 
     // Wait for redirect and verify we're on the retro page
@@ -287,32 +261,11 @@ async fn test_create_retro() -> WebDriverResult<()> {
     assert!(current_url.as_str().contains("/retro/"), "Should be redirected to retro page");
 
     // Verify the retro title is shown
-    let title = driver.find(By::Css("h1.retro-title")).await?;
+    let title = driver.find(By::Css("h1")).await?;
     assert_eq!(title.text().await?, test_title);
 
-    // Extract retro ID from URL for cleanup
-    let retro_id = current_url.path_segments().unwrap().last().unwrap();
-
-    // Navigate to the homepage
-    driver.goto("http://localhost:3000").await?;
-
-    // Find and click the delete button for the retro
-    driver.find(By::Css(&format!("button[hx-delete='/retro/{}/delete']", retro_id))).await?.click().await?;
-
-    // Wait a moment for the deletion to complete
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-    // Verify the retro is deleted
-    let cards = driver.find_all(By::ClassName("card")).await?;
-    for card in cards {
-        let links = card.find_all(By::Tag("a")).await?;
-        for link in links {
-            assert_ne!(link.text().await?, test_title, "Retro was not deleted!");
-        }
-    }
-
-    // Always close the browser
-    driver.quit().await?;
+    // Clean up - delete the retro
+    cleanup_retro(&driver, &test_title).await?;
 
     Ok(())
 }
@@ -334,9 +287,7 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Create a new retro
-    driver.goto("http://localhost:3000").await?;
-    driver.find(By::Css("a[href='/retros/new']")).await?.click().await?;
-
+    driver.goto("http://localhost:3000/retros/new").await?;
     let test_title = format!("State Test Retro {}", rand::thread_rng().gen::<u32>());
     let title_input = driver.find(By::Css("input[name='title']")).await?;
     title_input.send_keys(&test_title).await?;
@@ -463,9 +414,7 @@ async fn test_archived_card_display() -> WebDriverResult<()> {
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Create test retro
-    driver.goto("http://localhost:3000").await?;
-    driver.find(By::Css("a[href='/retros/new']")).await?.click().await?;
-
+    driver.goto("http://localhost:3000/retros/new").await?;
     let test_title = format!("Archive Display Test {}", rand::thread_rng().gen::<u32>());
     driver.find(By::Css("input[name='title']")).await?.send_keys(&test_title).await?;
     driver.find(By::Css("input[type='submit']")).await?.click().await?;
@@ -516,9 +465,7 @@ async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Create test retro
-    driver.goto("http://localhost:3000").await?;
-    driver.find(By::Css("a[href='/retros/new']")).await?.click().await?;
-
+    driver.goto("http://localhost:3000/retros/new").await?;
     let test_title = format!("Cancel Test Retro {}", rand::thread_rng().gen::<u32>());
     driver.find(By::Css("input[name='title']")).await?.send_keys(&test_title).await?;
     driver.find(By::Css("input[type='submit']")).await?.click().await?;
