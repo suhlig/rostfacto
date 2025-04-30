@@ -74,8 +74,8 @@ pub async fn new_retro() -> Html<String> {
 struct HomeTemplate;
 
 #[derive(Template)]
-#[template(path = "index.html")]
-struct IndexTemplate {
+#[template(path = "retros.html")]
+struct RetrosTemplate {
     retros: Vec<Retrospective>,
 }
 
@@ -192,7 +192,7 @@ pub async fn index(
     .await
     .unwrap();
 
-    let template = IndexTemplate { retros };
+    let template = RetrosTemplate { retros };
     Html(template.render().unwrap())
 }
 
