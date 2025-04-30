@@ -181,7 +181,7 @@ pub async fn home() -> Html<String> {
     Html(template.render().unwrap())
 }
 
-pub async fn index(
+pub async fn list_retros(
     State(pool): State<PgPool>,
 ) -> Html<String> {
     let retros = sqlx::query_as!(
