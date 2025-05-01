@@ -157,6 +157,8 @@ async fn test_archive_retro() -> WebDriverResult<()> {
     // Wait for the archive operation to complete and UI to update
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
+    // Verify we are on the retro page
+
     // Verify all cards are gone
     let remaining_cards = driver.find_all(By::ClassName("card")).await?;
     assert_eq!(remaining_cards.len(), 0, "All cards should be archived");
