@@ -155,7 +155,7 @@ impl<'a> RetroPage<'a> {
         Ok(Self { driver, title })
     }
 
-    pub async fn add_card(&self, category: &str, text: &str) -> WebDriverResult<()> {
+    pub async fn add_card(&self, category: &str, text: &str) -> WebDriverResult<i32> {
         let target = match category {
             "Good" => "#good-items",
             "Bad" => "#bad-items",
@@ -170,25 +170,36 @@ impl<'a> RetroPage<'a> {
         let input = form.find(By::Tag("input")).await?;
         input.send_keys(text).await?;
         input.send_keys("\u{E007}").await?;
+
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Get the newly created card's ID
+        let card = self.driver
+            .find(By::XPath(&format!("//article[contains(@class, 'card') and contains(., '{}')]", text)))
+            .await?;
+        let id_str = card.attr("data-item-id").await?.unwrap();
+        let id = id_str.parse::<i32>().unwrap();
+
+        Ok(id)
+    }
+
+    pub async fn verify_card_state(&self, id: i32, expected_class: &str) -> WebDriverResult<()> {
+        let card = self.driver
+            .find(By::Css(&format!("article[data-item-id='{}']", id)))
+            .await?;
+
+        let class_attr = card.attr("class").await?.unwrap();
+        assert_eq!(
+            class_attr.trim(), expected_class,
+            "Card {} should be in {} state", id, expected_class
+        );
         Ok(())
     }
 
-    pub async fn verify_card_state(&self, text: &str, expected_class: &str) -> WebDriverResult<()> {
-        let cards = self.driver.find_all(By::ClassName("card")).await?;
-        for card in cards {
-            if card.text().await? == text {
-                let class_attr = card.attr("class").await?.unwrap();
-                assert_eq!(class_attr.trim(), expected_class,
-                    "Card '{}' should be in {} state", text, expected_class);
-                return Ok(());
-            }
-        }
-        panic!("Card with text '{}' not found", text)
-    }
-
-    pub async fn click_card(&self, text: &str) -> WebDriverResult<()> {
-        let card = self.driver.find(By::XPath(&format!("//article[contains(@class, 'card') and contains(., '{}')]", text))).await?;
+    pub async fn click_card(&self, id: i32) -> WebDriverResult<()> {
+        let card = self.driver
+            .find(By::Css(&format!("article[data-item-id='{}']", id)))
+            .await?;
         card.click().await?;
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         Ok(())
