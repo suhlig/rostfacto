@@ -1,87 +1,13 @@
-use thirtyfour::{prelude::*, common::capabilities::firefox::FirefoxPreferences};
+mod test_helpers;
 
-fn should_show_browser() -> bool {
-    std::env::var("SHOW_BROWSER").is_ok()
-}
-use portpicker::pick_unused_port;
-use std::process::{Command, Child};
-use rand::Rng;
-
-async fn cleanup_retro(driver: &WebDriver, test_title: &str) -> WebDriverResult<()> {
-    driver.goto("http://localhost:3000/retros").await?;
-    let rows = driver.find_all(By::Css("table tr")).await?;
-    for row in rows {
-        if let Ok(link) = row.find(By::Tag("a")).await {
-            if link.text().await? == test_title {
-                // Execute JavaScript to override the confirm dialog
-                driver.execute("window.confirm = () => true", vec![]).await?;
-
-                let delete_button = row.find(By::Tag("button")).await?;
-                delete_button.click().await?;
-                break;
-            }
-        }
-    }
-    Ok(())
-}
-
-async fn create_test_retro(driver: &WebDriver, title_prefix: &str) -> WebDriverResult<String> {
-    driver.goto("http://localhost:3000/retros/new").await?;
-    let test_title = format!("{} {}", title_prefix, rand::thread_rng().gen::<u32>());
-
-    // Generate slug from title that meets validation rules
-    let slug = test_title
-        .to_lowercase()
-        .replace(' ', "-")
-        .chars()
-        .filter(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-')
-        .collect::<String>()
-        .chars()
-        .take(255)
-        .collect::<String>();
-
-    // Fill both title and slug fields
-    let title_input = driver.find(By::Css("input[name='title']")).await?;
-    title_input.send_keys(&test_title).await?;
-    let slug_input = driver.find(By::Css("input[name='slug']")).await?;
-    slug_input.send_keys(&slug).await?;
-
-    driver.find(By::Css("input[type='submit']")).await?.click().await?;
-    Ok(test_title)
-}
-
-struct GeckoDriver {
-    process: Child,
-    port: u16,
-}
-
-impl Drop for GeckoDriver {
-    fn drop(&mut self) {
-        let _ = self.process.kill();
-        let _ = self.process.wait();
-    }
-}
-
-fn start_geckodriver() -> GeckoDriver {
-    let port = pick_unused_port().expect("No ports available");
-
-    let process = Command::new("geckodriver")
-        .arg("--port")
-        .arg(port.to_string())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .expect("Failed to start geckodriver");
-
-    // Give geckodriver a moment to start
-    std::thread::sleep(std::time::Duration::from_secs(1));
-
-    GeckoDriver { process, port }
-}
+use thirtyfour::{WebDriver, By, DesiredCapabilities};
+use thirtyfour::error::WebDriverResult;
+use thirtyfour::common::capabilities::firefox::FirefoxPreferences;
+use test_helpers::*;
 
 #[tokio::test]
 async fn test_home_page() -> WebDriverResult<()> {
-    let gecko = start_geckodriver();
+    let gecko = test_helpers::start_geckodriver();
 
     let mut caps = DesiredCapabilities::firefox();
     if !should_show_browser() {
@@ -126,7 +52,7 @@ async fn test_archive_retro() -> WebDriverResult<()> {
     let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
 
     // Create a new retro
-    let test_title = create_test_retro(&driver, "Archive Test Retro").await?;
+    let test_title = test_helpers::create_test_retro(&driver, "Archive Test Retro").await?;
 
     // Add a single card to Good column
     let good_form = driver.find(By::Css("form[hx-target='#good-items']")).await?;
@@ -164,7 +90,7 @@ async fn test_archive_retro() -> WebDriverResult<()> {
     assert_eq!(remaining_cards.len(), 0, "All cards should be archived");
 
     // Clean up - delete the retro
-    cleanup_retro(&driver, &test_title).await?;
+    test_helpers::cleanup_retro(&driver, &test_title).await?;
 
     // Always close the browser
     driver.quit().await?;
@@ -174,61 +100,21 @@ async fn test_archive_retro() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_create_cards() -> WebDriverResult<()> {
-    let gecko = start_geckodriver();
+    let browser = BrowserSession::new().await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Test Retro").await?;
 
-    let mut caps = DesiredCapabilities::firefox();
-    if !should_show_browser() {
-        caps.set_headless()?;
-    }
+    // Add cards to all categories
+    retro_page.add_card("Good", "Good point test").await?;
+    retro_page.add_card("Bad", "Bad point test").await?;
+    retro_page.add_card("Watch", "Watch point test").await?;
 
-    // Create Firefox preferences and set them
-    let mut prefs = FirefoxPreferences::new();
-    let _ = prefs.set("webdriver.log.level", "error");
-    caps.set_preferences(prefs)?;
+    // Verify card states
+    retro_page.verify_card_state("Good point test", "card").await?;
+    retro_page.verify_card_state("Bad point test", "card").await?;
+    retro_page.verify_card_state("Watch point test", "card").await?;
 
-    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
-
-    // Navigate to the retros page
-    let test_title = create_test_retro(&driver, "Test Retro").await?;
-
-    // Add a card to each column
-    for (target, text) in [
-        ("#good-items", "Good point test"),
-        ("#bad-items", "Bad point test"),
-        ("#watch-items", "Watch point test")
-    ] {
-        let form = driver.find(By::Css(format!("form[hx-target='{}']", target).as_str())).await?;
-        let input = form.find(By::Tag("input")).await?;
-        input.send_keys(text).await?;
-        input.send_keys("\u{E007}").await?;
-
-        // Wait a moment for the card to appear
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    }
-
-    // Verify each card exists and is in default state (no special classes)
-    for text in ["Good point test", "Bad point test", "Watch point test"] {
-        let cards = driver.find_all(By::ClassName("card")).await?;
-        let mut found = false;
-        for card in cards {
-            if card.text().await? == text {
-                // Card should only have "card" class in default state
-                let class_attr = card.attr("class").await?.unwrap();
-                assert_eq!(class_attr.trim(), "card",
-                    "Card '{}' should be in default state", text);
-                found = true;
-                break;
-            }
-        }
-        assert!(found, "Card with text '{}' not found", text);
-    }
-
-    // Clean up - delete the retro
-    cleanup_retro(&driver, &test_title).await?;
-
-    // Always close the browser
-    driver.quit().await?;
-
+    retro_page.cleanup().await?;
     Ok(())
 }
 

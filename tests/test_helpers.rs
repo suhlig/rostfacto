@@ -1,0 +1,171 @@
+use thirtyfour::{prelude::*, common::capabilities::firefox::FirefoxPreferences};
+use portpicker::pick_unused_port;
+use std::process::{Command, Child};
+use rand::Rng;
+
+pub fn should_show_browser() -> bool {
+    std::env::var("SHOW_BROWSER").is_ok()
+}
+
+pub struct GeckoDriver {
+    pub process: Child,
+    pub port: u16,
+}
+
+impl Drop for GeckoDriver {
+    fn drop(&mut self) {
+        let _ = self.process.kill();
+        let _ = self.process.wait();
+    }
+}
+
+pub fn start_geckodriver() -> GeckoDriver {
+    let port = pick_unused_port().expect("No ports available");
+
+    let process = Command::new("geckodriver")
+        .arg("--port")
+        .arg(port.to_string())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("Failed to start geckodriver");
+
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    GeckoDriver { process, port }
+}
+
+pub async fn cleanup_retro(driver: &WebDriver, test_title: &str) -> WebDriverResult<()> {
+    driver.goto("http://localhost:3000/retros").await?;
+    let rows = driver.find_all(By::Css("table tr")).await?;
+    for row in rows {
+        if let Ok(link) = row.find(By::Tag("a")).await {
+            if link.text().await? == test_title {
+                driver.execute("window.confirm = () => true", vec![]).await?;
+                let delete_button = row.find(By::Tag("button")).await?;
+                delete_button.click().await?;
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub async fn create_test_retro(driver: &WebDriver, title_prefix: &str) -> WebDriverResult<String> {
+    driver.goto("http://localhost:3000/retros/new").await?;
+    let test_title = format!("{} {}", title_prefix, rand::thread_rng().gen::<u32>());
+    
+    let slug = test_title
+        .to_lowercase()
+        .replace(' ', "-")
+        .chars()
+        .filter(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-')
+        .collect::<String>()
+        .chars()
+        .take(255)
+        .collect::<String>();
+
+    let title_input = driver.find(By::Css("input[name='title']")).await?;
+    title_input.send_keys(&test_title).await?;
+    let slug_input = driver.find(By::Css("input[name='slug']")).await?;
+    slug_input.send_keys(&slug).await?;
+
+    driver.find(By::Css("input[type='submit']")).await?.click().await?;
+    Ok(test_title)
+}
+
+pub struct BrowserSession {
+    pub driver: WebDriver,
+    pub gecko: GeckoDriver,
+}
+
+impl BrowserSession {
+    pub async fn new() -> WebDriverResult<Self> {
+        let gecko = start_geckodriver();
+        let mut caps = DesiredCapabilities::firefox();
+        if !should_show_browser() {
+            caps.set_headless()?;
+        }
+
+        let mut prefs = FirefoxPreferences::new();
+        let _ = prefs.set("webdriver.log.level", "error");
+        caps.set_preferences(prefs)?;
+
+        let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
+        Ok(Self { driver, gecko })
+    }
+
+    pub async fn retros_page(&self) -> WebDriverResult<RetrosPage<'_>> {
+        RetrosPage::new(&self.driver).await
+    }
+}
+
+impl Drop for BrowserSession {
+    fn drop(&mut self) {
+        let _ = self.gecko.process.kill();
+    }
+}
+
+pub struct RetrosPage<'a> {
+    pub driver: &'a WebDriver,
+}
+
+impl<'a> RetrosPage<'a> {
+    pub async fn new(driver: &'a WebDriver) -> WebDriverResult<Self> {
+        driver.goto("http://localhost:3000/retros").await?;
+        Ok(Self { driver })
+    }
+
+    pub async fn create_retro(&self, title_prefix: &str) -> WebDriverResult<RetroPage<'_>> {
+        let test_title = create_test_retro(self.driver, title_prefix).await?;
+        RetroPage::new(self.driver, &test_title).await
+    }
+}
+
+pub struct RetroPage<'a> {
+    pub driver: &'a WebDriver,
+    pub title: String,
+}
+
+impl<'a> RetroPage<'a> {
+    pub async fn new(driver: &'a WebDriver, title: &str) -> WebDriverResult<Self> {
+        driver.goto(format!("http://localhost:3000/retro/{}", title).as_str()).await?;
+        Ok(Self { driver, title: title.to_string() })
+    }
+
+    pub async fn add_card(&self, category: &str, text: &str) -> WebDriverResult<()> {
+        let target = match category {
+            "Good" => "#good-items",
+            "Bad" => "#bad-items",
+            "Watch" => "#watch-items",
+            _ => panic!("Invalid category"),
+        };
+
+        let form = self.driver
+            .find(By::Css(format!("form[hx-target='{}']", target).as_str()))
+            .await?;
+            
+        let input = form.find(By::Tag("input")).await?;
+        input.send_keys(text).await?;
+        input.send_keys("\u{E007}").await?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        Ok(())
+    }
+
+    pub async fn verify_card_state(&self, text: &str, expected_class: &str) -> WebDriverResult<()> {
+        let cards = self.driver.find_all(By::ClassName("card")).await?;
+        for card in cards {
+            if card.text().await? == text {
+                let class_attr = card.attr("class").await?.unwrap();
+                assert_eq!(class_attr.trim(), expected_class,
+                    "Card '{}' should be in {} state", text, expected_class);
+                return Ok(());
+            }
+        }
+        panic!("Card with text '{}' not found", text)
+    }
+
+    pub async fn cleanup(self) -> WebDriverResult<()> {
+        cleanup_retro(self.driver, &self.title).await
+    }
+}
