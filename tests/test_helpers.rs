@@ -54,7 +54,7 @@ pub async fn cleanup_retro(driver: &WebDriver, test_title: &str) -> WebDriverRes
 pub async fn create_test_retro(driver: &WebDriver, title_prefix: &str) -> WebDriverResult<String> {
     driver.goto("http://localhost:3000/retros/new").await?;
     let test_title = format!("{} {}", title_prefix, rand::thread_rng().gen::<u32>());
-    
+
     let slug = test_title
         .to_lowercase()
         .replace(' ', "-")
@@ -117,8 +117,27 @@ impl<'a> RetrosPage<'a> {
     }
 
     pub async fn create_retro(&self, title_prefix: &str) -> WebDriverResult<RetroPage<'_>> {
-        let slug = create_test_retro(self.driver, title_prefix).await?;
-        RetroPage::new(self.driver, &slug).await
+      self.driver.goto("http://localhost:3000/retros/new").await?;
+      let test_title = format!("{} {}", title_prefix, rand::thread_rng().gen::<u32>());
+
+      let slug = test_title
+          .to_lowercase()
+          .replace(' ', "-")
+          .chars()
+          .filter(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-')
+          .collect::<String>()
+          .chars()
+          .take(255)
+          .collect::<String>();
+
+      let title_input = self.driver.find(By::Css("input[name='title']")).await?;
+      title_input.send_keys(&test_title).await?;
+      let slug_input =self. driver.find(By::Css("input[name='slug']")).await?;
+      slug_input.send_keys(&slug).await?;
+
+      self.driver.find(By::Css("input[type='submit']")).await?.click().await?;
+
+      RetroPage::new(self.driver, &slug).await
     }
 }
 
@@ -147,7 +166,7 @@ impl<'a> RetroPage<'a> {
         let form = self.driver
             .find(By::Css(format!("form[hx-target='{}']", target).as_str()))
             .await?;
-            
+
         let input = form.find(By::Tag("input")).await?;
         input.send_keys(text).await?;
         input.send_keys("\u{E007}").await?;
@@ -166,6 +185,27 @@ impl<'a> RetroPage<'a> {
             }
         }
         panic!("Card with text '{}' not found", text)
+    }
+
+    pub async fn click_card(&self, text: &str) -> WebDriverResult<()> {
+        let card = self.driver.find(By::XPath(&format!("//article[contains(@class, 'card') and contains(., '{}')]", text))).await?;
+        card.click().await?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        Ok(())
+    }
+
+    pub async fn complete_card(&self) -> WebDriverResult<()> {
+        self.driver.find(By::Css(".primary")).await?.click().await?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        Ok(())
+    }
+
+    pub async fn archive(&self) -> WebDriverResult<()> {
+        let archive_button = self.driver.find(By::Css("#archive-modal .primary")).await?;
+        assert!(archive_button.is_displayed().await?, "Archive dialog should be visible");
+        archive_button.click().await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        Ok(())
     }
 
     pub async fn cleanup(self) -> WebDriverResult<()> {

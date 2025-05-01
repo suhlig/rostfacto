@@ -37,64 +37,23 @@ async fn test_home_page() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_archive_retro() -> WebDriverResult<()> {
-    let gecko = start_geckodriver();
+    let browser = BrowserSession::new().await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Archive Test Retro").await?;
 
-    let mut caps = DesiredCapabilities::firefox();
-    if !should_show_browser() {
-        caps.set_headless()?;
-    }
+    // Add and process test card
+    retro_page.add_card("Good", "Card to archive").await?;
+    retro_page.click_card("Card to archive").await?;
+    retro_page.complete_card().await?;
 
-    // Create Firefox preferences and set them
-    let mut prefs = FirefoxPreferences::new();
-    let _ = prefs.set("webdriver.log.level", "error");
-    caps.set_preferences(prefs)?;
+    // Handle archive flow
+    retro_page.archive().await?;
 
-    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
-
-    // Create a new retro
-    let test_title = test_helpers::create_test_retro(&driver, "Archive Test Retro").await?;
-
-    // Add a single card to Good column
-    let good_form = driver.find(By::Css("form[hx-target='#good-items']")).await?;
-    let good_input = good_form.find(By::Tag("input")).await?;
-    good_input.send_keys("Card to archive").await?;
-    good_input.send_keys("\u{E007}").await?;
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-    // Click the card to highlight it
-    driver.find(By::Css("#good-items .card")).await?.click().await?;
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-    // Click again to complete it - get a fresh reference to avoid stale element
-    driver.find(By::Css("#good-items .card.highlighted")).await?.click().await?;
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-    // Complete the card - get fresh reference to avoid stale element
-    driver.find(By::Css(".primary")).await?.click().await?;
-    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-
-    // Verify the archive dialog appears
-    let archive_dialog = driver.find(By::Id("archive-modal")).await?;
-    assert!(archive_dialog.is_displayed().await?, "Archive dialog should be visible");
-
-    // Click "Yes" on the archive dialog
-    driver.find(By::Css("#archive-modal .primary")).await?.click().await?;
-
-    // Wait for the archive operation to complete and UI to update
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-
-    // Verify we are on the retro page
-
-    // Verify all cards are gone
-    let remaining_cards = driver.find_all(By::ClassName("card")).await?;
+    // Verify all cards are archived
+    let remaining_cards = retro_page.driver.find_all(By::ClassName("card")).await?;
     assert_eq!(remaining_cards.len(), 0, "All cards should be archived");
 
-    // Clean up - delete the retro
-    test_helpers::cleanup_retro(&driver, &test_title).await?;
-
-    // Always close the browser
-    driver.quit().await?;
-
+    retro_page.cleanup().await?;
     Ok(())
 }
 
