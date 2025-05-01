@@ -120,35 +120,15 @@ async fn test_create_cards() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_create_retro() -> WebDriverResult<()> {
-    let gecko = start_geckodriver();
-
-    let mut caps = DesiredCapabilities::firefox();
-    if !should_show_browser() {
-        caps.set_headless()?;
-    }
-
-    // Create Firefox preferences and set them
-    let mut prefs = FirefoxPreferences::new();
-    let _ = prefs.set("webdriver.log.level", "error");
-    caps.set_preferences(prefs)?;
-
-    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
-
-    // Navigate to the retros page
-    let test_title = create_test_retro(&driver, "Test Retro").await?;
-
-    // Wait for redirect and verify we're on the retro page
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-    let current_url = driver.current_url().await?;
-    assert!(current_url.as_str().contains("/retro/"), "Should be redirected to retro page");
+    let browser = BrowserSession::new().await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Test Retro").await?;
 
     // Verify the retro title is shown
-    let title = driver.find(By::Css("h1")).await?;
-    assert_eq!(title.text().await?, test_title);
+    let title = retro_page.driver.find(By::Css("h1")).await?;
+    assert_eq!(title.text().await?, retro_page.title);
 
-    // Clean up - delete the retro
-    cleanup_retro(&driver, &test_title).await?;
-
+    retro_page.cleanup().await?;
     Ok(())
 }
 

@@ -117,8 +117,8 @@ impl<'a> RetrosPage<'a> {
     }
 
     pub async fn create_retro(&self, title_prefix: &str) -> WebDriverResult<RetroPage<'_>> {
-        let test_title = create_test_retro(self.driver, title_prefix).await?;
-        RetroPage::new(self.driver, &test_title).await
+        let slug = create_test_retro(self.driver, title_prefix).await?;
+        RetroPage::new(self.driver, &slug).await
     }
 }
 
@@ -128,9 +128,12 @@ pub struct RetroPage<'a> {
 }
 
 impl<'a> RetroPage<'a> {
-    pub async fn new(driver: &'a WebDriver, title: &str) -> WebDriverResult<Self> {
-        driver.goto(format!("http://localhost:3000/retro/{}", title).as_str()).await?;
-        Ok(Self { driver, title: title.to_string() })
+    pub async fn new(driver: &'a WebDriver, slug: &str) -> WebDriverResult<Self> {
+        driver.goto(format!("http://localhost:3000/retro/{}", slug).as_str()).await?;
+        // Get the actual title from the page
+        let title_element = driver.find(By::Css("h1")).await?;
+        let title = title_element.text().await?;
+        Ok(Self { driver, title })
     }
 
     pub async fn add_card(&self, category: &str, text: &str) -> WebDriverResult<()> {
