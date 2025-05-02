@@ -4,6 +4,8 @@ use axum::{
     http::StatusCode,
     Form,
 };
+use askama::Template;
+use crate::templates::{NewRetroTemplate, ItemCardTemplate, ArchiveModalTemplate, HomeTemplate, RetrosTemplate, ErrorTemplate, RetroTemplate};
 
 pub async fn delete_retro(
     State(pool): State<PgPool>,
@@ -66,41 +68,15 @@ pub async fn archive_retro(
     (StatusCode::SEE_OTHER, [("Location", format!("/retro/{}", retro.slug))]).into_response()
 }
 
-use askama::Template;
 use sqlx::PgPool;
 use serde::Deserialize;
-use crate::models::{Retrospective, Item, Category, Status};
-
-#[derive(Template)]
-#[template(path = "item_card.html")]
-struct ItemCardTemplate {
-    item: Item,
-}
-
-#[derive(Template)]
-#[template(path = "archive_modal.html")]
-struct ArchiveModalTemplate {
-    item: Item,
-}
-
-#[derive(Template)]
-#[template(path = "new_retro.html")]
-struct NewRetroTemplate {}
+use crate::models::{Retrospective, Item, Category};
 
 pub async fn new_retro() -> Html<String> {
     let template = NewRetroTemplate {};
     Html(template.render().unwrap())
 }
 
-#[derive(Template)]
-#[template(path = "home.html")]
-struct HomeTemplate;
-
-#[derive(Template)]
-#[template(path = "retros.html")]
-struct RetrosTemplate {
-    retros: Vec<Retrospective>,
-}
 
 use axum::extract::Query;
 use std::collections::HashMap;
@@ -258,21 +234,6 @@ pub async fn list_retros(
     Html(template.render().unwrap())
 }
 
-#[derive(Template)]
-#[template(path = "error.html")]
-struct ErrorTemplate {
-    code: &'static str,
-    message: String,
-}
-
-#[derive(Template)]
-#[template(path = "retro.html")]
-struct RetroTemplate {
-    retro: Retrospective,
-    good_items: Vec<Item>,
-    bad_items: Vec<Item>,
-    watch_items: Vec<Item>,
-}
 
 pub async fn show_retro(
     State(pool): State<PgPool>,

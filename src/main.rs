@@ -7,6 +7,7 @@ use tower_http::services::ServeDir;
 
 mod handlers;
 mod models;
+pub mod templates;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
