@@ -1,6 +1,6 @@
 {% match item.status %}
   {% when Status::Highlighted %}
-    <article class="card highlighted" id="card-{{ item.id }}" data-item-id="{{ item.id }}">
+    <article class="card highlighted" data-item-id="{{ item.id }}">
       <p>{{ item.text }}</p>
       <form>
         <fieldset class="grid" style="margin-bottom: 0px; padding-left: 50%">
@@ -20,14 +20,13 @@
       </form>
     </article>
   {% when Status::Completed %}
-    <article class="card completed" id="card-{{ item.id }}" data-item-id="{{ item.id }}">{{ item.text }}</article>
+    <article class="card completed" data-item-id="{{ item.id }}">{{ item.text }}</article>
   {% else %}
     <article class="card"
-              id="card-{{ item.id }}"
-              data-item-id="{{ item.id }}"
-              hx-post="/items/{{ item.id }}/status?action=highlight"
-              hx-target="closest .card"
-              hx-swap="outerHTML"
+             data-item-id="{{ item.id }}"
+             hx-post="/items/{{ item.id }}/status?action=highlight"
+             hx-target="closest .card"
+             hx-swap="outerHTML"
     >
         {{ item.text }}
     </article>
