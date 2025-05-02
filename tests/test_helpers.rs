@@ -35,45 +35,6 @@ pub fn start_geckodriver() -> GeckoDriver {
     GeckoDriver { process, port }
 }
 
-pub async fn cleanup_retro(driver: &WebDriver, test_title: &str) -> WebDriverResult<()> {
-    driver.goto("http://localhost:3000/retros").await?;
-    let rows = driver.find_all(By::Css("table tr")).await?;
-    for row in rows {
-        if let Ok(link) = row.find(By::Tag("a")).await {
-            if link.text().await? == test_title {
-                driver.execute("window.confirm = () => true", vec![]).await?;
-                let delete_button = row.find(By::Tag("button")).await?;
-                delete_button.click().await?;
-                break;
-            }
-        }
-    }
-    Ok(())
-}
-
-pub async fn create_test_retro(driver: &WebDriver, title_prefix: &str) -> WebDriverResult<String> {
-    driver.goto("http://localhost:3000/retros/new").await?;
-    let test_title = format!("{} {}", title_prefix, rand::thread_rng().gen::<u32>());
-
-    let slug = test_title
-        .to_lowercase()
-        .replace(' ', "-")
-        .chars()
-        .filter(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-')
-        .collect::<String>()
-        .chars()
-        .take(255)
-        .collect::<String>();
-
-    let title_input = driver.find(By::Css("input[name='title']")).await?;
-    title_input.send_keys(&test_title).await?;
-    let slug_input = driver.find(By::Css("input[name='slug']")).await?;
-    slug_input.send_keys(&slug).await?;
-
-    driver.find(By::Css("input[type='submit']")).await?.click().await?;
-    Ok(test_title)
-}
-
 pub struct BrowserSession {
     pub driver: WebDriver,
     pub gecko: GeckoDriver,
@@ -220,6 +181,18 @@ impl<'a> RetroPage<'a> {
     }
 
     pub async fn cleanup(self) -> WebDriverResult<()> {
-        cleanup_retro(self.driver, &self.title).await
+      self.driver.goto("http://localhost:3000/retros").await?;
+      let rows = self.driver.find_all(By::Css("table tr")).await?;
+      for row in rows {
+          if let Ok(link) = row.find(By::Tag("a")).await {
+              if link.text().await? == self.title {
+                  self.driver.execute("window.confirm = () => true", vec![]).await?;
+                  let delete_button = row.find(By::Tag("button")).await?;
+                  delete_button.click().await?;
+                  break;
+              }
+          }
+      }
+      Ok(())
     }
 }
