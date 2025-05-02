@@ -7,37 +7,9 @@ pub fn should_show_browser() -> bool {
     std::env::var("SHOW_BROWSER").is_ok()
 }
 
-pub struct GeckoDriver {
-    pub process: Child,
-    pub port: u16,
-}
-
-impl Drop for GeckoDriver {
-    fn drop(&mut self) {
-        let _ = self.process.kill();
-        let _ = self.process.wait();
-    }
-}
-
-pub fn start_geckodriver() -> GeckoDriver {
-    let port = pick_unused_port().expect("No ports available");
-
-    let process = Command::new("geckodriver")
-        .arg("--port")
-        .arg(port.to_string())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .expect("Failed to start geckodriver");
-
-    std::thread::sleep(std::time::Duration::from_secs(1));
-
-    GeckoDriver { process, port }
-}
-
 pub struct BrowserSession {
     pub driver: WebDriver,
-    pub gecko: GeckoDriver,
+    process: Child,
 }
 
 impl BrowserSession {
@@ -46,7 +18,17 @@ impl BrowserSession {
     }
 
     pub async fn new() -> WebDriverResult<Self> {
-        let gecko = start_geckodriver();
+        let port = pick_unused_port().expect("No ports available");
+        let process = Command::new("geckodriver")
+            .arg("--port")
+            .arg(port.to_string())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("Failed to start geckodriver");
+
+        std::thread::sleep(std::time::Duration::from_secs(1));
+
         let mut caps = DesiredCapabilities::firefox();
         if !should_show_browser() {
             caps.set_headless()?;
@@ -56,8 +38,8 @@ impl BrowserSession {
         let _ = prefs.set("webdriver.log.level", "error");
         caps.set_preferences(prefs)?;
 
-        let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
-        Ok(Self { driver, gecko })
+        let driver = WebDriver::new(&format!("http://localhost:{}", port), caps).await?;
+        Ok(Self { driver, process })
     }
 
     pub async fn retros_page(&self) -> WebDriverResult<RetrosPage<'_>> {
@@ -67,7 +49,8 @@ impl BrowserSession {
 
 impl Drop for BrowserSession {
     fn drop(&mut self) {
-        let _ = self.gecko.process.kill();
+        let _ = self.process.kill();
+        let _ = self.process.wait();
     }
 }
 
