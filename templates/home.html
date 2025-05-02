@@ -1,14 +1,27 @@
 {% extends "base.html" %}
 
 {% block header %}
-<header class="container text-center">
-  <hgroup>
-    <h1>Rostfacto</h1>
-    <p>Where Teams Reflect and Grow</p>
-  </hgroup>
-</header>
+<hgroup>
+  <h1>Rostfacto</h1>
+  <p>Where Teams Reflect and Grow</p>
+  <nav>
+    <ul>
+    </ul>
+    <ul>
+      <li><a href="https://github.com/suhlig/rostfacto">Source Code</a></li>
+    </ul>
+  </nav>
+</hgroup>
 {% endblock %}
 
 {% block content %}
-{# Empty content block as per requirements #}
+<div class="container">
+  <p>Rostfacto is an app for running a retrospective remotely. It was created because the great <a href="https://github.com/vmware-archive/postfacto">Postfacto</a> is no longer maintained. </p>
+
+  <p style="text-align: center;">
+    <img src="https://raw.githubusercontent.com/vmware-archive/postfacto/refs/heads/master/media/sample-retro.gif"/>
+  </p>
+
+  <p>Like all good tools, this is a <a href="https://github.com/TaKO8Ki/awesome-alternatives-in-rust">rewrite in Rust</a>.</p>
+</div>
 {% endblock %}

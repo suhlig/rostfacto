@@ -10,20 +10,9 @@
     <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
 </head>
 <body>
-    {% block header %}
-    <header class="container">
-      <hgroup>
-        <h1>Rostfacto</h1>
-        <p>Where Teams Reflect and Grow</p>
-        <nav>
-          <ul>
-            <li><a href="/retros">All Retros</a></li>
-            <li><a href="/retros/new">New Retro</a></li>
-          </ul>
-        </nav>
-      </hgroup>
+    <header class="container text-center">
+      {% block header %}{% endblock %}
     </header>
-    {% endblock %}
 
     <main class="container-fluid" style="padding: 0;">
       {% block content %}{% endblock %}

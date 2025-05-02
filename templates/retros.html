@@ -1,5 +1,20 @@
 {% extends "base.html" %}
 
+{% block header %}
+<header class="container">
+  <hgroup>
+    <h1>Rostfacto</h1>
+    <p>Where Teams Reflect and Grow</p>
+    <nav>
+      <ul>
+        <li><a href="/retros">All Retros</a></li>
+        <li><a href="/retros/new">New Retro</a></li>
+      </ul>
+    </nav>
+  </hgroup>
+</header>
+{% endblock %}
+
 {% block content %}
 <div class="container">
     <h1>Retrospectives</h1>
