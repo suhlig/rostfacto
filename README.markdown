@@ -28,3 +28,14 @@ cargo watch -x run
   * A card changes status
   * A card was liked
   * Retro was completed (all cards disappear)
+
+# License
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+See the [LICENSE](LICENSE) file for full license text.
+
+The concept and some of the artwork was inspired by [Postfacto](https://github.com/vmware-archive/postfacto), reproduced under the GNU Affero General Public License.
