@@ -1,15 +1,13 @@
-<div>
-  {{ text }}
-  <dialog id="archive-modal" open>
-    <article>
-      <h3>Archive All Cards?</h3>
-      <form method="POST" action="/retro/{{ retro_id }}/archive">
-        <button class="secondary" value="cancel" formmethod="dialog" onclick="this.closest('dialog').close()">No</button>
-        <input  class="primary"   type="submit"  value="Yes"/>
-      </form>
-    </article>
-  </dialog>
-</div>
+<article class="card completed" id="card-{{ item.id }}" data-item-id="{{ item.id }}">{{ item.text }}</article>
 
-
-<button id="confirmBtn" value="default">Confirm</button>
+<dialog id="archive-modal" open>
+  <article>
+    <h3>Archive All Cards?</h3>
+    <form method="POST" action="/retro/{{ item.retro_id }}/archive">
+      <fieldset class="grid">
+        <button class="secondary" formmethod="dialog" onclick="this.closest('dialog').close()">No</button>
+        <button class="primary" formmethod="post">Yes</button>
+      </fieldset>
+    </form>
+  </article>
+</dialog>

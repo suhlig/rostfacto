@@ -80,8 +80,7 @@ struct ItemCardTemplate {
 #[derive(Template)]
 #[template(path = "archive_modal.html")]
 struct ArchiveModalTemplate {
-    text: String,
-    retro_id: i32,
+    item: Item,
 }
 
 #[derive(Template)]
@@ -170,10 +169,7 @@ pub async fn change_item_status(
     .unwrap();
 
     let template = if all_completed.unwrap_or(false) {
-        let archive_modal = ArchiveModalTemplate {
-            text: htmlescape::encode_minimal(&item.text),
-            retro_id: item.retro_id,
-        };
+        let archive_modal = ArchiveModalTemplate { item };
         archive_modal.render().unwrap()
     } else {
         let item_card = ItemCardTemplate { item };
