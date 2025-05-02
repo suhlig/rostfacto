@@ -3,10 +3,6 @@ use portpicker::pick_unused_port;
 use std::process::{Command, Child};
 use rand::Rng;
 
-pub fn should_show_browser() -> bool {
-    std::env::var("SHOW_BROWSER").is_ok()
-}
-
 pub struct BrowserSession {
     pub driver: WebDriver,
     process: Child,
@@ -30,7 +26,7 @@ impl BrowserSession {
         std::thread::sleep(std::time::Duration::from_secs(1));
 
         let mut caps = DesiredCapabilities::firefox();
-        if !should_show_browser() {
+        if !std::env::var("SHOW_BROWSER").is_ok() {
             caps.set_headless()?;
         }
 
