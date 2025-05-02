@@ -41,6 +41,10 @@ pub struct BrowserSession {
 }
 
 impl BrowserSession {
+    pub async fn home_page(&self) -> WebDriverResult<HomePage<'_>> {
+        HomePage::new(&self.driver).await
+    }
+
     pub async fn new() -> WebDriverResult<Self> {
         let gecko = start_geckodriver();
         let mut caps = DesiredCapabilities::firefox();
@@ -64,6 +68,23 @@ impl BrowserSession {
 impl Drop for BrowserSession {
     fn drop(&mut self) {
         let _ = self.gecko.process.kill();
+    }
+}
+
+pub struct HomePage<'a> {
+    pub driver: &'a WebDriver,
+}
+
+impl<'a> HomePage<'a> {
+    pub async fn new(driver: &'a WebDriver) -> WebDriverResult<Self> {
+        driver.goto("http://localhost:3000").await?;
+        Ok(Self { driver })
+    }
+
+    pub async fn verify_title(&self, expected: &str) -> WebDriverResult<()> {
+        let h1 = self.driver.find(By::Css("h1")).await?;
+        assert_eq!(h1.text().await?, expected);
+        Ok(())
     }
 }
 

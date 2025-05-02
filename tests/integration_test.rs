@@ -7,31 +7,9 @@ use test_helpers::*;
 
 #[tokio::test]
 async fn test_home_page() -> WebDriverResult<()> {
-    let gecko = test_helpers::start_geckodriver();
-
-    let mut caps = DesiredCapabilities::firefox();
-    if !should_show_browser() {
-        caps.set_headless()?;
-    }
-    caps.add_firefox_arg("--log-level=3")?; // Only show fatal errors
-
-    // Create Firefox preferences and set them
-    let mut prefs = FirefoxPreferences::new();
-    let _ = prefs.set("webdriver.log.level", "error");
-    caps.set_preferences(prefs)?;
-
-    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
-
-    // Navigate to the homepage
-    driver.goto("http://localhost:3000").await?;
-
-    // Find the h1 element and verify its text
-    let h1 = driver.find(By::Css("h1")).await?;
-    assert_eq!(h1.text().await?, "Rostfacto");
-
-    // Close the browser
-    driver.quit().await?;
-
+    let browser = BrowserSession::new().await?;
+    let home_page = browser.home_page().await?;
+    home_page.verify_title("Rostfacto").await?;
     Ok(())
 }
 
