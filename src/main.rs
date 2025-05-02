@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/retro/:slug", get(handlers::show_retro))
         .route("/items/:category/:retro_id", post(handlers::add_item))
         .route("/items/:id/status", post(handlers::change_item_status))
-        .route("/retro/:slug/archive", post(handlers::archive_retro))
+        .route("/retro/:retro_id/archive", post(handlers::archive_retro))
         .route("/retro/:slug/delete", delete(handlers::delete_retro))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(pool);

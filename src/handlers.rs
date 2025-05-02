@@ -36,13 +36,13 @@ pub async fn delete_retro(
 
 pub async fn archive_retro(
     State(pool): State<PgPool>,
-    Path(slug): Path<String>,
+    Path(retro_id): Path<i32>,
 ) -> impl IntoResponse {
-    // Get retro by slug first
+    // Get retro by id first
     let retro = match sqlx::query_as!(
         Retrospective,
-        "SELECT * FROM retrospectives WHERE slug = $1",
-        slug
+        "SELECT * FROM retrospectives WHERE id = $1",
+        retro_id
     )
     .fetch_one(&pool)
     .await {
@@ -57,7 +57,7 @@ pub async fn archive_retro(
         SET status = 'ARCHIVED'::status
         WHERE retro_id = $1
         "#,
-        retro.id
+        retro_id
     )
     .execute(&pool)
     .await
