@@ -107,30 +107,15 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_nonexistent_retro() -> WebDriverResult<()> {
-    let gecko = start_geckodriver();
+    let browser = BrowserSession::new().await?;
+    
+    // Navigate to non-existent retro directly
+    browser.driver.goto("http://localhost:3000/retro/99999").await?;
 
-    let mut caps = DesiredCapabilities::firefox();
-    if !should_show_browser() {
-        caps.set_headless()?;
-    }
-
-    // Create Firefox preferences and set them
-    let mut prefs = FirefoxPreferences::new();
-    let _ = prefs.set("webdriver.log.level", "error");
-    caps.set_preferences(prefs)?;
-
-    let driver = WebDriver::new(&format!("http://localhost:{}", gecko.port), caps).await?;
-
-    // Navigate to a non-existent retro
-    driver.goto("http://localhost:3000/retro/99999").await?;
-
-    // Find the body text and verify it contains "not found"
-    let body = driver.find(By::Tag("body")).await?;
+    // Verify error message
+    let body = browser.driver.find(By::Tag("body")).await?;
     let body_text = body.text().await?.to_lowercase();
     assert!(body_text.contains("not found"));
-
-    // Always close the browser
-    driver.quit().await?;
 
     Ok(())
 }
