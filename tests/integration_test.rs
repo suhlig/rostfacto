@@ -1,8 +1,7 @@
 mod test_helpers;
 
-use thirtyfour::{WebDriver, By, DesiredCapabilities};
+use thirtyfour::By;
 use thirtyfour::error::WebDriverResult;
-use thirtyfour::common::capabilities::firefox::FirefoxPreferences;
 use test_helpers::*;
 
 #[tokio::test]
@@ -108,7 +107,7 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
 #[tokio::test]
 async fn test_nonexistent_retro() -> WebDriverResult<()> {
     let browser = BrowserSession::new().await?;
-    
+
     // Navigate to non-existent retro directly
     browser.driver.goto("http://localhost:3000/retro/99999").await?;
 

@@ -16,12 +16,15 @@ cargo watch -x run
 
 # TODO
 
-- Only admin users can create and delete retros
-- Retro is password-protected by default with a generated password
+- Authentication using GitHub (Enterprise)
+- Only admin users can create and delete retros, authorized by being part of a GH team
+- Retro accessible only to a specific GH team
 - Timer for each retro card
+- Likes for each retro card
 - Archive button (if opportunity to archive after last card complete was not used)
 - Archive display, grouped by the day the items were created
-- Sync across all clients with SSE, triggers and LISTEN/NOTIFY
+- Sync across all clients with SSE when
   * A new card appears
   * A card changes status
+  * A card was liked
   * Retro was completed (all cards disappear)
