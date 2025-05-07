@@ -1,5 +1,6 @@
 .$*.svg.bkp
 .aider*
 .env
+.envrc
 .vscode
 target
