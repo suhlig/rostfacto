@@ -19,6 +19,7 @@ cargo watch -x run
 - Authentication using GitHub (Enterprise)
 - Only admin users can create and delete retros, authorized by being part of a GH team
 - Retro accessible only to a specific GH team
+- Edit a card
 - Timer for each retro card
 - Likes for each retro card
 - Archive button (if opportunity to archive after last card complete was not used)
