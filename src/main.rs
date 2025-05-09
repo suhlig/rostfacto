@@ -37,6 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/retro/{retro_id}/archive", post(handlers::archive_retro))
         .route("/retro/{slug}/delete", delete(handlers::delete_retro))
         .nest_service("/static", ServeDir::new("static"))
+        .fallback(handlers::not_found)
         .with_state(pool);
 
     let listener = match tokio::net::TcpListener::bind(&args.bind_address).await {

@@ -2,9 +2,12 @@
 
 {% block content %}
 <div class="container">
-    <article class="error-page">
-        <h1>{{ code }}</h1>
-        <p>{{ message }}</p>
+    <article class="error-page" style="text-align: center; margin: 5rem 0;">
+        <h1 style="font-size: 8rem; margin: 0;">{{ code }}</h1>
+        <p style="font-size: 1.5rem; color: #666;">{{ message }}</p>
+        <a href="/" style="display: inline-block; margin-top: 2rem; color: #0066cc; text-decoration: none;">
+            ← Return to homepage
+        </a>
     </article>
 </div>
 {% endblock %}

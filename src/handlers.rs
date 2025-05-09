@@ -28,7 +28,7 @@ pub async fn delete_retro(
     .await
     {
         Ok(retro) => retro,
-        Err(_) => return StatusCode::NOT_FOUND.into_response(),
+        Err(_) => return not_found().await.into_response(),
     };
 
     // Delete the retro (items will be deleted automatically due to ON DELETE CASCADE)
@@ -229,6 +229,14 @@ pub async fn create_retro(
         .into_response()
 }
 
+pub async fn not_found() -> impl IntoResponse {
+    let template = ErrorTemplate {
+        code: "404",
+        message: "Page not found".to_string(),
+    };
+    (StatusCode::NOT_FOUND, Html(template.render().unwrap()))
+}
+
 pub async fn home() -> Html<String> {
     let template = HomeTemplate {};
     Html(template.render().unwrap())
@@ -260,7 +268,7 @@ pub async fn show_retro(State(pool): State<PgPool>, Path(slug): Path<String>) ->
         Err(_) => {
             let template = ErrorTemplate {
                 code: "404",
-                message: format!("Retrospective '{}' not found", slug),
+                message: format!("No retrospective with slug '{}' found", slug),
             };
             return (StatusCode::NOT_FOUND, Html(template.render().unwrap())).into_response();
         }

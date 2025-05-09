@@ -1,14 +1,41 @@
 mod test_helpers;
 
-use thirtyfour::By;
-use thirtyfour::error::WebDriverResult;
 use test_helpers::*;
+use thirtyfour::error::WebDriverResult;
+use thirtyfour::By;
 
 #[tokio::test]
 async fn test_home_page() -> WebDriverResult<()> {
     let browser = BrowserSession::new().await?;
     let home_page = browser.home_page().await?;
     home_page.verify_title("Rostfacto").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_invalid_url() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+
+    // Navigate to non-existent page
+    browser
+        .driver
+        .goto("http://localhost:3000/non-existent-page")
+        .await?;
+
+    // Verify 404 page content
+    let error_code = browser.driver.find(By::Css(".error-page h1")).await?;
+    assert_eq!(error_code.text().await?, "404");
+
+    let error_message = browser.driver.find(By::Css(".error-page p")).await?;
+    assert_eq!(error_message.text().await?, "Page not found");
+
+    // Test home link works
+    let home_link = browser.driver.find(By::Css(".error-page a")).await?;
+    home_link.click().await?;
+
+    let current_url = browser.driver.current_url().await?;
+    assert!(current_url.to_string().ends_with("/"));
+
     Ok(())
 }
 
@@ -84,21 +111,29 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
 
     // Test highlighting
     retro_page.click_card(card1_id).await?;
-    retro_page.verify_card_state(card1_id, "card highlighted").await?;
+    retro_page
+        .verify_card_state(card1_id, "card highlighted")
+        .await?;
     retro_page.verify_card_state(card2_id, "card").await?;
 
     // Test failed highlight attempt
     retro_page.click_card(card2_id).await?;
-    retro_page.verify_card_state(card1_id, "card highlighted").await?;
+    retro_page
+        .verify_card_state(card1_id, "card highlighted")
+        .await?;
     retro_page.verify_card_state(card2_id, "card").await?;
 
     // Complete card and verify transition
     retro_page.complete_card().await?;
-    retro_page.verify_card_state(card1_id, "card completed").await?;
+    retro_page
+        .verify_card_state(card1_id, "card completed")
+        .await?;
 
     // Verify other card can now be clicked
     retro_page.click_card(card2_id).await?;
-    retro_page.verify_card_state(card2_id, "card highlighted").await?;
+    retro_page
+        .verify_card_state(card2_id, "card highlighted")
+        .await?;
 
     retro_page.cleanup().await?;
     Ok(())
@@ -109,12 +144,24 @@ async fn test_nonexistent_retro() -> WebDriverResult<()> {
     let browser = BrowserSession::new().await?;
 
     // Navigate to non-existent retro directly
-    browser.driver.goto("http://localhost:3000/retro/99999").await?;
+    browser
+        .driver
+        .goto("http://localhost:3000/retro/99999")
+        .await?;
 
-    // Verify error message
-    let body = browser.driver.find(By::Tag("body")).await?;
-    let body_text = body.text().await?.to_lowercase();
-    assert!(body_text.contains("not found"));
+    // Verify 404 page content
+    let error_code = browser.driver.find(By::Css(".error-page h1")).await?;
+    assert_eq!(error_code.text().await?, "404");
+
+    let error_message = browser.driver.find(By::Css(".error-page p")).await?;
+    assert_eq!(
+        error_message.text().await?,
+        "No retrospective with slug '99999' found"
+    );
+
+    let home_link = browser.driver.find(By::Css(".error-page a")).await?;
+    assert_eq!(home_link.text().await?, "← Return to homepage");
+    assert!(home_link.attr("href").await?.unwrap().contains("/"));
 
     Ok(())
 }
@@ -131,11 +178,18 @@ async fn test_archived_card_display() -> WebDriverResult<()> {
     retro_page.complete_card().await?;
 
     // Deny archiving the retro
-    retro_page.driver.find(By::Css("#archive-modal .secondary")).await?.click().await?;
+    retro_page
+        .driver
+        .find(By::Css("#archive-modal .secondary"))
+        .await?
+        .click()
+        .await?;
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
     // Verify completed card remains visible
-    retro_page.verify_card_state(card_id, "card completed").await?;
+    retro_page
+        .verify_card_state(card_id, "card completed")
+        .await?;
 
     retro_page.cleanup().await?;
     Ok(())
@@ -152,7 +206,12 @@ async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
 
     // Click to highlight and cancel
     retro_page.click_card(card_id).await?;
-    retro_page.driver.find(By::Css(".secondary")).await?.click().await?;
+    retro_page
+        .driver
+        .find(By::Css(".secondary"))
+        .await?
+        .click()
+        .await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
     // Verify card state
