@@ -1,11 +1,18 @@
-use axum::{
-    extract::{Path, State},
-    response::{Html, IntoResponse},
-    http::StatusCode,
-    Form,
+use crate::models::{Category, Item, Retrospective};
+use crate::templates::{
+    ArchiveModalTemplate, ErrorTemplate, HomeTemplate, ItemCardTemplate, NewRetroTemplate,
+    RetroTemplate, RetrosTemplate,
 };
 use askama::Template;
-use crate::templates::{NewRetroTemplate, ItemCardTemplate, ArchiveModalTemplate, HomeTemplate, RetrosTemplate, ErrorTemplate, RetroTemplate};
+use axum::{
+    extract::{Path, Query, State},
+    http::StatusCode,
+    response::{Html, IntoResponse},
+    Form,
+};
+use serde::Deserialize;
+use sqlx::PgPool;
+use std::collections::HashMap;
 
 pub async fn delete_retro(
     State(pool): State<PgPool>,
@@ -18,19 +25,17 @@ pub async fn delete_retro(
         slug
     )
     .fetch_one(&pool)
-    .await {
+    .await
+    {
         Ok(retro) => retro,
         Err(_) => return StatusCode::NOT_FOUND.into_response(),
     };
 
     // Delete the retro (items will be deleted automatically due to ON DELETE CASCADE)
-    sqlx::query!(
-        "DELETE FROM retrospectives WHERE id = $1",
-        retro.id
-    )
-    .execute(&pool)
-    .await
-    .unwrap();
+    sqlx::query!("DELETE FROM retrospectives WHERE id = $1", retro.id)
+        .execute(&pool)
+        .await
+        .unwrap();
 
     // Return empty response with 200 status
     StatusCode::OK.into_response()
@@ -47,7 +52,8 @@ pub async fn archive_retro(
         retro_id
     )
     .fetch_one(&pool)
-    .await {
+    .await
+    {
         Ok(retro) => retro,
         Err(_) => return StatusCode::NOT_FOUND.into_response(),
     };
@@ -65,21 +71,17 @@ pub async fn archive_retro(
     .await
     .unwrap();
 
-    (StatusCode::SEE_OTHER, [("Location", format!("/retro/{}", retro.slug))]).into_response()
+    (
+        StatusCode::SEE_OTHER,
+        [("Location", format!("/retro/{}", retro.slug))],
+    )
+        .into_response()
 }
-
-use sqlx::PgPool;
-use serde::Deserialize;
-use crate::models::{Retrospective, Item, Category};
 
 pub async fn new_retro() -> Html<String> {
     let template = NewRetroTemplate {};
     Html(template.render().unwrap())
 }
-
-
-use axum::extract::Query;
-use std::collections::HashMap;
 
 pub async fn change_item_status(
     State(pool): State<PgPool>,
@@ -174,7 +176,11 @@ pub async fn create_retro(
         };
         return (StatusCode::BAD_REQUEST, Html(template.render().unwrap())).into_response();
     }
-    if !form.slug.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+    if !form
+        .slug
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
         let template = ErrorTemplate {
             code: "400",
             message: "Slug can only contain lowercase letters, numbers, and dashes".to_string(),
@@ -189,7 +195,8 @@ pub async fn create_retro(
         form.slug
     )
     .fetch_one(&pool)
-    .await {
+    .await
+    {
         Ok(retro) => retro,
         Err(e) => {
             // Handle database errors (e.g., duplicate slug)
@@ -206,12 +213,20 @@ pub async fn create_retro(
                 code: "500",
                 message,
             };
-            return (StatusCode::INTERNAL_SERVER_ERROR, Html(template.render().unwrap())).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(template.render().unwrap()),
+            )
+                .into_response();
         }
     };
 
     // Redirect to the new retro's page using slug
-    (StatusCode::SEE_OTHER, [("Location", format!("/retro/{}", retro.slug))]).into_response()
+    (
+        StatusCode::SEE_OTHER,
+        [("Location", format!("/retro/{}", retro.slug))],
+    )
+        .into_response()
 }
 
 pub async fn home() -> Html<String> {
@@ -219,9 +234,7 @@ pub async fn home() -> Html<String> {
     Html(template.render().unwrap())
 }
 
-pub async fn list_retros(
-    State(pool): State<PgPool>,
-) -> Html<String> {
+pub async fn list_retros(State(pool): State<PgPool>) -> Html<String> {
     let retros = sqlx::query_as!(
         Retrospective,
         "SELECT * FROM retrospectives ORDER BY created_at DESC"
@@ -234,18 +247,15 @@ pub async fn list_retros(
     Html(template.render().unwrap())
 }
 
-
-pub async fn show_retro(
-    State(pool): State<PgPool>,
-    Path(slug): Path<String>,
-) -> impl IntoResponse {
+pub async fn show_retro(State(pool): State<PgPool>, Path(slug): Path<String>) -> impl IntoResponse {
     let retro = match sqlx::query_as!(
         Retrospective,
         "SELECT * FROM retrospectives WHERE slug = $1",
         slug
     )
     .fetch_one(&pool)
-    .await {
+    .await
+    {
         Ok(retro) => retro,
         Err(_) => {
             let template = ErrorTemplate {
