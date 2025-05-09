@@ -1,3 +1,0 @@
-- Do not generate comments in code unless the code is complex and needs explanation. Resist the urge to leave comments for removed parts of the code.
-- Follow the conventions in the code base. Respect the style of naming, whitespace, snake_case vs. CamelCase, etc.
-- Keep the title of the commit message short and under 50 characters. Explain the reasons for the change in the commit messages' body, but be brief. Prefer bullet points over long elaborate text passages.
