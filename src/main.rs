@@ -2,8 +2,17 @@ use axum::{
     routing::{get, post, delete},
     Router,
 };
+use clap::Parser;
 use sqlx::PgPool;
 use tower_http::services::ServeDir;
+
+/// Command line arguments
+#[derive(Parser)]
+struct Args {
+    /// Bind address in format IP:PORT
+    #[clap(long, default_value = "0.0.0.0:3000")]
+    bind_address: String,
+}
 
 mod handlers;
 mod models;
@@ -11,8 +20,8 @@ pub mod templates;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Args::parse();
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set");
-    let bind_address = "0.0.0.0:3000";
 
     let pool = PgPool::connect(&database_url)
         .await
@@ -31,7 +40,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest_service("/static", ServeDir::new("static"))
         .with_state(pool);
 
-    let listener = tokio::net::TcpListener::bind(bind_address).await.unwrap();
+    let listener = match tokio::net::TcpListener::bind(&args.bind_address).await {
+        Ok(listener) => listener,
+        Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+            eprintln!("Error: Address already in use");
+            std::process::exit(1);
+        }
+        Err(e) => return Err(e.into()),
+    };
     axum::serve(listener, app).await?;
     Ok(())
 }
