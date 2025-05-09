@@ -11,7 +11,10 @@ pub mod templates;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let pool = PgPool::connect("postgres://localhost/rostfacto-dev") // TODO Read from env var
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set");
+    let bind_address = "0.0.0.0:3000";
+
+    let pool = PgPool::connect(&database_url)
         .await
         .unwrap();
 
@@ -28,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest_service("/static", ServeDir::new("static"))
         .with_state(pool);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap(); // TODO Read port from env var
+    let listener = tokio::net::TcpListener::bind(bind_address).await.unwrap();
     axum::serve(listener, app).await?;
     Ok(())
 }
