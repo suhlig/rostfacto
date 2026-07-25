@@ -5,10 +5,14 @@ This project aims to revive [Postfacto](https://github.com/vmware-archive/postfa
 # Run
 
 ```command
-brew install postgresql@17
-brew services start postgresql@17
-createdb rostfacto-dev
-export DATABASE_URL=postgres://localhost/rostfacto-dev
+brew install postgresql@18
+brew services start postgresql@18
+
+# Create a dedicated database role for the app
+createuser --createdb rostfacto
+createdb -O rostfacto rostfacto-dev
+
+export DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev
 cargo install sqlx-cli
 sqlx migrate run
 cargo watch -x run

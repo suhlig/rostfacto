@@ -19,7 +19,9 @@ A Rust web app for running team retrospectives (inspired by the archived Postfac
 Requires a local PostgreSQL database and `DATABASE_URL` set:
 
 ```bash
-export DATABASE_URL=postgres://localhost/rostfacto-dev
+createuser --createdb rostfacto
+createdb -O rostfacto rostfacto-dev
+export DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev
 cargo install sqlx-cli
 sqlx migrate run
 cargo run
