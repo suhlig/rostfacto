@@ -1,49 +1,51 @@
 {% extends "base.html" %}
 
 {% block header %}
-<header class="container">
+<header class="page-header">
   <hgroup>
-    <h1>Rostfacto</h1>
+    <h1>Retrospectives</h1>
     <p>Where Teams Reflect and Grow</p>
-    <nav>
-      <ul>
-        <li><a href="/retros">All Retros</a></li>
-        <li><a href="/retros/new">New Retro</a></li>
-      </ul>
-    </nav>
   </hgroup>
+  <nav>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/retros/new">New Retro</a></li>
+    </ul>
+  </nav>
 </header>
 {% endblock %}
 
 {% block content %}
 <div class="container">
-    <h1>Retrospectives</h1>
+  <div class="page-actions">
+    <a href="/retros/new" role="button">New Retrospective</a>
+  </div>
 
-    <table role="grid">
-        <thead>
-            <tr>
-                <th scope="col">Title</th>
-                <th scope="col">Created</th>
-                <th scope="col">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for retro in retros %}
-            <tr>
-                <td><a href="/retro/{{ retro.slug }}">{{ retro.title }}</a></td>
-                <td>{{ retro.created_at.format("%Y-%m-%d %H:%M") }}</td>
-                <td>
-                    <button class="delete-btn secondary"
-                            hx-delete="/retro/{{ retro.slug }}/delete"
-                            hx-confirm="Are you sure you want to delete this retrospective?"
-                            hx-target="closest tr"
-                            hx-swap="outerHTML">
-                        Delete
-                    </button>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+  <table role="grid" class="retro-table">
+    <thead>
+      <tr>
+        <th scope="col">Title</th>
+        <th scope="col">Created</th>
+        <th scope="col" class="actions-col">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for retro in retros %}
+      <tr>
+        <td><a href="/retro/{{ retro.slug }}">{{ retro.title }}</a></td>
+        <td>{{ retro.created_at.format("%Y-%m-%d %H:%M") }}</td>
+        <td>
+          <button class="delete-btn"
+                  hx-delete="/retro/{{ retro.slug }}/delete"
+                  hx-confirm="Are you sure you want to delete this retrospective?"
+                  hx-target="closest tr"
+                  hx-swap="outerHTML">
+            Delete
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}

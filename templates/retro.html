@@ -3,67 +3,101 @@
 {% block title %}{{ retro.title }} - Rostfacto{% endblock %}
 
 {% block header %}
-<div class="container text-center">
+<header class="retro-header">
   <h1>{{ retro.title }}</h1>
-</div>
+  <div class="retro-header-actions">
+    <div class="account-menu">
+      <button type="button">Menu</button>
+      <ul class="account-menu-list">
+        <li>Account Settings</li>
+        <li>Dashboard</li>
+        <li>Help</li>
+        <li>Sign out</li>
+      </ul>
+    </div>
+    <button type="button">Video</button>
+  </div>
+</header>
 {% endblock %}
 
 {% block content %}
 <div class="grid">
   <div class="column-happy">
-    <hgroup>
-      <section>
-        <p><img src="/static/happy.svg"></p>
-        <form hx-post="/items/Good/{{ retro.id }}"
-              hx-target="#good-items"
-              hx-swap="afterbegin"
-              hx-on::after-request="if(event.detail.successful) this.reset()"
-            >
-            <input type="text" name="text" class="add-card-input" placeholder="I'm glad that…" required>
-        </form>
-      </section>
-      <section  id="good-items"/>
+    <img class="column-icon" src="/static/happy.svg" alt="">
+    <form class="add-card-form"
+          hx-post="/items/Good/{{ retro.id }}"
+          hx-target="#good-items"
+          hx-swap="afterbegin"
+          hx-on::after-request="if(event.detail.successful) this.reset()">
+      <input type="text" name="text" class="add-card-input" placeholder="I'm glad that…" required>
+    </form>
+    <section id="good-items" class="item-list">
       {% for item in good_items %}
         {% include "item_card.html" %}
       {% endfor %}
-      </section>
-    </hgroup>
+    </section>
   </div>
   <div class="column-meh">
-    <hgroup>
-      <section>
-        <p><img src="/static/meh.svg"></p>
-        <form hx-post="/items/Watch/{{ retro.id }}"
-              hx-target="#watch-items"
-              hx-swap="afterbegin"
-              hx-on::after-request="if(event.detail.successful) this.reset()">
-            <input type="text" name="text" class="add-card-input" placeholder="I'm wondering about…" required>
-        </form>
-      </section>
-      <section id="watch-items">
+    <img class="column-icon" src="/static/meh.svg" alt="">
+    <form class="add-card-form"
+          hx-post="/items/Watch/{{ retro.id }}"
+          hx-target="#watch-items"
+          hx-swap="afterbegin"
+          hx-on::after-request="if(event.detail.successful) this.reset()">
+      <input type="text" name="text" class="add-card-input" placeholder="I'm wondering about…" required>
+    </form>
+    <section id="watch-items" class="item-list">
       {% for item in watch_items %}
         {% include "item_card.html" %}
       {% endfor %}
-      </section>
-    </hgroup>
+    </section>
   </div>
   <div class="column-sad">
-    <hgroup>
-      <section>
-        <p><img src="/static/sad.svg"></p>
-          <form hx-post="/items/Bad/{{ retro.id }}"
-                hx-target="#bad-items"
-                hx-swap="afterbegin"
-                hx-on::after-request="if(event.detail.successful) this.reset()">
-              <input type="text" name="text" class="add-card-input" placeholder="It wasn't so great that…" required>
-          </form>
-      </section>
-      <section id="bad-items">
+    <img class="column-icon" src="/static/sad.svg" alt="">
+    <form class="add-card-form"
+          hx-post="/items/Bad/{{ retro.id }}"
+          hx-target="#bad-items"
+          hx-swap="afterbegin"
+          hx-on::after-request="if(event.detail.successful) this.reset()">
+      <input type="text" name="text" class="add-card-input" placeholder="It wasn't so great that…" required>
+    </form>
+    <section id="bad-items" class="item-list">
       {% for item in bad_items %}
         {% include "item_card.html" %}
       {% endfor %}
-      </section>
-    </hgroup>
+    </section>
   </div>
 </div>
+
+<section class="action-items">
+  <h3 class="action-items-title">Action Items</h3>
+  <input type="text" class="action-items-input" placeholder="Add an action item" disabled>
+  <div class="action-columns">
+    <div class="action-column">
+      <h4>Today (May 25)</h4>
+      <div class="action-item">
+        <div class="action-item-checkbox"></div>
+        <div class="action-item-text">You can also edit action items! (RetroBot)</div>
+      </div>
+    </div>
+    <div class="action-column">
+      <h4>May 18</h4>
+    </div>
+    <div class="action-column">
+      <h4>Older</h4>
+    </div>
+  </div>
+</section>
+
+{% if show_archive_modal %}
+  {% include "archive_modal_dialog.html" %}
+{% endif %}
+{% endblock %}
+
+{% block footer %}
+<footer class="site-footer">
+  <a href="#">Contact Us</a>
+  <a href="#">Terms &amp; Conditions</a>
+  <a href="#">Privacy Policy</a>
+</footer>
 {% endblock %}

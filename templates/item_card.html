@@ -1,33 +1,36 @@
 {% match item.status %}
   {% when Status::Highlighted %}
     <article class="card highlighted" data-item-id="{{ item.id }}">
+      <div class="timer-badge">5:00</div>
       <p>{{ item.text }}</p>
       <form>
-        <fieldset class="grid" style="margin-bottom: 0px; padding-left: 50%">
-          <button class="secondary"
+        <div class="card-actions">
+          <button class="btn-secondary"
                   hx-post="/items/{{ item.id }}/status?action=cancel"
                   hx-target="closest .card"
                   hx-swap="outerHTML">
             Cancel
           </button>
-          <button class="primary"
+          <button class="btn-primary"
                   hx-post="/items/{{ item.id }}/status?action=complete"
                   hx-target="closest .card"
                   hx-swap="outerHTML">
-            Complete
+            Done
           </button>
-        </fieldset>
+        </div>
       </form>
     </article>
   {% when Status::Completed %}
-    <article class="card completed" data-item-id="{{ item.id }}">{{ item.text }}</article>
+    <article class="card completed" data-item-id="{{ item.id }}">
+      <p>{{ item.text }}</p>
+      <span class="completed-check">✓</span>
+    </article>
   {% else %}
     <article class="card"
              data-item-id="{{ item.id }}"
              hx-post="/items/{{ item.id }}/status?action=highlight"
              hx-target="closest .card"
-             hx-swap="outerHTML"
-    >
-        {{ item.text }}
+             hx-swap="outerHTML">
+      <p>{{ item.text }}</p>
     </article>
 {% endmatch %}

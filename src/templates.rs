@@ -1,5 +1,5 @@
+use crate::models::{Item, Retrospective, Status};
 use askama::Template;
-use crate::models::{Retrospective, Item, Status};
 
 #[derive(Template)]
 #[template(path = "item_card.html")]
@@ -41,4 +41,5 @@ pub struct RetroTemplate {
     pub good_items: Vec<Item>,
     pub bad_items: Vec<Item>,
     pub watch_items: Vec<Item>,
+    pub show_archive_modal: bool,
 }

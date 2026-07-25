@@ -1,20 +1,35 @@
 {% extends "base.html" %}
 
+{% block header %}
+<header class="page-header">
+  <hgroup>
+    <h1>New Retrospective</h1>
+    <p>Where Teams Reflect and Grow</p>
+  </hgroup>
+  <nav>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/retros">All Retros</a></li>
+    </ul>
+  </nav>
+</header>
+{% endblock %}
+
 {% block content %}
 <div class="container">
-    <h1>New Retrospective</h1>
-    <form method="POST" action="/retros">
-        <label for="title">Title</label>
-        <input type="text" id="title" name="title" required>
-        <label for="slug">Slug</label>
-        <input type="text" id="slug" name="slug" required
-               pattern="[a-z0-9-]+"
-               maxlength="255"
-        >
-        <small id="slug">
-          Lowercase letters, numbers and dashes only; up to 255 characters
-        </small>
-        <input type="submit" value="Create Retrospective">
-    </form>
+  <form method="POST" action="/retros" class="new-retro-form">
+    <label for="title">Title</label>
+    <input type="text" id="title" name="title" required>
+
+    <label for="slug">Slug</label>
+    <input type="text" id="slug" name="slug" required
+           pattern="[a-z0-9-]+"
+           maxlength="255">
+    <small id="slug">
+      Lowercase letters, numbers and dashes only; up to 255 characters
+    </small>
+
+    <input type="submit" value="Create Retrospective" class="btn-primary">
+  </form>
 </div>
 {% endblock %}

@@ -89,7 +89,7 @@ pub async fn change_item_status(
     Query(params): Query<HashMap<String, String>>,
 ) -> Html<String> {
     let action = params.get("action").map(|s| s.as_str());
-    let item = sqlx::query_as!(
+    let item = match sqlx::query_as!(
         Item,
         r#"
         UPDATE items
@@ -102,33 +102,31 @@ pub async fn change_item_status(
         END
         WHERE id = $1
         RETURNING id as "id!", retro_id as "retro_id!", text as "text!",
-                  category as "category: _", created_at as "created_at!",
-                  status as "status: _"
+                  category as "category: _", created_at as "created_at!", status as "status: _"
         "#,
         item_id,
         action
     )
     .fetch_one(&pool)
     .await
-    .map_err(|e| {
-        if e.as_database_error()
-            .and_then(|de| de.constraint())
-            .map_or(false, |c| c.contains("single_highlighted_item_per_retro"))
-        {
-            // Return the original item with a message
-            return Html(format!(
-                r##"<div class="card">
-                    {}
-                    <div class="error-message" style="color: red; margin-top: 0.5rem;">
-                        Only one item can be highlighted at a time
-                    </div>
-                </div>"##,
-                htmlescape::encode_minimal(&e.to_string())
-            ));
+    {
+        Ok(item) => item,
+        Err(e) => {
+            if e.as_database_error()
+                .and_then(|de| de.constraint())
+                .map_or(false, |c| c.contains("single_highlighted_item_per_retro"))
+            {
+                return Html(format!(
+                    r##"<div class="card">
+                        <div class="error-message" style="color: #D25948; margin-top: 0.5rem; font-weight: 700;">
+                            Only one item can be highlighted at a time
+                        </div>
+                    </div>"##
+                ));
+            }
+            panic!("Database error: {}", e);
         }
-        panic!("Database error: {}", e);
-    })
-    .unwrap();
+    };
 
     // Check if all items in this retro are completed
     let all_completed = sqlx::query_scalar!(
@@ -319,11 +317,28 @@ pub async fn show_retro(State(pool): State<PgPool>, Path(slug): Path<String>) ->
     .await
     .unwrap();
 
+    let all_completed = sqlx::query_scalar!(
+        r#"
+        SELECT NOT EXISTS (
+            SELECT 1 FROM items
+            WHERE retro_id = $1
+            AND status != 'COMPLETED'::status
+            AND status != 'ARCHIVED'::status
+        )
+        "#,
+        retro.id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap()
+    .unwrap_or(false);
+
     let template = RetroTemplate {
         retro,
         good_items,
         bad_items,
         watch_items,
+        show_archive_modal: all_completed,
     };
 
     Html(template.render().unwrap()).into_response()

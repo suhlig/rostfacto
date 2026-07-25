@@ -1,17 +1,21 @@
 {% extends "base.html" %}
 
 {% block header %}
-<hgroup>
-  <h1>Rostfacto</h1>
-  <p>Where Teams Reflect and Grow</p>
+<header class="page-header">
+  <hgroup>
+    <h1>Rostfacto</h1>
+    <p>Where Teams Reflect and Grow</p>
+  </hgroup>
   <nav>
     <ul>
+      <li><a href="/retros">All Retros</a></li>
+      <li><a href="/retros/new">New Retro</a></li>
     </ul>
     <ul>
       <li><a href="https://github.com/suhlig/rostfacto">Source Code</a></li>
     </ul>
   </nav>
-</hgroup>
+</header>
 {% endblock %}
 
 {% block content %}

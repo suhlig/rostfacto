@@ -1,13 +1,8 @@
-<article class="card completed" data-item-id="{{ item.id }}">
-  <p>{{ item.text }}</p>
-  <span class="completed-check">✓</span>
-</article>
-
 <dialog id="archive-modal" open>
   <article>
     <h3>You're about to archive this retro.</h3>
     <p>Are you sure?</p>
-    <form method="POST" action="/retro/{{ item.retro_id }}/archive">
+    <form method="POST" action="/retro/{{ retro.id }}/archive">
       <fieldset class="grid">
         <button class="btn-cancel" formmethod="dialog" onclick="this.closest('dialog').close()">Cancel</button>
         <button class="btn-archive" formmethod="post">Archive</button>
