@@ -1,6 +1,6 @@
 use crate::auth::{AuthUser, MaybeAuthUser};
 use crate::github::list_org_teams;
-use crate::models::{Category, Item, Retrospective};
+use crate::models::{apply_author_initials, Category, Item, Retrospective};
 use crate::templates::{
     ArchiveModalTemplate, ErrorTemplate, GitHubTeam, HomeTemplate, ItemCardTemplate,
     NewRetroTemplate, RetroTemplate, RetrosTemplate,
@@ -9,7 +9,7 @@ use crate::AppState;
 use askama::Template;
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{header::HeaderName, HeaderValue, StatusCode},
     response::{Html, IntoResponse, Response},
     Form,
 };
@@ -33,6 +33,28 @@ fn log_database_error(operation: &'static str, error: &sqlx::Error) {
 
 fn database_error_response() -> Response {
     (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response()
+}
+
+async fn load_item_with_initials(pool: &PgPool, item_id: i32) -> Result<Item, sqlx::Error> {
+    let mut items = sqlx::query_as!(
+        Item,
+        r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
+                  i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
+                  i.created_by as "author_id!", COALESCE(u.full_name, u.username) as "author_name!",
+                  ''::text as "author_initials!"
+           FROM items i
+           JOIN users u ON u.id = i.created_by
+           WHERE i.retro_id = (SELECT retro_id FROM items WHERE id = $1)"#,
+        item_id
+    )
+    .fetch_all(pool)
+    .await?;
+
+    apply_author_initials(&mut [&mut items]);
+    items
+        .into_iter()
+        .find(|item| item.id == item_id)
+        .ok_or(sqlx::Error::RowNotFound)
 }
 
 fn forbidden(state: &AppState, message: &str) -> Response {
@@ -318,15 +340,18 @@ pub async fn show_retro(
         None => return Ok(not_found_response(&state, &slug)),
     };
 
-    let good_items = sqlx::query_as!(
+    let mut good_items = sqlx::query_as!(
         Item,
-        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!",
-                  category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM items
-           WHERE retro_id = $1
-           AND category = 'GOOD'
-           AND status != 'ARCHIVED'::status
-           ORDER BY created_at ASC"#,
+        r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
+                  i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
+                  i.created_by as "author_id!", COALESCE(u.full_name, u.username) as "author_name!",
+                  ''::text as "author_initials!"
+           FROM items i
+           JOIN users u ON u.id = i.created_by
+           WHERE i.retro_id = $1
+           AND i.category = 'GOOD'
+           AND i.status != 'ARCHIVED'::status
+           ORDER BY i.created_at ASC"#,
         retro.id
     )
     .fetch_all(&state.pool)
@@ -336,15 +361,18 @@ pub async fn show_retro(
         database_error_response()
     })?;
 
-    let bad_items = sqlx::query_as!(
+    let mut bad_items = sqlx::query_as!(
         Item,
-        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!",
-                  category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM items
-           WHERE retro_id = $1
-           AND category = 'BAD'
-           AND status != 'ARCHIVED'::status
-           ORDER BY created_at ASC"#,
+        r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
+                  i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
+                  i.created_by as "author_id!", COALESCE(u.full_name, u.username) as "author_name!",
+                  ''::text as "author_initials!"
+           FROM items i
+           JOIN users u ON u.id = i.created_by
+           WHERE i.retro_id = $1
+           AND i.category = 'BAD'
+           AND i.status != 'ARCHIVED'::status
+           ORDER BY i.created_at ASC"#,
         retro.id
     )
     .fetch_all(&state.pool)
@@ -354,15 +382,18 @@ pub async fn show_retro(
         database_error_response()
     })?;
 
-    let watch_items = sqlx::query_as!(
+    let mut watch_items = sqlx::query_as!(
         Item,
-        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!",
-                  category as "category: _", created_at as "created_at!", status as "status: _"
-           FROM items
-           WHERE retro_id = $1
-           AND category = 'WATCH'
-           AND status != 'ARCHIVED'::status
-           ORDER BY created_at ASC"#,
+        r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
+                  i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
+                  i.created_by as "author_id!", COALESCE(u.full_name, u.username) as "author_name!",
+                  ''::text as "author_initials!"
+           FROM items i
+           JOIN users u ON u.id = i.created_by
+           WHERE i.retro_id = $1
+           AND i.category = 'WATCH'
+           AND i.status != 'ARCHIVED'::status
+           ORDER BY i.created_at ASC"#,
         retro.id
     )
     .fetch_all(&state.pool)
@@ -371,6 +402,8 @@ pub async fn show_retro(
         log_database_error("show_retro_watch_items", &error);
         database_error_response()
     })?;
+
+    apply_author_initials(&mut [&mut good_items, &mut bad_items, &mut watch_items]);
 
     let all_completed = sqlx::query_scalar!(
         r#"
@@ -415,7 +448,7 @@ pub async fn add_item(
     user: AuthUser,
     Path((category, retro_id)): Path<(Category, i32)>,
     Form(form): Form<NewItem>,
-) -> Result<Html<String>, Response> {
+) -> Result<Response, Response> {
     match require_retro_access_by_id(&state, &user, retro_id).await? {
         Some(_) => {}
         None => {
@@ -423,15 +456,14 @@ pub async fn add_item(
         }
     }
 
-    let item = sqlx::query_as!(
-        Item,
-        r#"INSERT INTO items (retro_id, text, category, status)
-           VALUES ($1, $2, $3, 'CREATED'::status)
-           RETURNING id as "id!", retro_id as "retro_id!", text as "text!",
-                     category as "category: _", created_at as "created_at!", status as "status: _""#,
+    let item_id = sqlx::query_scalar!(
+        r#"INSERT INTO items (retro_id, text, category, status, created_by)
+           VALUES ($1, $2, $3, 'CREATED'::status, $4)
+           RETURNING id"#,
         retro_id,
         form.text,
-        category as Category
+        category as Category,
+        user.user_id
     )
     .fetch_one(&state.pool)
     .await
@@ -440,6 +472,13 @@ pub async fn add_item(
         database_error_response()
     })?;
 
+    let item = load_item_with_initials(&state.pool, item_id)
+        .await
+        .map_err(|error| {
+            log_database_error("load_added_item", &error);
+            database_error_response()
+        })?;
+
     tracing::debug!(
         item_id = item.id,
         retro_id = item.retro_id,
@@ -447,11 +486,25 @@ pub async fn add_item(
         "item created"
     );
 
+    let needs_initials_refresh = item.author_initials.chars().count() > 2;
     let template = ItemCardTemplate {
         item,
         is_admin: user.is_admin,
     };
-    Ok(Html(template.render().unwrap()))
+    let html = Html(template.render().unwrap());
+
+    if needs_initials_refresh {
+        Ok((
+            [(
+                HeaderName::from_static("hx-refresh"),
+                HeaderValue::from_static("true"),
+            )],
+            html,
+        )
+            .into_response())
+    } else {
+        Ok(html.into_response())
+    }
 }
 
 pub async fn change_item_status(
@@ -484,8 +537,7 @@ pub async fn change_item_status(
     }
 
     let action = params.get("action").map(|s| s.as_str());
-    let item = match sqlx::query_as!(
-        Item,
+    let updated_item_id = match sqlx::query_scalar!(
         r#"
         UPDATE items
         SET status = CASE
@@ -496,8 +548,7 @@ pub async fn change_item_status(
             ELSE status
         END
         WHERE id = $1
-        RETURNING id as "id!", retro_id as "retro_id!", text as "text!",
-                  category as "category: _", created_at as "created_at!", status as "status: _"
+        RETURNING id
         "#,
         item_id,
         action
@@ -505,26 +556,19 @@ pub async fn change_item_status(
     .fetch_one(&state.pool)
     .await
     {
-        Ok(item) => item,
+        Ok(id) => id,
         Err(e) => {
             if e.as_database_error()
                 .and_then(|de| de.constraint())
                 .is_some_and(|c| c.contains("single_highlighted_item_per_retro"))
             {
                 // Fetch the original item so we can re-render it with the error message
-                let original = sqlx::query_as!(
-                    Item,
-                    r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!",
-                              category as "category: _", created_at as "created_at!", status as "status: _"
-                       FROM items WHERE id = $1"#,
-                    item_id
-                )
-                .fetch_one(&state.pool)
-                .await
-                .map_err(|error| {
-                    log_database_error("reload_item_after_highlight_conflict", &error);
-                    database_error_response()
-                })?;
+                let original = load_item_with_initials(&state.pool, item_id)
+                    .await
+                    .map_err(|error| {
+                        log_database_error("reload_item_after_highlight_conflict", &error);
+                        database_error_response()
+                    })?;
                 tracing::debug!(item_id, retro_id, "item highlight conflict");
                 return Ok(Html(format!(
                     r##"<article class="card"
@@ -532,20 +576,29 @@ pub async fn change_item_status(
                                  hx-post="/items/{}/status?action=highlight"
                                  hx-target="closest .card"
                                  hx-swap="outerHTML">
-                            <p>{}</p>
+                            <p>{} <span class="card-author" title="{}">[{}]</span></p>
                             <div class="error-message" style="color: #D25948; margin-top: 0.5rem; font-weight: 700;">
                                 Only one item can be highlighted at a time
                             </div>
                         </article>"##,
                     item_id,
                     item_id,
-                    htmlescape::encode_minimal(&original.text)
+                    htmlescape::encode_minimal(&original.text),
+                    htmlescape::encode_attribute(&original.author_name),
+                    htmlescape::encode_minimal(&original.author_initials)
                 )));
             }
             log_database_error("change_item_status", &e);
             return Err(database_error_response());
         }
     };
+
+    let item = load_item_with_initials(&state.pool, updated_item_id)
+        .await
+        .map_err(|error| {
+            log_database_error("load_updated_item", &error);
+            database_error_response()
+        })?;
 
     // Check if all items in this retro are completed
     let all_completed = sqlx::query_scalar!(

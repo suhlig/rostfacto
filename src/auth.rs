@@ -21,6 +21,7 @@ pub struct AuthUser {
     pub user_id: i32,
     pub github_id: i64,
     pub username: String,
+    pub full_name: String,
     pub access_token: String,
     pub is_admin: bool,
     pub team_slugs: Vec<String>,
@@ -55,6 +56,7 @@ struct UserRow {
     id: i32,
     github_id: i64,
     username: String,
+    full_name: Option<String>,
     access_token: String,
 }
 
@@ -86,9 +88,10 @@ fn clear_cookie(name: &str) -> String {
 pub async fn ensure_demo_user(pool: &PgPool) -> Result<i32, sqlx::Error> {
     let user = sqlx::query_scalar!(
         r#"
-        INSERT INTO users (github_id, username, avatar_url, access_token)
-        VALUES ($1, 'demo', NULL, 'demo')
-        ON CONFLICT (github_id) DO UPDATE SET username = 'demo', access_token = 'demo'
+        INSERT INTO users (github_id, username, full_name, avatar_url, access_token)
+        VALUES ($1, 'demo', 'Demo User', NULL, 'demo')
+        ON CONFLICT (github_id) DO UPDATE SET
+            username = 'demo', full_name = 'Demo User', access_token = 'demo'
         RETURNING id
         "#,
         DEMO_GITHUB_ID
@@ -105,7 +108,7 @@ async fn load_user_by_session(
     sqlx::query_as!(
         UserRow,
         r#"
-        SELECT u.id, u.github_id, u.username, u.access_token
+        SELECT u.id, u.github_id, u.username, u.full_name, u.access_token
         FROM users u
         JOIN sessions s ON s.user_id = u.id
         WHERE s.id = $1 AND s.expires_at > NOW()
@@ -124,16 +127,18 @@ async fn upsert_user(
     sqlx::query_as!(
         UserRow,
         r#"
-        INSERT INTO users (github_id, username, avatar_url, access_token)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO users (github_id, username, full_name, avatar_url, access_token)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (github_id) DO UPDATE SET
             username = EXCLUDED.username,
+            full_name = EXCLUDED.full_name,
             avatar_url = EXCLUDED.avatar_url,
             access_token = EXCLUDED.access_token
-        RETURNING id, github_id, username, access_token
+        RETURNING id, github_id, username, full_name, access_token
         "#,
         github_user.id,
         github_user.login,
+        github_user.name,
         github_user.avatar_url,
         access_token
     )
@@ -192,6 +197,7 @@ async fn build_auth_user(user: UserRow, config: &Config) -> AuthUser {
     AuthUser {
         user_id: user.id,
         github_id: user.github_id,
+        full_name: user.full_name.unwrap_or_else(|| user.username.clone()),
         username: user.username,
         access_token: user.access_token,
         is_admin,
@@ -247,6 +253,7 @@ where
                 user_id,
                 github_id: DEMO_GITHUB_ID,
                 username: "demo".to_string(),
+                full_name: "Demo User".to_string(),
                 access_token: "demo".to_string(),
                 is_admin: true,
                 team_slugs: vec!["demo".to_string()],
@@ -317,6 +324,7 @@ where
                 user_id,
                 github_id: DEMO_GITHUB_ID,
                 username: "demo".to_string(),
+                full_name: "Demo User".to_string(),
                 access_token: "demo".to_string(),
                 is_admin: true,
                 team_slugs: vec!["demo".to_string()],

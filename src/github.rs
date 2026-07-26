@@ -5,6 +5,7 @@ use serde::Deserialize;
 pub struct GitHubUser {
     pub id: i64,
     pub login: String,
+    pub name: Option<String>,
     pub avatar_url: Option<String>,
 }
 

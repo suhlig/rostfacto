@@ -2,7 +2,7 @@
   {% when Status::Highlighted %}
     <article class="card highlighted" data-item-id="{{ item.id }}">
       <div class="timer-badge">5:00</div>
-      <p>{{ item.text }}</p>
+      <p>{{ item.text }} <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
       <form>
         <div class="card-actions">
           <button class="btn-secondary secondary"
@@ -22,7 +22,7 @@
     </article>
   {% when Status::Completed %}
     <article class="card completed" data-item-id="{{ item.id }}">
-      <p>{{ item.text }}</p>
+      <p>{{ item.text }} <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
       <span class="completed-check">✓</span>
     </article>
   {% else %}
@@ -33,6 +33,6 @@
              hx-post="/items/{{ item.id }}/status?action=highlight"
              hx-target="closest .card"
              hx-swap="outerHTML">
-      <p>{{ item.text }}</p>
+      <p>{{ item.text }} <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
     </article>
 {% endmatch %}

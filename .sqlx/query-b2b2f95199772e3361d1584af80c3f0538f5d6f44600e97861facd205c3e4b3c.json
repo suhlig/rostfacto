@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO users (github_id, username, avatar_url, access_token)\n        VALUES ($1, $2, $3, $4)\n        ON CONFLICT (github_id) DO UPDATE SET\n            username = EXCLUDED.username,\n            avatar_url = EXCLUDED.avatar_url,\n            access_token = EXCLUDED.access_token\n        RETURNING id, github_id, username, access_token\n        ",
+  "query": "\n        SELECT u.id, u.github_id, u.username, u.full_name, u.access_token\n        FROM users u\n        JOIN sessions s ON s.user_id = u.id\n        WHERE s.id = $1 AND s.expires_at > NOW()\n        ",
   "describe": {
     "columns": [
       {
@@ -20,15 +20,17 @@
       },
       {
         "ordinal": 3,
+        "name": "full_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
         "name": "access_token",
         "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
-        "Int8",
-        "Text",
-        "Text",
         "Text"
       ]
     },
@@ -36,8 +38,9 @@
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "d04df551f6f32bef8d5dd9438087f0c99fdbb161c1905628d194c3744a35c306"
+  "hash": "b2b2f95199772e3361d1584af80c3f0538f5d6f44600e97861facd205c3e4b3c"
 }

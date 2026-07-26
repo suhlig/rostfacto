@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO items (retro_id, text, category, status, created_by)\n           VALUES ($1, $2, $3, 'CREATED'::status, $4)\n           RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        {
+          "Custom": {
+            "name": "category",
+            "kind": {
+              "Enum": [
+                "GOOD",
+                "BAD",
+                "WATCH"
+              ]
+            }
+          }
+        },
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "063db99708d666fd6be8eff14c33808fbaafa943a64cf8f3689994416fe5f56c"
+}
