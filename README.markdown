@@ -20,7 +20,7 @@ cargo watch -x run
 
 # Test
 
-The integration tests live in `tests/integration_test.rs` and use `thirtyfour` to drive Firefox via geckodriver. The app must already be running on `http://localhost:3000` before the tests start.
+The integration tests live in `tests/integration_test.rs` and use `thirtyfour` to drive Firefox via geckodriver. They start their own instance of the app on a random port, so you can keep your dev server running on port 3000.
 
 ## Prerequisites
 
@@ -34,15 +34,6 @@ brew install --cask firefox
 On other systems, install [geckodriver](https://github.com/mozilla/geckodriver/releases) and make sure it is on your `PATH`, and install a recent Firefox.
 
 ## Running the tests
-
-In one terminal, start the app with a database:
-
-```command
-export DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev
-cargo run
-```
-
-In another terminal, run the integration tests:
 
 ```command
 export DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev

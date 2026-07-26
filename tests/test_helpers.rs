@@ -1,7 +1,55 @@
 use portpicker::pick_unused_port;
 use rand::Rng;
 use std::process::{Child, Command};
+use std::sync::OnceLock;
 use thirtyfour::{common::capabilities::firefox::FirefoxPreferences, prelude::*};
+
+static TEST_SERVER: OnceLock<(u16, Child)> = OnceLock::new();
+
+/// Return the base URL of the test server, starting it on a random port if necessary.
+pub fn base_url() -> String {
+    let port = test_server_port();
+    format!("http://127.0.0.1:{}", port)
+}
+
+fn test_server_port() -> u16 {
+    let (port, _) = TEST_SERVER.get_or_init(|| {
+        let port = pick_unused_port().expect("No ports available");
+        let database_url =
+            std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set");
+
+        let mut child = Command::new("cargo")
+            .args([
+                "run",
+                "--quiet",
+                "--",
+                "--bind-address",
+                &format!("127.0.0.1:{}", port),
+            ])
+            .env("DATABASE_URL", database_url)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("Failed to start test server");
+
+        // Wait for the server to accept connections.
+        let addr = format!("127.0.0.1:{}", port);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        loop {
+            if std::time::Instant::now() >= deadline {
+                let _ = child.kill();
+                panic!("Test server failed to start on {}", addr);
+            }
+            if std::net::TcpStream::connect(&addr).is_ok() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+
+        (port, child)
+    });
+    *port
+}
 
 /// Guard that kills the geckodriver process if driver setup fails before we take ownership.
 struct GeckodriverGuard(Option<Child>);
@@ -37,8 +85,6 @@ impl BrowserSession {
                 .expect("Failed to start geckodriver"),
         ));
 
-        std::thread::sleep(std::time::Duration::from_secs(1));
-
         let mut caps = DesiredCapabilities::firefox();
         if !std::env::var("SHOW_BROWSER").is_ok() {
             caps.set_headless()?;
@@ -48,7 +94,17 @@ impl BrowserSession {
         let _ = prefs.set("webdriver.log.level", "error");
         caps.set_preferences(prefs)?;
 
-        let driver = WebDriver::new(&format!("http://localhost:{}", port), caps).await?;
+        // Retry connecting to geckodriver instead of relying on a fixed sleep.
+        let url = format!("http://localhost:{}", port);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let driver = loop {
+            match WebDriver::new(&url, caps.clone()).await {
+                Ok(driver) => break driver,
+                Err(e) if tokio::time::Instant::now() >= deadline => return Err(e),
+                Err(_) => tokio::time::sleep(tokio::time::Duration::from_millis(200)).await,
+            }
+        };
+
         let process = guard.0.take().expect("geckodriver process is present");
         Ok(Self { driver, process })
     }
@@ -71,7 +127,7 @@ pub struct HomePage<'a> {
 
 impl<'a> HomePage<'a> {
     pub async fn new(driver: &'a WebDriver) -> WebDriverResult<Self> {
-        driver.goto("http://localhost:3000").await?;
+        driver.goto(&base_url()).await?;
         Ok(Self { driver })
     }
 
@@ -88,12 +144,16 @@ pub struct RetrosPage<'a> {
 
 impl<'a> RetrosPage<'a> {
     pub async fn new(driver: &'a WebDriver) -> WebDriverResult<Self> {
-        driver.goto("http://localhost:3000/retros").await?;
+        driver
+            .goto(format!("{}/retros", base_url()).as_str())
+            .await?;
         Ok(Self { driver })
     }
 
     pub async fn submit_new_retro(&self, title: &str, slug: &str) -> WebDriverResult<()> {
-        self.driver.goto("http://localhost:3000/retros/new").await?;
+        self.driver
+            .goto(format!("{}/retros/new", base_url()).as_str())
+            .await?;
         let title_input = self.driver.find(By::Css("input[name='title']")).await?;
         title_input.send_keys(title).await?;
         let slug_input = self.driver.find(By::Css("input[name='slug']")).await?;
@@ -140,7 +200,7 @@ pub struct RetroPage<'a> {
 impl<'a> RetroPage<'a> {
     pub async fn new(driver: &'a WebDriver, slug: &str) -> WebDriverResult<Self> {
         driver
-            .goto(format!("http://localhost:3000/retro/{}", slug).as_str())
+            .goto(format!("{}/retro/{}", base_url(), slug).as_str())
             .await?;
         // Get the actual title from the page
         let title_element = driver.find(By::Css("h1")).await?;
@@ -253,7 +313,9 @@ impl<'a> RetroPage<'a> {
     }
 
     pub async fn delete(&self) -> WebDriverResult<()> {
-        self.driver.goto("http://localhost:3000/retros").await?;
+        self.driver
+            .goto(format!("{}/retros", base_url()).as_str())
+            .await?;
         let rows = self.driver.find_all(By::Css("table tr")).await?;
         for row in rows {
             if let Ok(link) = row.find(By::Tag("a")).await {

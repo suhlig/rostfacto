@@ -98,7 +98,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 
 - Integration tests are in `tests/integration_test.rs` using `thirtyfour`.
 - `tests/test_helpers.rs` starts a geckodriver instance and provides page objects (`HomePage`, `RetrosPage`, `RetroPage`).
-- The app must already be running on `http://localhost:3000` with a database before tests are executed.
+- The integration tests start their own app instance on a random port; you do not need to start a server beforehand and it will not conflict with a dev server on port 3000.
 - You need Firefox and geckodriver installed. On macOS:
   ```bash
   brew install geckodriver

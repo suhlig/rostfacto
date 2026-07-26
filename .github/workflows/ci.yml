@@ -53,15 +53,5 @@ jobs:
           sudo mv geckodriver /usr/local/bin/
       - name: Run unit tests
         run: cargo test --bins
-      - name: Start server and run integration tests
-        run: |
-          cargo run --quiet &
-          PID=$!
-          for i in $(seq 1 30); do
-            if curl -s http://localhost:3000 >/dev/null; then
-              break
-            fi
-            sleep 1
-          done
-          cargo test --test integration_test
-          kill $PID
+      - name: Run integration tests
+        run: cargo test --test integration_test

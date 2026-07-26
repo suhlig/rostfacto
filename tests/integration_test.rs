@@ -11,7 +11,7 @@ async fn post_retros_form(
     title: &str,
     slug: &str,
 ) -> WebDriverResult<(u64, String)> {
-    driver.goto("http://localhost:3000").await?;
+    driver.goto(&base_url()).await?;
     let script = format!(
         r#"return fetch('/retros', {{
             method: 'POST',
@@ -28,7 +28,7 @@ async fn post_retros_form(
 
 /// Fetch a path and return the HTTP status code.
 async fn fetch_status(driver: &WebDriver, path: &str) -> WebDriverResult<u64> {
-    driver.goto("http://localhost:3000").await?;
+    driver.goto(&base_url()).await?;
     let script = format!(r#"return fetch('{}').then(r => r.status);"#, path);
     let result = driver.execute(&script, vec![]).await?;
     Ok(result.json().as_u64().unwrap())
@@ -49,7 +49,7 @@ async fn test_invalid_url() -> WebDriverResult<()> {
     // Navigate to non-existent page
     browser
         .driver
-        .goto("http://localhost:3000/non-existent-page")
+        .goto(format!("{}/non-existent-page", base_url()).as_str())
         .await?;
 
     // Verify 404 page content
@@ -176,7 +176,7 @@ async fn test_nonexistent_retro() -> WebDriverResult<()> {
     // Navigate to non-existent retro directly
     browser
         .driver
-        .goto("http://localhost:3000/retro/99999")
+        .goto(format!("{}/retro/99999", base_url()).as_str())
         .await?;
 
     // Verify 404 page content
@@ -341,7 +341,7 @@ async fn test_delete_retro() -> WebDriverResult<()> {
     // Verify the retro is gone
     browser
         .driver
-        .goto(&format!("http://localhost:3000/retro/{}", retro_page.slug))
+        .goto(format!("{}/retro/{}", base_url(), retro_page.slug).as_str())
         .await?;
     let error_code = browser.driver.find(By::Css(".error-page h1")).await?;
     assert_eq!(error_code.text().await?, "404");
@@ -440,7 +440,7 @@ async fn test_static_asset_served() -> WebDriverResult<()> {
     let browser = BrowserSession::new().await?;
     browser
         .driver
-        .goto("http://localhost:3000/static/happy.svg")
+        .goto(format!("{}/static/happy.svg", base_url()).as_str())
         .await?;
     let svg = browser.driver.find(By::Tag("svg")).await?;
     assert!(svg.is_displayed().await?);
