@@ -71,6 +71,7 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 - Edit a card
 - Publish a container image
+  - Create a docker-compose.yml for running rostfacto side-by-side with a Postgres
 - Timer for each retro card
 - Likes for each retro card
 - Archive button (if opportunity to archive after last card complete was not used)
@@ -82,6 +83,7 @@ SHOW_BROWSER=1 cargo test --test integration_test
   * Retro was completed (all cards disappear)
 
   Do not introduce a new infrastructure component. Use Postgres as hub, as much as sensible.
+- Release 2.0
 - Allow adding a card anonymously
 
 # License
