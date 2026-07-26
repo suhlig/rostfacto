@@ -69,6 +69,7 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
+- Show the initials of the card author (resolve duplicates within the retro)
 - Edit a card
 - Timer for each retro card
 - Likes for each retro card
@@ -79,6 +80,8 @@ SHOW_BROWSER=1 cargo test --test integration_test
   * A card changes status
   * A card was liked
   * Retro was completed (all cards disappear)
+
+  Do not introduce a new infrastructure component. Use Postgres as hub, as much as sensible.
 
 # License
 
