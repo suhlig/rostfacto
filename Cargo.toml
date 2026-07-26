@@ -11,7 +11,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono"] }
 askama = { version = "0.16" }
-tower-http = { version = "0.5", features = ["fs", "normalize-path"] }
+tower-http = { version = "0.5", features = ["fs", "normalize-path", "trace"] }
 chrono = { version = "0.4", features = ["serde"] }
 hyper = { version = "1.0", features = ["full"] }
 tower = { version = "0.5", features = ["util"] }
@@ -19,7 +19,7 @@ htmlescape = "0.3"
 clap = { version = "4.4", features = ["derive"] }
 url = "2.5"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 reqwest = { version = "0.12", features = ["json"] }
 rand = "0.8"
 

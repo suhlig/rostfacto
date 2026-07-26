@@ -25,13 +25,11 @@ impl Config {
         let github_admin_team_slug = env::var("GITHUB_ADMIN_TEAM_SLUG").ok();
         let github_user_org = env::var("GITHUB_USER_ORG").ok();
         let public_url = env::var("PUBLIC_URL").unwrap_or_else(|_| {
-            eprintln!(
-                "Warning: PUBLIC_URL not set; using http://localhost:3000 for OAuth redirects."
-            );
+            tracing::warn!("PUBLIC_URL not set; using http://localhost:3000 for OAuth redirects");
             "http://localhost:3000".to_string()
         });
         let session_secret = env::var("SESSION_SECRET").unwrap_or_else(|_| {
-            eprintln!("Warning: SESSION_SECRET not set; using a default secret.");
+            tracing::warn!("SESSION_SECRET not set; using a default secret");
             "dev-secret".to_string()
         });
 

@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO users (github_id, username, avatar_url, access_token)\n        VALUES ($1, $2, $3, $4)\n        ON CONFLICT (github_id) DO UPDATE SET\n            username = EXCLUDED.username,\n            avatar_url = EXCLUDED.avatar_url,\n            access_token = EXCLUDED.access_token\n        RETURNING id, github_id, username, access_token\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "github_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "access_token",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d04df551f6f32bef8d5dd9438087f0c99fdbb161c1905628d194c3744a35c306"
+}

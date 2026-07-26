@@ -22,12 +22,24 @@
         "ordinal": 3,
         "name": "slug",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "team_slug",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_by",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
       "Left": []
     },
     "nullable": [
+      false,
+      false,
       false,
       false,
       false,

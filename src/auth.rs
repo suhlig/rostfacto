@@ -10,7 +10,6 @@ use rand::Rng;
 use serde::Deserialize;
 use sqlx::PgPool;
 use std::fmt::Write;
-use std::future::Future;
 
 pub const SESSION_COOKIE: &str = "rostfacto_session";
 const OAUTH_STATE_COOKIE: &str = "rostfacto_oauth_state";
@@ -161,13 +160,8 @@ async fn build_auth_user(user: UserRow, config: &Config) -> AuthUser {
         match is_team_member(org, team, &user.username, &user.access_token, config).await {
             Ok(is_member) => is_member,
             Err(e) => {
-                tracing::warn!(
-                    "admin team check failed for user '{}' in {}/{}: {}",
-                    user.username,
-                    org,
-                    team,
-                    e
-                );
+                tracing::warn!(org, team, "admin team membership check failed");
+                tracing::debug!(username = %user.username, error = %e, "admin team membership check failure details");
                 false
             }
         }
@@ -179,12 +173,8 @@ async fn build_auth_user(user: UserRow, config: &Config) -> AuthUser {
         match list_org_teams(org, &user.access_token, config).await {
             Ok(teams) => teams.into_iter().map(|t| t.slug).collect(),
             Err(e) => {
-                tracing::warn!(
-                    "failed to list teams in org '{}' for user '{}': {}",
-                    org,
-                    user.username,
-                    e
-                );
+                tracing::warn!(org, "failed to list teams for authenticated user");
+                tracing::debug!(username = %user.username, error = %e, "team listing failure details");
                 Vec::new()
             }
         }
@@ -226,9 +216,7 @@ fn read_cookie(parts: &Parts, name: &str) -> Option<String> {
         .flat_map(|s| s.split(';'))
         .map(|s| s.trim())
         .find_map(|s| {
-            let mut kv = s.splitn(2, '=');
-            let key = kv.next()?;
-            let value = kv.next()?;
+            let (key, value) = s.split_once('=')?;
             if key == name {
                 Some(value.to_string())
             } else {
@@ -244,67 +232,64 @@ where
 {
     type Rejection = Response;
 
-    fn from_request_parts(
-        parts: &mut Parts,
-        state: &S,
-    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
-        async move {
-            let state = crate::AppState::from_ref(state);
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let state = crate::AppState::from_ref(state);
 
-            if state.config.demo_mode() {
-                let user_id = state.demo_user_id.ok_or_else(|| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "Demo user not initialized",
-                    )
-                        .into_response()
-                })?;
-                return Ok(AuthUser {
-                    user_id,
-                    github_id: DEMO_GITHUB_ID,
-                    username: "demo".to_string(),
-                    access_token: "demo".to_string(),
-                    is_admin: true,
-                    team_slugs: vec!["demo".to_string()],
-                });
-            }
-
-            let session_id = match read_cookie(parts, SESSION_COOKIE) {
-                Some(id) => id,
-                None => {
-                    tracing::debug!("no session cookie present; redirecting to login");
-                    return Err((
-                        StatusCode::SEE_OTHER,
-                        [("Location", "/auth/login")],
-                        "Redirecting to login",
-                    )
-                        .into_response());
-                }
-            };
-
-            let user = match load_user_by_session(&state.pool, &session_id).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    tracing::debug!("session not found or expired; redirecting to login");
-                    return Err((
-                        StatusCode::SEE_OTHER,
-                        [
-                            ("Location", "/auth/login"),
-                            ("Set-Cookie", &clear_session_cookie()),
-                        ],
-                        "Redirecting to login",
-                    )
-                        .into_response());
-                }
-                Err(e) => {
-                    tracing::error!("session lookup failed: {}", e);
-                    return Err((StatusCode::INTERNAL_SERVER_ERROR, "Session lookup failed")
-                        .into_response());
-                }
-            };
-
-            Ok(build_auth_user(user, &state.config).await)
+        if state.config.demo_mode() {
+            let user_id = state.demo_user_id.ok_or_else(|| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Demo user not initialized",
+                )
+                    .into_response()
+            })?;
+            return Ok(AuthUser {
+                user_id,
+                github_id: DEMO_GITHUB_ID,
+                username: "demo".to_string(),
+                access_token: "demo".to_string(),
+                is_admin: true,
+                team_slugs: vec!["demo".to_string()],
+            });
         }
+
+        let session_id = match read_cookie(parts, SESSION_COOKIE) {
+            Some(id) => id,
+            None => {
+                tracing::debug!("no session cookie present; redirecting to login");
+                return Err((
+                    StatusCode::SEE_OTHER,
+                    [("Location", "/auth/login")],
+                    "Redirecting to login",
+                )
+                    .into_response());
+            }
+        };
+
+        let user = match load_user_by_session(&state.pool, &session_id).await {
+            Ok(Some(user)) => user,
+            Ok(None) => {
+                tracing::debug!("session not found or expired; redirecting to login");
+                return Err((
+                    StatusCode::SEE_OTHER,
+                    [
+                        ("Location", "/auth/login"),
+                        ("Set-Cookie", &clear_session_cookie()),
+                    ],
+                    "Redirecting to login",
+                )
+                    .into_response());
+            }
+            Err(error) => {
+                tracing::error!(error_type = "session_lookup", "session lookup failed");
+                tracing::debug!(error = %error, "session lookup failure details");
+                return Err(
+                    (StatusCode::INTERNAL_SERVER_ERROR, "Session lookup failed").into_response()
+                );
+            }
+        };
+
+        Ok(build_auth_user(user, &state.config).await)
     }
 }
 
@@ -317,49 +302,47 @@ where
 {
     type Rejection = Response;
 
-    fn from_request_parts(
-        parts: &mut Parts,
-        state: &S,
-    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
-        async move {
-            let state = crate::AppState::from_ref(state);
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let state = crate::AppState::from_ref(state);
 
-            if state.config.demo_mode() {
-                let user_id = state.demo_user_id.ok_or_else(|| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "Demo user not initialized",
-                    )
-                        .into_response()
-                })?;
-                return Ok(MaybeAuthUser(Some(AuthUser {
-                    user_id,
-                    github_id: DEMO_GITHUB_ID,
-                    username: "demo".to_string(),
-                    access_token: "demo".to_string(),
-                    is_admin: true,
-                    team_slugs: vec!["demo".to_string()],
-                })));
-            }
-
-            let session_id = match read_cookie(parts, SESSION_COOKIE) {
-                Some(id) => id,
-                None => return Ok(MaybeAuthUser(None)),
-            };
-
-            let user = match load_user_by_session(&state.pool, &session_id).await {
-                Ok(Some(user)) => user,
-                Ok(None) => return Ok(MaybeAuthUser(None)),
-                Err(_) => {
-                    return Err((StatusCode::INTERNAL_SERVER_ERROR, "Session lookup failed")
-                        .into_response());
-                }
-            };
-
-            Ok(MaybeAuthUser(Some(
-                build_auth_user(user, &state.config).await,
-            )))
+        if state.config.demo_mode() {
+            let user_id = state.demo_user_id.ok_or_else(|| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Demo user not initialized",
+                )
+                    .into_response()
+            })?;
+            return Ok(MaybeAuthUser(Some(AuthUser {
+                user_id,
+                github_id: DEMO_GITHUB_ID,
+                username: "demo".to_string(),
+                access_token: "demo".to_string(),
+                is_admin: true,
+                team_slugs: vec!["demo".to_string()],
+            })));
         }
+
+        let session_id = match read_cookie(parts, SESSION_COOKIE) {
+            Some(id) => id,
+            None => return Ok(MaybeAuthUser(None)),
+        };
+
+        let user = match load_user_by_session(&state.pool, &session_id).await {
+            Ok(Some(user)) => user,
+            Ok(None) => return Ok(MaybeAuthUser(None)),
+            Err(error) => {
+                tracing::error!(error_type = "session_lookup", "session lookup failed");
+                tracing::debug!(error = %error, "session lookup failure details");
+                return Err(
+                    (StatusCode::INTERNAL_SERVER_ERROR, "Session lookup failed").into_response()
+                );
+            }
+        };
+
+        Ok(MaybeAuthUser(Some(
+            build_auth_user(user, &state.config).await,
+        )))
     }
 }
 
@@ -454,11 +437,8 @@ pub async fn callback(
             match response.json::<TokenResponse>().await {
                 Ok(token) => token,
                 Err(e) => {
-                    tracing::error!(
-                        "OAuth token exchange returned {} but could not be parsed: {}",
-                        status,
-                        e
-                    );
+                    tracing::error!(status = %status, "OAuth token response could not be parsed");
+                    tracing::debug!(error = %e, "OAuth token response parse failure details");
                     return (
                         StatusCode::BAD_REQUEST,
                         "Failed to parse OAuth token response",
@@ -467,8 +447,9 @@ pub async fn callback(
                 }
             }
         }
-        Err(e) => {
-            tracing::error!("OAuth token exchange request failed: {}", e);
+        Err(error) => {
+            tracing::error!(operation = "oauth_token_exchange", "GitHub request failed");
+            tracing::debug!(error = %error, "OAuth token exchange failure details");
             return (StatusCode::BAD_REQUEST, "Failed to exchange OAuth code").into_response();
         }
     };
@@ -477,34 +458,35 @@ pub async fn callback(
 
     let github_user = match get_user(&token.access_token, &state.config).await {
         Ok(user) => user,
-        Err(e) => {
-            tracing::error!(
-                "failed to fetch GitHub user from {}: {}",
-                crate::github::api_base_url(&state.config),
-                e
-            );
+        Err(error) => {
+            tracing::error!(operation = "github_get_user", "GitHub request failed");
+            tracing::debug!(error = %error, "GitHub user request failure details");
             return (StatusCode::BAD_REQUEST, "Failed to fetch GitHub user").into_response();
         }
     };
 
-    tracing::info!(
-        "GitHub user '{}' (id {}) authenticated",
-        github_user.login,
-        github_user.id
+    tracing::debug!(
+        username = %github_user.login,
+        github_id = github_user.id,
+        "GitHub identity authenticated"
     );
 
     let user = match upsert_user(&state.pool, &github_user, &token.access_token).await {
         Ok(user) => user,
-        Err(e) => {
-            tracing::error!("failed to persist user: {}", e);
+        Err(error) => {
+            tracing::error!(operation = "persist_user", "database operation failed");
+            tracing::debug!(error = %error, "user persistence failure details");
             return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to persist user").into_response();
         }
     };
 
+    tracing::info!(user_id = user.id, "user authenticated");
+
     let session_id = match create_session(&state.pool, user.id).await {
         Ok(id) => id,
-        Err(e) => {
-            tracing::error!("failed to create session: {}", e);
+        Err(error) => {
+            tracing::error!(operation = "create_session", "database operation failed");
+            tracing::debug!(error = %error, "session creation failure details");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Failed to create session",
@@ -531,12 +513,19 @@ pub async fn logout(
     parts: Parts,
 ) -> impl IntoResponse {
     if let Some(session_id) = read_cookie(&parts, SESSION_COOKIE) {
-        let _ = sqlx::query!("DELETE FROM sessions WHERE id = $1", session_id)
+        if let Err(error) = sqlx::query!("DELETE FROM sessions WHERE id = $1", session_id)
             .execute(&state.pool)
-            .await;
+            .await
+        {
+            tracing::error!(
+                error_type = "session_delete",
+                "failed to delete session during logout"
+            );
+            tracing::debug!(error = %error, "session deletion failure details");
+        }
     }
 
-    tracing::debug!("user signed out");
+    tracing::info!("user signed out");
 
     (
         StatusCode::SEE_OTHER,

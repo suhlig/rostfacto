@@ -17,6 +17,24 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use std::collections::HashMap;
 
+fn log_database_error(operation: &'static str, error: &sqlx::Error) {
+    if let Some(database_error) = error.as_database_error() {
+        tracing::error!(
+            operation,
+            database_code = database_error.code().as_deref(),
+            constraint = database_error.constraint(),
+            "database operation failed"
+        );
+    } else {
+        tracing::error!(operation, error_type = "sqlx", "database operation failed");
+    }
+    tracing::debug!(operation, error = %error, "database operation failure details");
+}
+
+fn database_error_response() -> Response {
+    (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response()
+}
+
 fn forbidden(state: &AppState, message: &str) -> Response {
     let template = ErrorTemplate {
         code: "403",
@@ -71,8 +89,9 @@ async fn require_retro_access(
     let retro = match load_retro(&state.pool, slug).await {
         Ok(Some(r)) => r,
         Ok(None) => return Ok(None),
-        Err(_) => {
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response());
+        Err(error) => {
+            log_database_error("load_retro_by_slug", &error);
+            return Err(database_error_response());
         }
     };
 
@@ -105,8 +124,9 @@ async fn require_retro_access_by_id(
     {
         Ok(Some(r)) => r,
         Ok(None) => return Ok(None),
-        Err(_) => {
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response());
+        Err(error) => {
+            log_database_error("load_retro_by_id", &error);
+            return Err(database_error_response());
         }
     };
 
@@ -152,7 +172,10 @@ pub async fn list_retros(
         .fetch_all(&state.pool)
         .await
     }
-    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response())?;
+    .map_err(|error| {
+        log_database_error("list_retros", &error);
+        database_error_response()
+    })?;
 
     let template = RetrosTemplate {
         retros,
@@ -176,7 +199,9 @@ pub async fn new_retro(
     } else if let Some(org) = state.config.github_user_org.as_deref() {
         list_org_teams(org, &user.access_token, &state.config)
             .await
-            .map_err(|_| {
+            .map_err(|error| {
+                tracing::error!(operation = "list_org_teams", "GitHub API operation failed");
+                tracing::debug!(error = %error, "GitHub team listing failure details");
                 (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load teams").into_response()
             })?
             .into_iter()
@@ -245,31 +270,36 @@ pub async fn create_retro(
     .await
     {
         Ok(retro) => retro,
-        Err(e) => {
-            let message = if let Some(db_err) = e.as_database_error() {
-                if db_err.constraint() == Some("retrospectives_slug_key") {
-                    "Slug is already in use".to_string()
-                } else {
-                    format!("Database error: {}", db_err)
-                }
-            } else {
-                format!("Error creating retrospective: {}", e)
-            };
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Html(
-                    ErrorTemplate {
-                        code: "500",
-                        message,
-                        demo_mode: state.config.demo_mode(),
-                    }
-                    .render()
-                    .unwrap(),
-                ),
-            )
-                .into_response();
+        Err(error) => {
+            if error
+                .as_database_error()
+                .and_then(|database_error| database_error.constraint())
+                == Some("retrospectives_slug_key")
+            {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Html(
+                        ErrorTemplate {
+                            code: "500",
+                            message: "Slug is already in use".to_string(),
+                            demo_mode: state.config.demo_mode(),
+                        }
+                        .render()
+                        .unwrap(),
+                    ),
+                )
+                    .into_response();
+            }
+            log_database_error("create_retro", &error);
+            return database_error_response();
         }
     };
+
+    tracing::info!(
+        retro_id = retro.id,
+        user_id = user.user_id,
+        "retrospective created"
+    );
 
     (
         StatusCode::SEE_OTHER,
@@ -301,7 +331,10 @@ pub async fn show_retro(
     )
     .fetch_all(&state.pool)
     .await
-    .unwrap();
+    .map_err(|error| {
+        log_database_error("show_retro_good_items", &error);
+        database_error_response()
+    })?;
 
     let bad_items = sqlx::query_as!(
         Item,
@@ -316,7 +349,10 @@ pub async fn show_retro(
     )
     .fetch_all(&state.pool)
     .await
-    .unwrap();
+    .map_err(|error| {
+        log_database_error("show_retro_bad_items", &error);
+        database_error_response()
+    })?;
 
     let watch_items = sqlx::query_as!(
         Item,
@@ -331,7 +367,10 @@ pub async fn show_retro(
     )
     .fetch_all(&state.pool)
     .await
-    .unwrap();
+    .map_err(|error| {
+        log_database_error("show_retro_watch_items", &error);
+        database_error_response()
+    })?;
 
     let all_completed = sqlx::query_scalar!(
         r#"
@@ -351,7 +390,10 @@ pub async fn show_retro(
     )
     .fetch_one(&state.pool)
     .await
-    .unwrap()
+    .map_err(|error| {
+        log_database_error("show_retro_completion_status", &error);
+        database_error_response()
+    })?
     .unwrap_or(false);
 
     let template = RetroTemplate {
@@ -393,7 +435,17 @@ pub async fn add_item(
     )
     .fetch_one(&state.pool)
     .await
-    .unwrap();
+    .map_err(|error| {
+        log_database_error("add_item", &error);
+        database_error_response()
+    })?;
+
+    tracing::debug!(
+        item_id = item.id,
+        retro_id = item.retro_id,
+        category = %item.category.to_string(),
+        "item created"
+    );
 
     let template = ItemCardTemplate {
         item,
@@ -415,8 +467,9 @@ pub async fn change_item_status(
     {
         Ok(Some(id)) => id,
         Ok(None) => return Err(not_found_response(&state, "")),
-        Err(_) => {
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response());
+        Err(error) => {
+            log_database_error("load_item_retro_id", &error);
+            return Err(database_error_response());
         }
     };
 
@@ -468,7 +521,11 @@ pub async fn change_item_status(
                 )
                 .fetch_one(&state.pool)
                 .await
-                .unwrap();
+                .map_err(|error| {
+                    log_database_error("reload_item_after_highlight_conflict", &error);
+                    database_error_response()
+                })?;
+                tracing::debug!(item_id, retro_id, "item highlight conflict");
                 return Ok(Html(format!(
                     r##"<article class="card"
                                  data-item-id="{}"
@@ -485,7 +542,8 @@ pub async fn change_item_status(
                     htmlescape::encode_minimal(&original.text)
                 )));
             }
-            panic!("Database error: {}", e);
+            log_database_error("change_item_status", &e);
+            return Err(database_error_response());
         }
     };
 
@@ -503,7 +561,18 @@ pub async fn change_item_status(
     )
     .fetch_one(&state.pool)
     .await
-    .unwrap();
+    .map_err(|error| {
+        log_database_error("change_item_status_completion_check", &error);
+        database_error_response()
+    })?;
+
+    tracing::debug!(
+        item_id = item.id,
+        retro_id = item.retro_id,
+        action = action.unwrap_or("missing"),
+        user_id = user.user_id,
+        "item status change processed"
+    );
 
     let template = if all_completed.unwrap_or(false) {
         ArchiveModalTemplate { item }.render().unwrap()
@@ -541,7 +610,12 @@ pub async fn archive_retro(
     )
     .execute(&state.pool)
     .await
-    .unwrap();
+    .map_err(|error| {
+        log_database_error("archive_retro", &error);
+        database_error_response()
+    })?;
+
+    tracing::info!(retro_id, user_id = user.user_id, "retrospective archived");
 
     Ok((
         StatusCode::SEE_OTHER,
@@ -568,14 +642,26 @@ pub async fn delete_retro(
     .await
     {
         Ok(retro) => retro,
-        Err(_) => return not_found_page(&state),
+        Err(sqlx::Error::RowNotFound) => return not_found_page(&state),
+        Err(error) => {
+            log_database_error("load_retro_for_delete", &error);
+            return database_error_response();
+        }
     };
 
-    sqlx::query!("DELETE FROM retrospectives WHERE id = $1", retro.id)
+    if let Err(error) = sqlx::query!("DELETE FROM retrospectives WHERE id = $1", retro.id)
         .execute(&state.pool)
         .await
-        .unwrap();
+    {
+        log_database_error("delete_retro", &error);
+        return database_error_response();
+    }
 
+    tracing::info!(
+        retro_id = retro.id,
+        user_id = user.user_id,
+        "retrospective deleted"
+    );
     StatusCode::OK.into_response()
 }
 

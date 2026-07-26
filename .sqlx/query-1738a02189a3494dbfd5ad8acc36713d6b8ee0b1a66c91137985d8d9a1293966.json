@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO users (github_id, username, avatar_url, access_token)\n        VALUES ($1, 'demo', NULL, 'demo')\n        ON CONFLICT (github_id) DO UPDATE SET username = 'demo', access_token = 'demo'\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1738a02189a3494dbfd5ad8acc36713d6b8ee0b1a66c91137985d8d9a1293966"
+}

@@ -27,6 +27,12 @@ fn test_server_port() -> u16 {
                 &format!("127.0.0.1:{}", port),
             ])
             .env("DATABASE_URL", database_url)
+            .env_remove("GITHUB_ADMIN_ORG")
+            .env_remove("GITHUB_ADMIN_TEAM_SLUG")
+            .env_remove("GITHUB_USER_ORG")
+            .env_remove("GITHUB_CLIENT_ID")
+            .env_remove("GITHUB_CLIENT_SECRET")
+            .env_remove("GITHUB_ENTERPRISE_URL")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .spawn()

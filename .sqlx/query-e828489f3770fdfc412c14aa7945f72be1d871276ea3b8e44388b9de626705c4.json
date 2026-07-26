@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM retrospectives WHERE id = $1",
+  "query": "INSERT INTO retrospectives (title, slug, team_slug, created_by) VALUES ($1, $2, $3, $4) RETURNING *",
   "describe": {
     "columns": [
       {
@@ -36,6 +36,9 @@
     ],
     "parameters": {
       "Left": [
+        "Text",
+        "Text",
+        "Text",
         "Int4"
       ]
     },
@@ -48,5 +51,5 @@
       false
     ]
   },
-  "hash": "3d3ed5d003e11b065859062c1bd469feb49193d2bd389287532147e1d805af97"
+  "hash": "e828489f3770fdfc412c14aa7945f72be1d871276ea3b8e44388b9de626705c4"
 }

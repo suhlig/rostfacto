@@ -9,6 +9,7 @@ use tower::Layer;
 use tower_http::{
     normalize_path::{NormalizePath, NormalizePathLayer},
     services::ServeDir,
+    trace::{DefaultOnResponse, TraceLayer},
 };
 
 /// Command line arguments
@@ -36,6 +37,7 @@ pub mod templates;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
+        .json()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "rostfacto=info,tower_http=info".into()),
@@ -51,7 +53,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("GitHub authentication is enabled");
     }
 
-    let pool = PgPool::connect(&config.database_url).await.unwrap();
+    let pool = match PgPool::connect(&config.database_url).await {
+        Ok(pool) => pool,
+        Err(error) => {
+            tracing::error!(
+                error_type = "database_connection",
+                "failed to connect to database"
+            );
+            tracing::debug!(error = %error, "database connection failure details");
+            return Err(error.into());
+        }
+    };
 
     let demo_user_id = if config.demo_mode() {
         Some(auth::ensure_demo_user(&pool).await?)
@@ -80,6 +92,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/auth/logout", get(auth::logout))
         .nest_service("/static", ServeDir::new("static"))
         .fallback(handlers::not_found)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &axum::http::Request<axum::body::Body>| {
+                    tracing::info_span!(
+                        "http_request",
+                        method = %request.method(),
+                        path = request.uri().path()
+                    )
+                })
+                .on_response(DefaultOnResponse::new().level(tracing::Level::INFO)),
+        )
         .with_state(state.clone());
 
     // Normalize trailing slashes before Axum route matching.
@@ -88,10 +111,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = match tokio::net::TcpListener::bind(&state.config.bind_address).await {
         Ok(listener) => listener,
         Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
-            eprintln!("Error: Address already in use");
+            tracing::error!(
+                error_type = "address_in_use",
+                "failed to bind HTTP listener"
+            );
             std::process::exit(1);
         }
-        Err(e) => return Err(e.into()),
+        Err(e) => {
+            tracing::error!(error_type = ?e.kind(), "failed to bind HTTP listener");
+            return Err(e.into());
+        }
     };
     axum::serve(
         listener,
