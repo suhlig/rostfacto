@@ -335,12 +335,11 @@ div.grid {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
   text-align: left;
   cursor: pointer;
-  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  transition: box-shadow 0.08s ease;
   position: relative;
 }
 
 .card:hover {
-  transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
 }
 

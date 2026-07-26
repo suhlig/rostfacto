@@ -139,7 +139,9 @@ impl<'a> RetroPage<'a> {
         input.send_keys(text).await?;
         input.send_keys("\u{E007}").await?;
 
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        // Wait for HTMX to finish processing the newly added card before
+        // interacting with it.
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
         // Get the newly created card's ID
         let card = self
@@ -156,20 +158,26 @@ impl<'a> RetroPage<'a> {
     }
 
     pub async fn verify_card_state(&self, id: i32, expected_class: &str) -> WebDriverResult<()> {
-        let card = self
-            .driver
-            .find(By::Css(&format!("article[data-item-id='{}']", id)))
-            .await?;
+        let selector = format!("article[data-item-id='{}']", id);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
 
-        let class_attr = card.attr("class").await?.unwrap();
-        assert_eq!(
-            class_attr.trim(),
-            expected_class,
-            "Card {} should be in {} state",
-            id,
-            expected_class
-        );
-        Ok(())
+        loop {
+            let card = self.driver.find(By::Css(&selector)).await?;
+            let class_attr = card.attr("class").await?.unwrap_or_default();
+            if class_attr.trim() == expected_class {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                assert_eq!(
+                    class_attr.trim(),
+                    expected_class,
+                    "Card {} should be in {} state",
+                    id,
+                    expected_class
+                );
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
     }
 
     pub async fn click_card(&self, id: i32) -> WebDriverResult<()> {

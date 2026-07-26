@@ -87,7 +87,20 @@ Default bind address is `0.0.0.0:3000` (can override with `--bind-address`).
 - Integration tests are in `tests/integration_test.rs` using `thirtyfour`.
 - `tests/test_helpers.rs` starts a geckodriver instance and provides page objects (`HomePage`, `RetrosPage`, `RetroPage`).
 - The app must already be running on `http://localhost:3000` with a database before tests are executed.
-- Set `SHOW_BROWSER` to run Firefox visibly.
+- You need Firefox and geckodriver installed. On macOS:
+  ```bash
+  brew install geckodriver
+  brew install --cask firefox
+  ```
+- Run the tests with:
+  ```bash
+  export DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev
+  cargo test --test integration_test
+  ```
+- Set `SHOW_BROWSER` to run Firefox visibly:
+  ```bash
+  SHOW_BROWSER=1 cargo test --test integration_test
+  ```
 
 ## Important quirks for agents
 

@@ -5,13 +5,13 @@
       <p>{{ item.text }}</p>
       <form>
         <div class="card-actions">
-          <button class="btn-secondary"
+          <button class="btn-secondary secondary"
                   hx-post="/items/{{ item.id }}/status?action=cancel"
                   hx-target="closest .card"
                   hx-swap="outerHTML">
             Cancel
           </button>
-          <button class="btn-primary"
+          <button class="btn-primary primary"
                   hx-post="/items/{{ item.id }}/status?action=complete"
                   hx-target="closest .card"
                   hx-swap="outerHTML">
@@ -27,10 +27,12 @@
     </article>
   {% else %}
     <article class="card"
+             role="button"
+             tabindex="0"
              data-item-id="{{ item.id }}"
              hx-post="/items/{{ item.id }}/status?action=highlight"
              hx-target="closest .card"
              hx-swap="outerHTML">
-      <p>{{ item.text }}</p>
+      {{ item.text }}
     </article>
 {% endmatch %}

@@ -116,12 +116,31 @@ pub async fn change_item_status(
                 .and_then(|de| de.constraint())
                 .map_or(false, |c| c.contains("single_highlighted_item_per_retro"))
             {
+                // Fetch the original item so we can re-render it with the error message
+                let original = sqlx::query_as!(
+                    Item,
+                    r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!",
+                              category as "category: _", created_at as "created_at!", status as "status: _"
+                       FROM items WHERE id = $1"#,
+                    item_id
+                )
+                .fetch_one(&pool)
+                .await
+                .unwrap();
                 return Html(format!(
-                    r##"<div class="card">
-                        <div class="error-message" style="color: #D25948; margin-top: 0.5rem; font-weight: 700;">
-                            Only one item can be highlighted at a time
-                        </div>
-                    </div>"##
+                    r##"<article class="card"
+                                 data-item-id="{}"
+                                 hx-post="/items/{}/status?action=highlight"
+                                 hx-target="closest .card"
+                                 hx-swap="outerHTML">
+                            <p>{}</p>
+                            <div class="error-message" style="color: #D25948; margin-top: 0.5rem; font-weight: 700;">
+                                Only one item can be highlighted at a time
+                            </div>
+                        </article>"##,
+                    item_id,
+                    item_id,
+                    htmlescape::encode_minimal(&original.text)
                 ));
             }
             panic!("Database error: {}", e);
@@ -319,7 +338,12 @@ pub async fn show_retro(State(pool): State<PgPool>, Path(slug): Path<String>) ->
 
     let all_completed = sqlx::query_scalar!(
         r#"
-        SELECT NOT EXISTS (
+        SELECT EXISTS (
+            SELECT 1 FROM items
+            WHERE retro_id = $1
+            AND status != 'ARCHIVED'::status
+        )
+        AND NOT EXISTS (
             SELECT 1 FROM items
             WHERE retro_id = $1
             AND status != 'COMPLETED'::status
