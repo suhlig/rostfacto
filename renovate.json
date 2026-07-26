@@ -6,8 +6,16 @@
   "minimumReleaseAge": "3 days",
   "packageRules": [
     {
-      "description": "Require human review for all dependency updates. Re-enable auto-merge for minor/patch once the full CI suite (including Postgres + geckodriver integration tests) runs in GitHub Actions.",
-      "matchUpdateTypes": ["minor", "patch", "major"],
+      "description": "Auto-merge Cargo patch updates after required CI checks pass.",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Require human review for potentially breaking dependency updates.",
+      "matchUpdateTypes": ["minor", "major"],
       "automerge": false
     }
   ]
