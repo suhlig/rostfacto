@@ -1,0 +1,23 @@
+<article class="card editing" data-item-id="{{ item.id }}">
+  <form hx-post="/items/{{ item.id }}"
+        hx-target="closest .card"
+        hx-swap="outerHTML">
+    <input class="edit-card-input"
+           type="text"
+           name="text"
+           value="{{ item.text }}"
+           aria-label="Card text"
+           required
+           autofocus>
+    <div class="card-actions">
+      <button class="btn-secondary secondary btn-cancel-edit"
+              type="button"
+              hx-get="/items/{{ item.id }}"
+              hx-target="closest .card"
+              hx-swap="outerHTML">
+        Cancel
+      </button>
+      <button class="btn-primary primary btn-save-edit" type="submit">Save</button>
+    </div>
+  </form>
+</article>

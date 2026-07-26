@@ -252,6 +252,33 @@ impl<'a> RetroPage<'a> {
         Ok(id)
     }
 
+    pub async fn edit_card(&self, id: i32, text: &str) -> WebDriverResult<()> {
+        let card = self.get_card(id).await?;
+        card.find(By::Css(".btn-edit")).await?.click().await?;
+
+        let card = self.get_card(id).await?;
+        let input = card.find(By::Css("input[name='text']")).await?;
+        input.clear().await?;
+        input.send_keys(text).await?;
+        card.find(By::Css(".btn-save-edit")).await?.click().await?;
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        Ok(())
+    }
+
+    pub async fn cancel_card_edit(&self, id: i32) -> WebDriverResult<()> {
+        let card = self.get_card(id).await?;
+        card.find(By::Css(".btn-edit")).await?.click().await?;
+        let card = self.get_card(id).await?;
+        card.find(By::Css(".btn-cancel-edit"))
+            .await?
+            .click()
+            .await?;
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        Ok(())
+    }
+
     pub async fn verify_card_state(&self, id: i32, expected_class: &str) -> WebDriverResult<()> {
         let selector = format!("article[data-item-id='{}']", id);
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);

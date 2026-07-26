@@ -10,6 +10,12 @@ pub struct ItemCardTemplate {
 }
 
 #[derive(Template)]
+#[template(path = "item_edit.html")]
+pub struct ItemEditTemplate {
+    pub item: Item,
+}
+
+#[derive(Template)]
 #[template(path = "archive_modal.html")]
 pub struct ArchiveModalTemplate {
     pub item: Item,

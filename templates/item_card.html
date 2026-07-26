@@ -11,6 +11,13 @@
                   hx-swap="outerHTML">
             Cancel
           </button>
+          <button class="btn-secondary secondary btn-edit"
+                  type="button"
+                  hx-get="/items/{{ item.id }}/edit"
+                  hx-target="closest .card"
+                  hx-swap="outerHTML">
+            Edit
+          </button>
           <button class="btn-primary primary"
                   hx-post="/items/{{ item.id }}/status?action=complete"
                   hx-target="closest .card"
@@ -34,5 +41,15 @@
              hx-target="closest .card"
              hx-swap="outerHTML">
       <p>{{ item.text }} <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
+      <div class="card-actions">
+        <button class="btn-secondary secondary btn-edit"
+                type="button"
+                hx-get="/items/{{ item.id }}/edit"
+                hx-target="closest .card"
+                hx-swap="outerHTML"
+                hx-on:click="event.stopPropagation()">
+          Edit
+        </button>
+      </div>
     </article>
 {% endmatch %}

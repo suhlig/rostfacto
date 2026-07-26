@@ -3,7 +3,7 @@ use crate::github::list_org_teams;
 use crate::models::{apply_author_initials, Category, Item, Retrospective};
 use crate::templates::{
     ArchiveModalTemplate, ErrorTemplate, GitHubTeam, HomeTemplate, ItemCardTemplate,
-    NewRetroTemplate, RetroTemplate, RetrosTemplate,
+    ItemEditTemplate, NewRetroTemplate, RetroTemplate, RetrosTemplate,
 };
 use crate::AppState;
 use askama::Template;
@@ -639,6 +639,112 @@ pub async fn change_item_status(
     };
 
     Ok(Html(template))
+}
+
+pub async fn show_item(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(item_id): Path<i32>,
+) -> Result<Html<String>, Response> {
+    let item = load_item_with_initials(&state.pool, item_id)
+        .await
+        .map_err(|error| match error {
+            sqlx::Error::RowNotFound => not_found_page(&state),
+            _ => {
+                log_database_error("load_item", &error);
+                database_error_response()
+            }
+        })?;
+
+    match require_retro_access_by_id(&state, &user, item.retro_id).await? {
+        Some(_) => {}
+        None => return Err(not_found_page(&state)),
+    }
+
+    Ok(Html(
+        ItemCardTemplate {
+            item,
+            is_admin: user.is_admin,
+        }
+        .render()
+        .unwrap(),
+    ))
+}
+
+pub async fn edit_item(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(item_id): Path<i32>,
+) -> Result<Html<String>, Response> {
+    let item = load_item_with_initials(&state.pool, item_id)
+        .await
+        .map_err(|error| match error {
+            sqlx::Error::RowNotFound => not_found_page(&state),
+            _ => {
+                log_database_error("load_item_for_edit", &error);
+                database_error_response()
+            }
+        })?;
+
+    match require_retro_access_by_id(&state, &user, item.retro_id).await? {
+        Some(_) => {}
+        None => return Err(not_found_page(&state)),
+    }
+
+    Ok(Html(ItemEditTemplate { item }.render().unwrap()))
+}
+
+pub async fn update_item(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(item_id): Path<i32>,
+    Form(form): Form<NewItem>,
+) -> Result<Html<String>, Response> {
+    let item = load_item_with_initials(&state.pool, item_id)
+        .await
+        .map_err(|error| match error {
+            sqlx::Error::RowNotFound => not_found_page(&state),
+            _ => {
+                log_database_error("load_item_for_update", &error);
+                database_error_response()
+            }
+        })?;
+
+    match require_retro_access_by_id(&state, &user, item.retro_id).await? {
+        Some(_) => {}
+        None => return Err(not_found_page(&state)),
+    }
+
+    let text = form.text.trim();
+    if text.is_empty() {
+        return Err(bad_request(&state, "Card text is required"));
+    }
+
+    sqlx::query!("UPDATE items SET text = $1 WHERE id = $2", text, item_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|error| {
+            log_database_error("update_item", &error);
+            database_error_response()
+        })?;
+
+    tracing::debug!(item_id, user_id = user.user_id, "item text updated");
+
+    let item = load_item_with_initials(&state.pool, item_id)
+        .await
+        .map_err(|error| {
+            log_database_error("load_updated_item_text", &error);
+            database_error_response()
+        })?;
+
+    Ok(Html(
+        ItemCardTemplate {
+            item,
+            is_admin: user.is_admin,
+        }
+        .render()
+        .unwrap(),
+    ))
 }
 
 pub async fn archive_retro(

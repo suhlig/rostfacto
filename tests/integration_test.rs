@@ -112,6 +112,27 @@ async fn test_create_cards() -> WebDriverResult<()> {
 }
 
 #[tokio::test]
+async fn test_edit_card() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Edit Card Test").await?;
+
+    let card_id = retro_page.add_card("Good", "Original text").await?;
+    retro_page.edit_card(card_id, "Updated text").await?;
+
+    let card = retro_page.get_card(card_id).await?;
+    assert!(card.text().await?.contains("Updated text"));
+    assert!(!card.text().await?.contains("Original text"));
+
+    retro_page.cancel_card_edit(card_id).await?;
+    let card = retro_page.get_card(card_id).await?;
+    assert!(card.text().await?.contains("Updated text"));
+
+    retro_page.cleanup().await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_create_retro() -> WebDriverResult<()> {
     let browser = BrowserSession::new().await?;
     let retros_page = browser.retros_page().await?;
