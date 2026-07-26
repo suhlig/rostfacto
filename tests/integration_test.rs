@@ -270,7 +270,7 @@ async fn test_retros_list_page() -> WebDriverResult<()> {
     let _ = retros_page;
     let row = browser
         .driver
-        .find(By::XPath(&format!(
+        .find(By::XPath(format!(
             "//table//tr[contains(., '{}')]",
             retro_page.title
         )))
