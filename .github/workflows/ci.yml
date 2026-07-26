@@ -51,6 +51,8 @@ jobs:
           wget -q "https://github.com/mozilla/geckodriver/releases/download/v0.35.0/geckodriver-v0.35.0-linux64.tar.gz"
           tar -xzf geckodriver-v0.35.0-linux64.tar.gz
           sudo mv geckodriver /usr/local/bin/
+      - name: Run unit tests
+        run: cargo test --bins
       - name: Start server and run integration tests
         run: |
           cargo run --quiet &
@@ -63,5 +65,3 @@ jobs:
           done
           cargo test --test integration_test
           kill $PID
-      - name: Run unit tests
-        run: cargo test --bins
