@@ -1,5 +1,4 @@
 use portpicker::pick_unused_port;
-use rand::Rng;
 use std::process::{Child, Command};
 use std::sync::OnceLock;
 use thirtyfour::{common::capabilities::firefox::FirefoxPreferences, prelude::*};
@@ -173,7 +172,7 @@ impl<'a> RetrosPage<'a> {
     }
 
     pub async fn create_retro(&self, title_prefix: &str) -> WebDriverResult<RetroPage<'_>> {
-        let test_title = format!("{} {}", title_prefix, rand::thread_rng().gen::<u32>());
+        let test_title = format!("{} {}", title_prefix, rand::random::<u32>());
         let slug = test_title
             .to_lowercase()
             .replace(' ', "-")

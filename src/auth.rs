@@ -6,7 +6,6 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
 };
 use chrono::Utc;
-use rand::Rng;
 use serde::Deserialize;
 use sqlx::PgPool;
 use std::fmt::Write;
@@ -67,7 +66,7 @@ struct TokenResponse {
 
 fn generate_token() -> String {
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill(&mut bytes);
+    rand::fill(&mut bytes);
     bytes.iter().fold(String::new(), |mut acc, b| {
         let _ = write!(acc, "{:02x}", b);
         acc
