@@ -69,7 +69,6 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
-- Show the initials of the card author (resolve duplicates within the retro)
 - Edit a card
 - Publish a container image
 - Timer for each retro card
@@ -83,6 +82,7 @@ SHOW_BROWSER=1 cargo test --test integration_test
   * Retro was completed (all cards disappear)
 
   Do not introduce a new infrastructure component. Use Postgres as hub, as much as sensible.
+- Allow adding a card anonymously
 
 # License
 
