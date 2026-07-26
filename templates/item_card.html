@@ -33,6 +33,6 @@
              hx-post="/items/{{ item.id }}/status?action=highlight"
              hx-target="closest .card"
              hx-swap="outerHTML">
-      {{ item.text }}
+      <p>{{ item.text }}</p>
     </article>
 {% endmatch %}
