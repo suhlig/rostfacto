@@ -454,3 +454,22 @@ async fn test_missing_static_file_404() -> WebDriverResult<()> {
     assert_eq!(status, 404);
     Ok(())
 }
+
+#[tokio::test]
+async fn test_demo_banner_shown() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    browser.driver.goto(&base_url()).await?;
+    let banner = browser.driver.find(By::Css(".demo-banner")).await?;
+    let text = banner.text().await?;
+    assert!(text.contains("unsecured demo instance"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_auth_login_redirects_in_demo_mode() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    // In demo mode, /auth/login should redirect back to / (demo mode has no real OAuth).
+    let status = fetch_status(&browser.driver, "/auth/login").await?;
+    assert_eq!(status, 200, "/auth/login should be reachable in demo mode");
+    Ok(())
+}

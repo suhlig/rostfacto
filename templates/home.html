@@ -9,9 +9,19 @@
   <nav>
     <ul>
       <li><a href="/retros">All Retros</a></li>
+      {% if let Some(user) = user %}
+      {% if user.is_admin %}
       <li><a href="/retros/new">New Retro</a></li>
+      {% endif %}
+      {% endif %}
     </ul>
     <ul>
+      {% if let Some(user) = user %}
+      <li><span>{{ user.username }}</span></li>
+      <li><a href="/auth/logout">Sign out</a></li>
+      {% else %}
+      <li><a href="/auth/login" role="button">Sign in with GitHub</a></li>
+      {% endif %}
       <li><a href="https://github.com/suhlig/rostfacto">Source Code</a></li>
     </ul>
   </nav>
@@ -20,6 +30,12 @@
 
 {% block content %}
 <div class="container">
+  {% if user.is_none() && !demo_mode %}
+  <article>
+    <p>Welcome to Rostfacto. Please <a href="/auth/login">sign in with GitHub</a> to view and manage retrospectives.</p>
+  </article>
+  {% endif %}
+
   <p>Rostfacto is an app for running a retrospective remotely. It was created because the great <a href="https://github.com/vmware-archive/postfacto">Postfacto</a> is no longer maintained. </p>
 
   <p style="text-align: center;">

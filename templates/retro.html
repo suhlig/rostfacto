@@ -6,15 +6,15 @@
 <header class="retro-header">
   <h1>{{ retro.title }}</h1>
   <div class="retro-header-actions">
+    {% if let Some(user) = user %}
     <div class="account-menu">
-      <button type="button">Menu</button>
+      <button type="button">{{ user.username }}</button>
       <ul class="account-menu-list">
-        <li>Account Settings</li>
-        <li>Dashboard</li>
-        <li>Help</li>
-        <li>Sign out</li>
+        <li><a href="/retros">Dashboard</a></li>
+        <li><a href="/auth/logout">Sign out</a></li>
       </ul>
     </div>
+    {% endif %}
   </div>
 </header>
 {% endblock %}

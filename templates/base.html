@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>{% block title %}Rostfacto{% endblock %}</title>
+</head>    <title>{% block title %}Rostfacto{% endblock %}</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
@@ -13,6 +13,13 @@
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js" integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V" crossorigin="anonymous"></script>
 </head>
 <body>
+    {% if demo_mode %}
+    <div class="demo-banner" role="alert">
+      ⚠️ This is an <strong>unsecured demo instance</strong>. Authentication is disabled and
+      everyone has full access. Do not use this for real retrospectives.
+    </div>
+    {% endif %}
+
     <header class="container text-center">
       {% block header %}{% endblock %}
     </header>

@@ -3,6 +3,7 @@ use axum::{
     Router, ServiceExt,
 };
 use clap::Parser;
+use config::Config;
 use sqlx::PgPool;
 use tower::Layer;
 use tower_http::{
@@ -18,17 +19,51 @@ struct Args {
     bind_address: String,
 }
 
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: PgPool,
+    pub config: Config,
+    pub demo_user_id: Option<i32>,
+}
+
+mod auth;
+mod config;
+mod github;
 mod handlers;
 mod models;
 pub mod templates;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-    let database_url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set");
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "rostfacto=info,tower_http=info".into()),
+        )
+        .init();
 
-    let pool = PgPool::connect(&database_url).await.unwrap();
+    let args = Args::parse();
+    let config = Config::from_env(args.bind_address);
+
+    if config.demo_mode() {
+        tracing::warn!("GITHUB_ADMIN_ORG is not set: running in unsecured demo mode");
+    } else {
+        tracing::info!("GitHub authentication is enabled");
+    }
+
+    let pool = PgPool::connect(&config.database_url).await.unwrap();
+
+    let demo_user_id = if config.demo_mode() {
+        Some(auth::ensure_demo_user(&pool).await?)
+    } else {
+        None
+    };
+
+    let state = AppState {
+        pool,
+        config,
+        demo_user_id,
+    };
 
     let app: Router = Router::new()
         .route("/", get(handlers::home))
@@ -40,14 +75,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/items/{id}/status", post(handlers::change_item_status))
         .route("/retro/{retro_id}/archive", post(handlers::archive_retro))
         .route("/retro/{slug}/delete", delete(handlers::delete_retro))
+        .route("/auth/login", get(auth::login))
+        .route("/auth/callback", get(auth::callback))
+        .route("/auth/logout", get(auth::logout))
         .nest_service("/static", ServeDir::new("static"))
         .fallback(handlers::not_found)
-        .with_state(pool);
+        .with_state(state.clone());
 
     // Normalize trailing slashes before Axum route matching.
     let app = NormalizePathLayer::trim_trailing_slash().layer(app);
 
-    let listener = match tokio::net::TcpListener::bind(&args.bind_address).await {
+    let listener = match tokio::net::TcpListener::bind(&state.config.bind_address).await {
         Ok(listener) => listener,
         Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
             eprintln!("Error: Address already in use");

@@ -9,7 +9,18 @@
   <nav>
     <ul>
       <li><a href="/">Home</a></li>
+      {% if let Some(user) = user %}
+      {% if user.is_admin %}
       <li><a href="/retros/new">New Retro</a></li>
+      {% endif %}
+      {% endif %}
+    </ul>
+    <ul>
+      {% if let Some(user) = user %}
+      <li><span>{{ user.username }}</span></li>
+      <li><a href="/auth/logout">Sign out</a></li>
+      {% endif %}
+      <li><a href="https://github.com/suhlig/rostfacto">Source Code</a></li>
     </ul>
   </nav>
 </header>
@@ -18,22 +29,32 @@
 {% block content %}
 <div class="container">
   <div class="page-actions">
+    {% if is_admin %}
     <a href="/retros/new" role="button">New Retrospective</a>
+    {% endif %}
   </div>
 
+  {% if retros.is_empty() %}
+  <p>No retrospectives available.</p>
+  {% else %}
   <table role="grid" class="retro-table">
     <thead>
       <tr>
         <th scope="col">Title</th>
+        <th scope="col">Team</th>
         <th scope="col">Created</th>
+        {% if is_admin %}
         <th scope="col" class="actions-col">Actions</th>
+        {% endif %}
       </tr>
     </thead>
     <tbody>
       {% for retro in retros %}
       <tr>
         <td><a href="/retro/{{ retro.slug }}">{{ retro.title }}</a></td>
+        <td>{{ retro.team_slug }}</td>
         <td>{{ retro.created_at.format("%Y-%m-%d %H:%M") }}</td>
+        {% if is_admin %}
         <td>
           <button class="delete-btn"
                   hx-delete="/retro/{{ retro.slug }}/delete"
@@ -43,9 +64,11 @@
             Delete
           </button>
         </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  {% endif %}
 </div>
 {% endblock %}

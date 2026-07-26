@@ -625,3 +625,16 @@ div.grid {
 .account-menu-list li:hover {
   background-color: rgba(0, 0, 0, 0.04);
 }
+
+/* Demo banner */
+.demo-banner {
+  background-color: var(--rf-red);
+  color: #fff;
+  padding: 1rem;
+  text-align: center;
+  font-weight: 500;
+}
+
+.demo-banner strong {
+  font-weight: 700;
+}

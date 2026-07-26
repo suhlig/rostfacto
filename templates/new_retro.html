@@ -11,6 +11,10 @@
       <li><a href="/">Home</a></li>
       <li><a href="/retros">All Retros</a></li>
     </ul>
+    <ul>
+      <li><span>{{ user.username }}</span></li>
+      <li><a href="/auth/logout">Sign out</a></li>
+    </ul>
   </nav>
 </header>
 {% endblock %}
@@ -28,6 +32,19 @@
     <small id="slug">
       Lowercase letters, numbers and dashes only; up to 255 characters
     </small>
+
+    {% if demo_mode %}
+      <input type="hidden" name="team_slug" value="demo">
+    {% else %}
+      <label for="team_slug">Team</label>
+      <select id="team_slug" name="team_slug" required>
+        <option value="">Select a team</option>
+        {% for team in teams %}
+        <option value="{{ team.slug }}">{{ team.name }}</option>
+        {% endfor %}
+      </select>
+      <small>Only members of this team will be able to view or change this retrospective.</small>
+    {% endif %}
 
     <input type="submit" value="Create Retrospective" class="btn-primary">
   </form>
