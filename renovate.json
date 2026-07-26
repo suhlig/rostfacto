@@ -1,0 +1,14 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "rebaseWhen": "behind-base-branch",
+  "labels": ["dependencies"],
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    {
+      "description": "Require human review for all dependency updates. Re-enable auto-merge for minor/patch once the full CI suite (including Postgres + geckodriver integration tests) runs in GitHub Actions.",
+      "matchUpdateTypes": ["minor", "patch", "major"],
+      "automerge": false
+    }
+  ]
+}
