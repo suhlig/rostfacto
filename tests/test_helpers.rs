@@ -241,7 +241,7 @@ impl<'a> RetroPage<'a> {
         // Get the newly created card's ID
         let card = self
             .driver
-            .find(By::XPath(&format!(
+            .find(By::XPath(format!(
                 "//article[contains(@class, 'card') and contains(., '{}')]",
                 text
             )))
@@ -277,7 +277,7 @@ impl<'a> RetroPage<'a> {
 
     pub async fn get_card(&self, id: i32) -> WebDriverResult<WebElement> {
         self.driver
-            .find(By::Css(&format!("article[data-item-id='{}']", id)))
+            .find(By::Css(format!("article[data-item-id='{}']", id)))
             .await
     }
 
@@ -289,7 +289,7 @@ impl<'a> RetroPage<'a> {
             _ => panic!("Invalid category"),
         };
         self.driver
-            .find_all(By::Css(&format!("{} article.card", target)))
+            .find_all(By::Css(format!("{} article.card", target)))
             .await
     }
 
