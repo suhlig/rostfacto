@@ -29,6 +29,18 @@ cargo run
 
 Default bind address is `0.0.0.0:3000` (can override with `--bind-address`).
 
+## Validation prerequisites
+
+`cargo check`, `cargo test`, and `cargo run` all require sqlx to verify queries against a live PostgreSQL database.
+
+```bash
+export DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev
+```
+
+Ensure Postgres is running, the `rostfacto-dev` database exists, and migrations have been applied (`sqlx migrate run`). Without this, compilation fails with "set `DATABASE_URL` to use query macros online".
+
+If the database is not available, you can also use `cargo sqlx prepare` to update the offline query cache and compile in offline mode.
+
 ## Project structure
 
 - `src/main.rs` — Axum router setup, routes, and startup. No auth.
@@ -104,7 +116,7 @@ Default bind address is `0.0.0.0:3000` (can override with `--bind-address`).
 
 ## Important quirks for agents
 
-- `sqlx` macros are compile-time checked. Any schema change must be reflected in the DB or `sqlx` prepare data; otherwise compilation fails.
+- `sqlx` macros are compile-time checked against a live database. Any schema change must be reflected in the DB or in `sqlx` prepare data; otherwise compilation fails with "set `DATABASE_URL` to use query macros online". Use `DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev`.
 - Askama templates are embedded and type-checked. The struct fields in `src/templates.rs` must match the template variables.
 - `models.rs` defines a `Category::ToString` that returns uppercase (`GOOD`/`BAD`/`WATCH`) to match the DB enum; don't confuse this with standard display formatting.
 - `Status::Archived` is a real enum variant but `archived_retro.html` is currently not wired to any route (only `archive_modal.html` is used).
