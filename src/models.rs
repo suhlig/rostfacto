@@ -1,6 +1,6 @@
-use chrono;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use std::fmt::Display;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Retrospective {
@@ -28,27 +28,22 @@ pub enum Category {
     Watch,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "status", rename_all = "UPPERCASE")]
 pub enum Status {
+    #[default]
     Created,
     Highlighted,
     Completed,
     Archived,
 }
 
-impl Default for Status {
-    fn default() -> Self {
-        Self::Created
-    }
-}
-
-impl ToString for Category {
-    fn to_string(&self) -> String {
+impl Display for Category {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Category::Good => "GOOD".to_string(),
-            Category::Bad => "BAD".to_string(),
-            Category::Watch => "WATCH".to_string(),
+            Category::Good => write!(f, "GOOD"),
+            Category::Bad => write!(f, "BAD"),
+            Category::Watch => write!(f, "WATCH"),
         }
     }
 }

@@ -114,7 +114,7 @@ pub async fn change_item_status(
         Err(e) => {
             if e.as_database_error()
                 .and_then(|de| de.constraint())
-                .map_or(false, |c| c.contains("single_highlighted_item_per_retro"))
+                .is_some_and(|c| c.contains("single_highlighted_item_per_retro"))
             {
                 // Fetch the original item so we can re-render it with the error message
                 let original = sqlx::query_as!(

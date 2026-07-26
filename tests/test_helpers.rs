@@ -3,6 +3,18 @@ use rand::Rng;
 use std::process::{Child, Command};
 use thirtyfour::{common::capabilities::firefox::FirefoxPreferences, prelude::*};
 
+/// Guard that kills the geckodriver process if driver setup fails before we take ownership.
+struct GeckodriverGuard(Option<Child>);
+
+impl Drop for GeckodriverGuard {
+    fn drop(&mut self) {
+        if let Some(mut process) = self.0.take() {
+            let _ = process.kill();
+            let _ = process.wait();
+        }
+    }
+}
+
 pub struct BrowserSession {
     pub driver: WebDriver,
     process: Child,
@@ -15,13 +27,15 @@ impl BrowserSession {
 
     pub async fn new() -> WebDriverResult<Self> {
         let port = pick_unused_port().expect("No ports available");
-        let process = Command::new("geckodriver")
-            .arg("--port")
-            .arg(port.to_string())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .expect("Failed to start geckodriver");
+        let mut guard = GeckodriverGuard(Some(
+            Command::new("geckodriver")
+                .arg("--port")
+                .arg(port.to_string())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .expect("Failed to start geckodriver"),
+        ));
 
         std::thread::sleep(std::time::Duration::from_secs(1));
 
@@ -35,6 +49,7 @@ impl BrowserSession {
         caps.set_preferences(prefs)?;
 
         let driver = WebDriver::new(&format!("http://localhost:{}", port), caps).await?;
+        let process = guard.0.take().expect("geckodriver process is present");
         Ok(Self { driver, process })
     }
 
