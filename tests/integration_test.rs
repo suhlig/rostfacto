@@ -2,7 +2,37 @@ mod test_helpers;
 
 use test_helpers::*;
 use thirtyfour::error::WebDriverResult;
+use thirtyfour::prelude::*;
 use thirtyfour::By;
+
+/// Submit the new-retro form directly via HTTP to test server-side validation.
+async fn post_retros_form(
+    driver: &WebDriver,
+    title: &str,
+    slug: &str,
+) -> WebDriverResult<(u64, String)> {
+    driver.goto("http://localhost:3000").await?;
+    let script = format!(
+        r#"return fetch('/retros', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
+            body: 'title={title}&slug={slug}'
+        }}).then(async r => ({{status: r.status, text: await r.text()}}));"#
+    );
+    let result = driver.execute(&script, vec![]).await?;
+    let result = result.json();
+    let status = result["status"].as_u64().unwrap();
+    let text = result["text"].as_str().unwrap().to_string();
+    Ok((status, text))
+}
+
+/// Fetch a path and return the HTTP status code.
+async fn fetch_status(driver: &WebDriver, path: &str) -> WebDriverResult<u64> {
+    driver.goto("http://localhost:3000").await?;
+    let script = format!(r#"return fetch('{}').then(r => r.status);"#, path);
+    let result = driver.execute(&script, vec![]).await?;
+    Ok(result.json().as_u64().unwrap())
+}
 
 #[tokio::test]
 async fn test_home_page() -> WebDriverResult<()> {
@@ -218,5 +248,201 @@ async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
     retro_page.verify_card_state(card_id, "card").await?;
 
     retro_page.cleanup().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_retros_list_page() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("List Test Retro").await?;
+
+    // Return to the list page and verify the retro appears
+    let retros_page = browser.retros_page().await?;
+    let _ = retros_page;
+    let row = browser
+        .driver
+        .find(By::XPath(&format!(
+            "//table//tr[contains(., '{}')]",
+            retro_page.title
+        )))
+        .await?;
+    let link = row.find(By::Tag("a")).await?;
+    assert_eq!(link.text().await?, retro_page.title);
+    assert!(link.attr("href").await?.unwrap().contains("/retro/"));
+
+    let delete_button = row.find(By::Tag("button")).await?;
+    assert_eq!(delete_button.text().await?, "Delete");
+
+    retro_page.cleanup().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_retro_validation_empty_slug() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    let (status, text) = post_retros_form(&browser.driver, "Test", "").await?;
+    assert_eq!(status, 400);
+    assert!(text.contains("Slug is required"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_retro_validation_invalid_slug() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    let (status, text) = post_retros_form(&browser.driver, "Test", "BadSlug").await?;
+    assert_eq!(status, 400);
+    assert!(text.contains("Slug can only contain lowercase letters, numbers, and dashes"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_retro_validation_long_slug() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    let slug = "a".repeat(256);
+    let (status, text) = post_retros_form(&browser.driver, "Test", &slug).await?;
+    assert_eq!(status, 400);
+    assert!(text.contains("Slug must be 255 characters or less"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_retro_validation_duplicate_slug() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page
+        .create_retro_with_slug("Duplicate Test", "duplicate-test-slug")
+        .await?;
+
+    let (status, text) = post_retros_form(&browser.driver, "Another", &retro_page.slug).await?;
+    assert_eq!(status, 500);
+    assert!(text.contains("Slug is already in use"));
+
+    retro_page.cleanup().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_delete_retro() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Delete Test Retro").await?;
+
+    retro_page.delete().await?;
+
+    // Verify the retro is gone
+    browser
+        .driver
+        .goto(&format!("http://localhost:3000/retro/{}", retro_page.slug))
+        .await?;
+    let error_code = browser.driver.find(By::Css(".error-page h1")).await?;
+    assert_eq!(error_code.text().await?, "404");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_item_ordering() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Ordering Test Retro").await?;
+
+    let first_id = retro_page.add_card("Good", "first card").await?;
+    let second_id = retro_page.add_card("Good", "second card").await?;
+
+    let cards = retro_page.get_cards_in_category("Good").await?;
+    assert_eq!(cards.len(), 2);
+
+    // HTMX prepends new cards, so the newest card appears first.
+    let first_card_id = cards[0]
+        .attr("data-item-id")
+        .await?
+        .unwrap()
+        .parse::<i32>()
+        .unwrap();
+    let second_card_id = cards[1]
+        .attr("data-item-id")
+        .await?
+        .unwrap()
+        .parse::<i32>()
+        .unwrap();
+    assert_eq!(first_card_id, second_id);
+    assert_eq!(second_card_id, first_id);
+
+    retro_page.cleanup().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_completed_card_cannot_be_highlighted() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Completed Lock Test").await?;
+
+    let card_id = retro_page.add_card("Good", "completed card").await?;
+    // Leave another card active so completing the first does not trigger the archive modal
+    let other_id = retro_page.add_card("Bad", "active card").await?;
+
+    retro_page.click_card(card_id).await?;
+    retro_page.complete_card().await?;
+    retro_page
+        .verify_card_state(card_id, "card completed")
+        .await?;
+    retro_page.verify_card_state(other_id, "card").await?;
+
+    // Try to click the completed card again
+    retro_page.click_card(card_id).await?;
+    retro_page
+        .verify_card_state(card_id, "card completed")
+        .await?;
+
+    retro_page.cleanup().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_single_highlight_error_message() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Highlight Error Test").await?;
+
+    let first_id = retro_page.add_card("Good", "first card").await?;
+    let second_id = retro_page.add_card("Good", "second card").await?;
+
+    retro_page.click_card(first_id).await?;
+    retro_page
+        .verify_card_state(first_id, "card highlighted")
+        .await?;
+
+    // Attempting to highlight a second card should show an error on that card
+    retro_page.click_card(second_id).await?;
+    let second_card = retro_page.get_card(second_id).await?;
+    let error = second_card.find(By::Css(".error-message")).await?;
+    assert_eq!(
+        error.text().await?,
+        "Only one item can be highlighted at a time"
+    );
+
+    retro_page.cleanup().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_static_asset_served() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    browser
+        .driver
+        .goto("http://localhost:3000/static/happy.svg")
+        .await?;
+    let svg = browser.driver.find(By::Tag("svg")).await?;
+    assert!(svg.is_displayed().await?);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_missing_static_file_404() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    let status = fetch_status(&browser.driver, "/static/nonexistent.css").await?;
+    assert_eq!(status, 404);
     Ok(())
 }

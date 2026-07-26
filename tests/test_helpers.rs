@@ -92,10 +92,22 @@ impl<'a> RetrosPage<'a> {
         Ok(Self { driver })
     }
 
-    pub async fn create_retro(&self, title_prefix: &str) -> WebDriverResult<RetroPage<'_>> {
+    pub async fn submit_new_retro(&self, title: &str, slug: &str) -> WebDriverResult<()> {
         self.driver.goto("http://localhost:3000/retros/new").await?;
-        let test_title = format!("{} {}", title_prefix, rand::thread_rng().gen::<u32>());
+        let title_input = self.driver.find(By::Css("input[name='title']")).await?;
+        title_input.send_keys(title).await?;
+        let slug_input = self.driver.find(By::Css("input[name='slug']")).await?;
+        slug_input.send_keys(slug).await?;
+        self.driver
+            .find(By::Css("input[type='submit']"))
+            .await?
+            .click()
+            .await?;
+        Ok(())
+    }
 
+    pub async fn create_retro(&self, title_prefix: &str) -> WebDriverResult<RetroPage<'_>> {
+        let test_title = format!("{} {}", title_prefix, rand::thread_rng().gen::<u32>());
         let slug = test_title
             .to_lowercase()
             .replace(' ', "-")
@@ -105,25 +117,24 @@ impl<'a> RetrosPage<'a> {
             .chars()
             .take(255)
             .collect::<String>();
-
-        let title_input = self.driver.find(By::Css("input[name='title']")).await?;
-        title_input.send_keys(&test_title).await?;
-        let slug_input = self.driver.find(By::Css("input[name='slug']")).await?;
-        slug_input.send_keys(&slug).await?;
-
-        self.driver
-            .find(By::Css("input[type='submit']"))
-            .await?
-            .click()
-            .await?;
-
+        self.submit_new_retro(&test_title, &slug).await?;
         RetroPage::new(self.driver, &slug).await
+    }
+
+    pub async fn create_retro_with_slug(
+        &self,
+        title: &str,
+        slug: &str,
+    ) -> WebDriverResult<RetroPage<'_>> {
+        self.submit_new_retro(title, slug).await?;
+        RetroPage::new(self.driver, slug).await
     }
 }
 
 pub struct RetroPage<'a> {
     pub driver: &'a WebDriver,
     pub title: String,
+    pub slug: String,
 }
 
 impl<'a> RetroPage<'a> {
@@ -134,7 +145,11 @@ impl<'a> RetroPage<'a> {
         // Get the actual title from the page
         let title_element = driver.find(By::Css("h1")).await?;
         let title = title_element.text().await?;
-        Ok(Self { driver, title })
+        Ok(Self {
+            driver,
+            title,
+            slug: slug.to_string(),
+        })
     }
 
     pub async fn add_card(&self, category: &str, text: &str) -> WebDriverResult<i32> {
@@ -195,11 +210,26 @@ impl<'a> RetroPage<'a> {
         }
     }
 
-    pub async fn click_card(&self, id: i32) -> WebDriverResult<()> {
-        let card = self
-            .driver
+    pub async fn get_card(&self, id: i32) -> WebDriverResult<WebElement> {
+        self.driver
             .find(By::Css(&format!("article[data-item-id='{}']", id)))
-            .await?;
+            .await
+    }
+
+    pub async fn get_cards_in_category(&self, category: &str) -> WebDriverResult<Vec<WebElement>> {
+        let target = match category {
+            "Good" => "#good-items",
+            "Bad" => "#bad-items",
+            "Watch" => "#watch-items",
+            _ => panic!("Invalid category"),
+        };
+        self.driver
+            .find_all(By::Css(&format!("{} article.card", target)))
+            .await
+    }
+
+    pub async fn click_card(&self, id: i32) -> WebDriverResult<()> {
+        let card = self.get_card(id).await?;
         card.click().await?;
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         Ok(())
@@ -222,7 +252,7 @@ impl<'a> RetroPage<'a> {
         Ok(())
     }
 
-    pub async fn cleanup(self) -> WebDriverResult<()> {
+    pub async fn delete(&self) -> WebDriverResult<()> {
         self.driver.goto("http://localhost:3000/retros").await?;
         let rows = self.driver.find_all(By::Css("table tr")).await?;
         for row in rows {
@@ -237,6 +267,11 @@ impl<'a> RetroPage<'a> {
                 }
             }
         }
+        Ok(())
+    }
+
+    pub async fn cleanup(self) -> WebDriverResult<()> {
+        self.delete().await?;
         Ok(())
     }
 }

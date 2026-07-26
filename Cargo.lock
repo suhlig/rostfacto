@@ -1609,6 +1609,7 @@ dependencies = [
  "portpicker",
  "rand",
  "serde",
+ "serde_json",
  "sqlx",
  "thirtyfour",
  "tokio",
