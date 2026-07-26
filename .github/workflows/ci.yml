@@ -1,0 +1,48 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      SQLX_OFFLINE: true
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: "rustfmt, clippy" }
+      - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run clippy
+        run: cargo clippy --all-targets -- -D warnings
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: rostfacto
+          POSTGRES_PASSWORD: rostfacto
+          POSTGRES_DB: rostfacto-dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://rostfacto:rostfacto@localhost:5432/rostfacto-dev
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli
+      - name: Run migrations
+        run: sqlx migrate run
+      - name: Run tests
+        run: cargo test --bins

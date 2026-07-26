@@ -1,0 +1,63 @@
+name: Release
+on: {push: {tags: ["v*"]}}
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            asset: rostfacto-linux-amd64.tar.gz
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+            asset: rostfacto-linux-arm64.tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            asset: rostfacto-darwin-arm64.tar.gz
+    runs-on: ${{ matrix.os }}
+    env:
+      SQLX_OFFLINE: true
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with: {targets: "${{ matrix.target }}"}
+      - uses: Swatinem/rust-cache@v2
+      - name: Install musl-tools (Linux musl targets)
+        if: contains(matrix.target, 'musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          # Use musl-gcc for the cc crate when cross-compiling musl targets
+          TARGET_CC_VAR="CC_$(echo ${{ matrix.target }} | tr - _)"
+          echo "$TARGET_CC_VAR=musl-gcc" >> "$GITHUB_ENV"
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Compress binary
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../${{ matrix.asset }} rostfacto
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Extract changelog
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { found=1; print; next }
+            found && $0 ~ "^## \\[" { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: artifacts/*.tar.gz
+          body_path: release-notes.md
