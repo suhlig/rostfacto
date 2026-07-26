@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT EXISTS (\n            SELECT 1 FROM items\n            WHERE retro_id = $1\n            AND status != 'ARCHIVED'::status\n        )\n        AND NOT EXISTS (\n            SELECT 1 FROM items\n            WHERE retro_id = $1\n            AND status != 'COMPLETED'::status\n            AND status != 'ARCHIVED'::status\n        )\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "34643e83934520d236156a08032c9d6b054d7872ea95a75e0563e400d4e8475e"
+}

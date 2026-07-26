@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE items\n        SET status = CASE\n            WHEN status = 'COMPLETED'::status THEN 'COMPLETED'::status\n            WHEN status = 'CREATED'::status AND $2 = 'highlight' THEN 'HIGHLIGHTED'::status\n            WHEN status = 'HIGHLIGHTED'::status AND $2 = 'complete' THEN 'COMPLETED'::status\n            WHEN status = 'HIGHLIGHTED'::status AND $2 = 'cancel' THEN 'CREATED'::status\n            ELSE status\n        END\n        WHERE id = $1\n        RETURNING id as \"id!\", retro_id as \"retro_id!\", text as \"text!\",\n                  category as \"category: _\", created_at as \"created_at!\", status as \"status: _\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "retro_id!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "text!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "category: _",
+        "type_info": {
+          "Custom": {
+            "name": "category",
+            "kind": {
+              "Enum": [
+                "GOOD",
+                "BAD",
+                "WATCH"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "status: _",
+        "type_info": {
+          "Custom": {
+            "name": "status",
+            "kind": {
+              "Enum": [
+                "CREATED",
+                "HIGHLIGHTED",
+                "COMPLETED",
+                "ARCHIVED"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "58d21852e1b7311bfb18d3e916cce0b1b6178ecb926e8e752cfae820bfc9aa0f"
+}

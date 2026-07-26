@@ -1,0 +1,75 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id as \"id!\", retro_id as \"retro_id!\", text as \"text!\",\n                  category as \"category: _\", created_at as \"created_at!\", status as \"status: _\"\n           FROM items\n           WHERE retro_id = $1\n           AND category = 'BAD'\n           AND status != 'ARCHIVED'::status\n           ORDER BY created_at ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "retro_id!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "text!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "category: _",
+        "type_info": {
+          "Custom": {
+            "name": "category",
+            "kind": {
+              "Enum": [
+                "GOOD",
+                "BAD",
+                "WATCH"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "status: _",
+        "type_info": {
+          "Custom": {
+            "name": "status",
+            "kind": {
+              "Enum": [
+                "CREATED",
+                "HIGHLIGHTED",
+                "COMPLETED",
+                "ARCHIVED"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8cc14711130e1e35cfd1513ee0f04637b4c0e0a0c6e0bf177043657e5872a602"
+}
