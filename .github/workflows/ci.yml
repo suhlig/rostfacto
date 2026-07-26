@@ -44,5 +44,24 @@ jobs:
         run: cargo install sqlx-cli
       - name: Run migrations
         run: sqlx migrate run
-      - name: Run tests
+      - name: Install Firefox and geckodriver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y firefox
+          wget -q "https://github.com/mozilla/geckodriver/releases/download/v0.35.0/geckodriver-v0.35.0-linux64.tar.gz"
+          tar -xzf geckodriver-v0.35.0-linux64.tar.gz
+          sudo mv geckodriver /usr/local/bin/
+      - name: Start server and run integration tests
+        run: |
+          cargo run --quiet &
+          PID=$!
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:3000 >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          cargo test --test integration_test
+          kill $PID
+      - name: Run unit tests
         run: cargo test --bins
