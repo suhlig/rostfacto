@@ -1,10 +1,14 @@
 use axum::{
     routing::{delete, get, post},
-    Router,
+    Router, ServiceExt,
 };
 use clap::Parser;
 use sqlx::PgPool;
-use tower_http::services::ServeDir;
+use tower::Layer;
+use tower_http::{
+    normalize_path::{NormalizePath, NormalizePathLayer},
+    services::ServeDir,
+};
 
 /// Command line arguments
 #[derive(Parser)]
@@ -26,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let pool = PgPool::connect(&database_url).await.unwrap();
 
-    let app = Router::new()
+    let app: Router = Router::new()
         .route("/", get(handlers::home))
         .route("/retros", get(handlers::list_retros))
         .route("/retros/new", get(handlers::new_retro))
@@ -40,6 +44,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .fallback(handlers::not_found)
         .with_state(pool);
 
+    // Normalize trailing slashes before Axum route matching.
+    let app = NormalizePathLayer::trim_trailing_slash().layer(app);
+
     let listener = match tokio::net::TcpListener::bind(&args.bind_address).await {
         Ok(listener) => listener,
         Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
@@ -48,6 +55,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => return Err(e.into()),
     };
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        <NormalizePath<Router> as ServiceExt<axum::http::Request<axum::body::Body>>>::into_make_service(
+            app,
+        ),
+    )
+    .await?;
     Ok(())
 }

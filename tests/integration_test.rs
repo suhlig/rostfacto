@@ -252,6 +252,14 @@ async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
 }
 
 #[tokio::test]
+async fn test_retros_trailing_slash() -> WebDriverResult<()> {
+    let browser = BrowserSession::new().await?;
+    let status = fetch_status(&browser.driver, "/retros/").await?;
+    assert_eq!(status, 200, "/retros/ should be normalized to /retros");
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_retros_list_page() -> WebDriverResult<()> {
     let browser = BrowserSession::new().await?;
     let retros_page = browser.retros_page().await?;
