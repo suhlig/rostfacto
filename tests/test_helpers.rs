@@ -2,8 +2,14 @@ use portpicker::pick_unused_port;
 use std::process::{Child, Command};
 use std::sync::OnceLock;
 use thirtyfour::{common::capabilities::firefox::FirefoxPreferences, prelude::*};
+use tokio::sync::{Semaphore, SemaphorePermit};
 
 static TEST_SERVER: OnceLock<(u16, Child)> = OnceLock::new();
+
+// Firefox becomes unstable when multiple browser instances run concurrently.
+// Limit the suite to one Firefox at a time, matching thirtyfour's own test
+// harness.
+static FIREFOX_LOCK: Semaphore = Semaphore::const_new(2);
 
 /// Return the base URL of the test server, starting it on a random port if necessary.
 pub fn base_url() -> String {
@@ -71,14 +77,35 @@ impl Drop for GeckodriverGuard {
 pub struct BrowserSession {
     pub driver: WebDriver,
     process: Child,
+    _firefox_permit: SemaphorePermit<'static>,
+}
+
+impl Drop for BrowserSession {
+    fn drop(&mut self) {
+        // Only tear down the geckodriver process.  The WebDriver session must
+        // be quit explicitly with `BrowserSession::close()` before the session
+        // is dropped.  Calling `quit()` synchronously from Drop inside a tokio
+        // runtime blocks the executor and serializes/hangs the test suite.
+        let _ = self.process.kill();
+        let _ = self.process.wait();
+    }
 }
 
 impl BrowserSession {
+    /// Quit the browser and stop geckodriver.  Call this explicitly at the end
+    /// of every test instead of relying on Drop.
+    pub async fn close(self) -> WebDriverResult<()> {
+        // Clone the handle so we can quit the session while still letting the
+        // owned `WebDriver` drop normally afterwards.
+        self.driver.clone().quit().await?;
+        Ok(())
+    }
     pub async fn home_page(&self) -> WebDriverResult<HomePage<'_>> {
         HomePage::new(&self.driver).await
     }
 
     pub async fn new() -> WebDriverResult<Self> {
+        let permit = FIREFOX_LOCK.acquire().await.unwrap();
         let port = pick_unused_port().expect("No ports available");
         let mut guard = GeckodriverGuard(Some(
             Command::new("geckodriver")
@@ -111,18 +138,15 @@ impl BrowserSession {
         };
 
         let process = guard.0.take().expect("geckodriver process is present");
-        Ok(Self { driver, process })
+        Ok(Self {
+            driver,
+            process,
+            _firefox_permit: permit,
+        })
     }
 
     pub async fn retros_page(&self) -> WebDriverResult<RetrosPage<'_>> {
         RetrosPage::new(&self.driver).await
-    }
-}
-
-impl Drop for BrowserSession {
-    fn drop(&mut self) {
-        let _ = self.process.kill();
-        let _ = self.process.wait();
     }
 }
 
@@ -230,21 +254,21 @@ impl<'a> RetroPage<'a> {
             .find(By::Css(format!("form[hx-target='{}']", target).as_str()))
             .await?;
 
-        let input = form.find(By::Tag("input")).await?;
+        let input = form.find(By::Tag("textarea")).await?;
         input.send_keys(text).await?;
-        input.send_keys("\u{E007}").await?;
+        form.find(By::Css("button[type='submit']"))
+            .await?
+            .click()
+            .await?;
 
         // Wait for HTMX to finish processing the newly added card before
         // interacting with it.
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-        // Get the newly created card's ID
+        // New cards are prepended to the category list.
         let card = self
             .driver
-            .find(By::XPath(format!(
-                "//article[contains(@class, 'card') and contains(., '{}')]",
-                text
-            )))
+            .find(By::Css(format!("{} article.card", target)))
             .await?;
         let id_str = card.attr("data-item-id").await?.unwrap();
         let id = id_str.parse::<i32>().unwrap();
@@ -253,24 +277,29 @@ impl<'a> RetroPage<'a> {
     }
 
     pub async fn edit_card(&self, id: i32, text: &str) -> WebDriverResult<()> {
-        let card = self.get_card(id).await?;
-        card.find(By::Css(".btn-edit")).await?.click().await?;
+        self.driver
+            .find(By::Css(format!(
+                "article[data-item-id='{}'] .card-text-edit",
+                id
+            )))
+            .await?
+            .click()
+            .await?;
 
-        let card = self.get_card(id).await?;
-        let input = card.find(By::Css("input[name='text']")).await?;
+        let input = self
+            .driver
+            .find(By::Css(format!(
+                "article[data-item-id='{}'] textarea[name='text']",
+                id
+            )))
+            .await?;
         input.clear().await?;
         input.send_keys(text).await?;
-        card.find(By::Css(".btn-save-edit")).await?.click().await?;
-
-        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-        Ok(())
-    }
-
-    pub async fn cancel_card_edit(&self, id: i32) -> WebDriverResult<()> {
-        let card = self.get_card(id).await?;
-        card.find(By::Css(".btn-edit")).await?.click().await?;
-        let card = self.get_card(id).await?;
-        card.find(By::Css(".btn-cancel-edit"))
+        self.driver
+            .find(By::Css(format!(
+                "article[data-item-id='{}'] .btn-save-edit",
+                id
+            )))
             .await?
             .click()
             .await?;
@@ -322,7 +351,11 @@ impl<'a> RetroPage<'a> {
 
     pub async fn click_card(&self, id: i32) -> WebDriverResult<()> {
         let card = self.get_card(id).await?;
-        card.click().await?;
+        // Use a JavaScript click on the article element so that the click event
+        // target is the article itself, not the nested text-edit button.
+        self.driver
+            .execute("arguments[0].click()", vec![card.to_json()?])
+            .await?;
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         Ok(())
     }

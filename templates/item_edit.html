@@ -2,13 +2,12 @@
   <form hx-post="/items/{{ item.id }}"
         hx-target="closest .card"
         hx-swap="outerHTML">
-    <input class="edit-card-input"
-           type="text"
-           name="text"
-           value="{{ item.text }}"
-           aria-label="Card text"
-           required
-           autofocus>
+    <textarea class="edit-card-input"
+              name="text"
+              rows="3"
+              aria-label="Card text"
+              required
+              autofocus>{{ item.text }}</textarea>
     <div class="card-actions">
       <button class="btn-secondary secondary btn-cancel-edit"
               type="button"

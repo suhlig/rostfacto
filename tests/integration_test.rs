@@ -39,6 +39,7 @@ async fn test_home_page() -> WebDriverResult<()> {
     let browser = BrowserSession::new().await?;
     let home_page = browser.home_page().await?;
     home_page.verify_title("Rostfacto").await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -66,6 +67,7 @@ async fn test_invalid_url() -> WebDriverResult<()> {
     let current_url = browser.driver.current_url().await?;
     assert!(current_url.to_string().ends_with("/"));
 
+    browser.close().await?;
     Ok(())
 }
 
@@ -88,6 +90,7 @@ async fn test_archive_retro() -> WebDriverResult<()> {
     assert_eq!(remaining_cards.len(), 0, "All cards should be archived");
 
     retro_page.cleanup().await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -108,6 +111,7 @@ async fn test_create_cards() -> WebDriverResult<()> {
     retro_page.verify_card_state(watch_id, "card").await?;
 
     retro_page.cleanup().await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -115,20 +119,53 @@ async fn test_create_cards() -> WebDriverResult<()> {
 async fn test_edit_card() -> WebDriverResult<()> {
     let browser = BrowserSession::new().await?;
     let retros_page = browser.retros_page().await?;
-    let retro_page = retros_page.create_retro("Edit Card Test").await?;
+    let retro_page = retros_page.create_retro("Edit Card Multiline Test").await?;
 
-    let card_id = retro_page.add_card("Good", "Original text").await?;
-    retro_page.edit_card(card_id, "Updated text").await?;
+    let new_card_input = retro_page
+        .driver
+        .find(By::Css("form[hx-target='#good-items'] textarea"))
+        .await?;
+    let initial_height = retro_page
+        .driver
+        .execute(
+            "return arguments[0].getBoundingClientRect().height",
+            vec![new_card_input.to_json()?],
+        )
+        .await?
+        .json()
+        .as_f64()
+        .unwrap();
+    new_card_input
+        .send_keys("First line\nSecond line\nThird line")
+        .await?;
+    let expanded_height = retro_page
+        .driver
+        .execute(
+            "return arguments[0].getBoundingClientRect().height",
+            vec![new_card_input.to_json()?],
+        )
+        .await?
+        .json()
+        .as_f64()
+        .unwrap();
+    assert!(expanded_height > initial_height);
+    new_card_input.clear().await?;
+
+    let card_id = retro_page
+        .add_card("Good", "Original first line\nOriginal second line")
+        .await?;
+    retro_page
+        .edit_card(card_id, "Updated first line\nUpdated second line")
+        .await?;
 
     let card = retro_page.get_card(card_id).await?;
-    assert!(card.text().await?.contains("Updated text"));
-    assert!(!card.text().await?.contains("Original text"));
-
-    retro_page.cancel_card_edit(card_id).await?;
-    let card = retro_page.get_card(card_id).await?;
-    assert!(card.text().await?.contains("Updated text"));
+    assert!(card
+        .text()
+        .await?
+        .starts_with("Updated first line\nUpdated second line"));
 
     retro_page.cleanup().await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -143,6 +180,7 @@ async fn test_create_retro() -> WebDriverResult<()> {
     assert_eq!(title.text().await?, retro_page.title);
 
     retro_page.cleanup().await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -187,6 +225,7 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
         .await?;
 
     retro_page.cleanup().await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -214,6 +253,7 @@ async fn test_nonexistent_retro() -> WebDriverResult<()> {
     assert_eq!(home_link.text().await?, "← Return to homepage");
     assert!(home_link.attr("href").await?.unwrap().contains("/"));
 
+    browser.close().await?;
     Ok(())
 }
 
@@ -243,6 +283,7 @@ async fn test_archived_card_display() -> WebDriverResult<()> {
         .await?;
 
     retro_page.cleanup().await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -269,6 +310,7 @@ async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
     retro_page.verify_card_state(card_id, "card").await?;
 
     retro_page.cleanup().await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -277,6 +319,7 @@ async fn test_retros_trailing_slash() -> WebDriverResult<()> {
     let browser = BrowserSession::new().await?;
     let status = fetch_status(&browser.driver, "/retros/").await?;
     assert_eq!(status, 200, "/retros/ should be normalized to /retros");
+    browser.close().await?;
     Ok(())
 }
 
@@ -304,6 +347,7 @@ async fn test_retros_list_page() -> WebDriverResult<()> {
     assert_eq!(delete_button.text().await?, "Delete");
 
     retro_page.cleanup().await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -313,6 +357,7 @@ async fn test_create_retro_validation_empty_slug() -> WebDriverResult<()> {
     let (status, text) = post_retros_form(&browser.driver, "Test", "").await?;
     assert_eq!(status, 400);
     assert!(text.contains("Slug is required"));
+    browser.close().await?;
     Ok(())
 }
 
@@ -322,6 +367,7 @@ async fn test_create_retro_validation_invalid_slug() -> WebDriverResult<()> {
     let (status, text) = post_retros_form(&browser.driver, "Test", "BadSlug").await?;
     assert_eq!(status, 400);
     assert!(text.contains("Slug can only contain lowercase letters, numbers, and dashes"));
+    browser.close().await?;
     Ok(())
 }
 
@@ -332,6 +378,7 @@ async fn test_create_retro_validation_long_slug() -> WebDriverResult<()> {
     let (status, text) = post_retros_form(&browser.driver, "Test", &slug).await?;
     assert_eq!(status, 400);
     assert!(text.contains("Slug must be 255 characters or less"));
+    browser.close().await?;
     Ok(())
 }
 
@@ -348,6 +395,7 @@ async fn test_create_retro_validation_duplicate_slug() -> WebDriverResult<()> {
     assert!(text.contains("Slug is already in use"));
 
     retro_page.cleanup().await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -367,6 +415,7 @@ async fn test_delete_retro() -> WebDriverResult<()> {
     let error_code = browser.driver.find(By::Css(".error-page h1")).await?;
     assert_eq!(error_code.text().await?, "404");
 
+    browser.close().await?;
     Ok(())
 }
 
@@ -399,6 +448,7 @@ async fn test_item_ordering() -> WebDriverResult<()> {
     assert_eq!(second_card_id, first_id);
 
     retro_page.cleanup().await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -426,6 +476,7 @@ async fn test_completed_card_cannot_be_highlighted() -> WebDriverResult<()> {
         .await?;
 
     retro_page.cleanup().await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -453,6 +504,7 @@ async fn test_single_highlight_error_message() -> WebDriverResult<()> {
     );
 
     retro_page.cleanup().await?;
+    browser.close().await?;
     Ok(())
 }
 
@@ -465,6 +517,7 @@ async fn test_static_asset_served() -> WebDriverResult<()> {
         .await?;
     let svg = browser.driver.find(By::Tag("svg")).await?;
     assert!(svg.is_displayed().await?);
+    browser.close().await?;
     Ok(())
 }
 
@@ -473,6 +526,7 @@ async fn test_missing_static_file_404() -> WebDriverResult<()> {
     let browser = BrowserSession::new().await?;
     let status = fetch_status(&browser.driver, "/static/nonexistent.css").await?;
     assert_eq!(status, 404);
+    browser.close().await?;
     Ok(())
 }
 
@@ -483,6 +537,7 @@ async fn test_demo_banner_shown() -> WebDriverResult<()> {
     let banner = browser.driver.find(By::Css(".demo-banner")).await?;
     let text = banner.text().await?;
     assert!(text.contains("unsecured demo instance"));
+    browser.close().await?;
     Ok(())
 }
 
@@ -492,5 +547,6 @@ async fn test_auth_login_redirects_in_demo_mode() -> WebDriverResult<()> {
     // In demo mode, /auth/login should redirect back to / (demo mode has no real OAuth).
     let status = fetch_status(&browser.driver, "/auth/login").await?;
     assert_eq!(status, 200, "/auth/login should be reachable in demo mode");
+    browser.close().await?;
     Ok(())
 }

@@ -28,7 +28,8 @@
           hx-target="#good-items"
           hx-swap="afterbegin"
           hx-on::after-request="if(event.detail.successful) this.reset()">
-      <input type="text" name="text" class="add-card-input" placeholder="I'm glad that…" required>
+      <textarea name="text" class="add-card-input" rows="1" placeholder="I'm glad that…" required></textarea>
+      <button class="add-card-submit" type="submit">Add</button>
     </form>
     <section id="good-items" class="item-list">
       {% for item in good_items %}
@@ -43,7 +44,8 @@
           hx-target="#watch-items"
           hx-swap="afterbegin"
           hx-on::after-request="if(event.detail.successful) this.reset()">
-      <input type="text" name="text" class="add-card-input" placeholder="I'm wondering about…" required>
+      <textarea name="text" class="add-card-input" rows="1" placeholder="I'm wondering about…" required></textarea>
+      <button class="add-card-submit" type="submit">Add</button>
     </form>
     <section id="watch-items" class="item-list">
       {% for item in watch_items %}
@@ -58,7 +60,8 @@
           hx-target="#bad-items"
           hx-swap="afterbegin"
           hx-on::after-request="if(event.detail.successful) this.reset()">
-      <input type="text" name="text" class="add-card-input" placeholder="It wasn't so great that…" required>
+      <textarea name="text" class="add-card-input" rows="1" placeholder="It wasn't so great that…" required></textarea>
+      <button class="add-card-submit" type="submit">Add</button>
     </form>
     <section id="bad-items" class="item-list">
       {% for item in bad_items %}

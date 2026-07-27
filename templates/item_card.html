@@ -2,34 +2,33 @@
   {% when Status::Highlighted %}
     <article class="card highlighted" data-item-id="{{ item.id }}">
       <div class="timer-badge">5:00</div>
-      <p>{{ item.text }} <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
-      <form>
-        <div class="card-actions">
-          <button class="btn-secondary secondary"
-                  hx-post="/items/{{ item.id }}/status?action=cancel"
-                  hx-target="closest .card"
-                  hx-swap="outerHTML">
-            Cancel
-          </button>
-          <button class="btn-secondary secondary btn-edit"
-                  type="button"
-                  hx-get="/items/{{ item.id }}/edit"
-                  hx-target="closest .card"
-                  hx-swap="outerHTML">
-            Edit
-          </button>
-          <button class="btn-primary primary"
-                  hx-post="/items/{{ item.id }}/status?action=complete"
-                  hx-target="closest .card"
-                  hx-swap="outerHTML">
-            Done
-          </button>
-        </div>
-      </form>
+      <button class="card-text-edit"
+              type="button"
+              aria-label="Edit card text"
+              hx-get="/items/{{ item.id }}/edit"
+              hx-target="closest .card"
+              hx-swap="outerHTML">
+        <span class="card-text">{{ item.text }}</span>
+        <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span>
+      </button>
+      <div class="card-actions">
+        <button class="btn-secondary secondary"
+                hx-post="/items/{{ item.id }}/status?action=cancel"
+                hx-target="closest .card"
+                hx-swap="outerHTML">
+          Cancel
+        </button>
+        <button class="btn-primary primary"
+                hx-post="/items/{{ item.id }}/status?action=complete"
+                hx-target="closest .card"
+                hx-swap="outerHTML">
+          Done
+        </button>
+      </div>
     </article>
   {% when Status::Completed %}
     <article class="card completed" data-item-id="{{ item.id }}">
-      <p>{{ item.text }} <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
+      <p><span class="card-text">{{ item.text }}</span> <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
       <span class="completed-check">✓</span>
     </article>
   {% else %}
@@ -40,16 +39,15 @@
              hx-post="/items/{{ item.id }}/status?action=highlight"
              hx-target="closest .card"
              hx-swap="outerHTML">
-      <p>{{ item.text }} <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
-      <div class="card-actions">
-        <button class="btn-secondary secondary btn-edit"
-                type="button"
-                hx-get="/items/{{ item.id }}/edit"
-                hx-target="closest .card"
-                hx-swap="outerHTML"
-                hx-on:click="event.stopPropagation()">
-          Edit
-        </button>
-      </div>
+      <button class="card-text-edit"
+              type="button"
+              aria-label="Edit card text"
+              hx-get="/items/{{ item.id }}/edit"
+              hx-target="closest .card"
+              hx-swap="outerHTML"
+              hx-on:click="event.stopPropagation()">
+        <span class="card-text">{{ item.text }}</span>
+        <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span>
+      </button>
     </article>
 {% endmatch %}
