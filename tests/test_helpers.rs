@@ -382,6 +382,7 @@ impl<'a> RetroPage<'a> {
             .goto(format!("{}/retros", base_url()).as_str())
             .await?;
         let rows = self.driver.find_all(By::Css("table tr")).await?;
+        let mut clicked = false;
         for row in rows {
             if let Ok(link) = row.find(By::Tag("a")).await {
                 if link.text().await? == self.title {
@@ -390,11 +391,29 @@ impl<'a> RetroPage<'a> {
                         .await?;
                     let delete_button = row.find(By::Tag("button")).await?;
                     delete_button.click().await?;
+                    clicked = true;
                     break;
                 }
             }
         }
-        Ok(())
+
+        if !clicked {
+            return Ok(());
+        }
+
+        // Wait for the HTMX delete request to finish and the row to be removed.
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
+        loop {
+            let xpath = format!("//table//tr[contains(., '{}')]", self.title);
+            let still_present = !self.driver.find_all(By::XPath(&xpath)).await?.is_empty();
+            if !still_present {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for retro '{}' to be deleted", self.title);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        }
     }
 
     pub async fn cleanup(self) -> WebDriverResult<()> {
