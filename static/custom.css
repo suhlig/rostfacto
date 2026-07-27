@@ -302,7 +302,7 @@ div.grid {
   field-sizing: content;
 }
 
-.add-card-submit {
+button.add-card-submit {
   width: auto;
   min-height: calc(1.35em + 1.8rem);
   margin: 0;
@@ -311,7 +311,7 @@ div.grid {
   background-color: rgba(255, 255, 255, 0.18);
 }
 
-.add-card-submit:hover {
+button.add-card-submit:hover {
   background-color: rgba(255, 255, 255, 0.3);
 }
 
