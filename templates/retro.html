@@ -94,4 +94,24 @@
 {% if show_archive_modal %}
   {% include "archive_modal_dialog.html" %}
 {% endif %}
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const menu = document.querySelector('.account-menu');
+    if (!menu) return;
+    const button = menu.querySelector('button');
+
+    menu.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+
+    button.addEventListener('click', function() {
+      menu.classList.toggle('is-open');
+    });
+
+    document.addEventListener('click', function() {
+      menu.classList.remove('is-open');
+    });
+  });
+</script>
 {% endblock %}

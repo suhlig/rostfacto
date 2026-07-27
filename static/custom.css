@@ -673,8 +673,7 @@ button.add-card-submit:hover {
   z-index: 100;
 }
 
-.account-menu:hover .account-menu-list,
-.account-menu:focus-within .account-menu-list {
+.account-menu.is-open .account-menu-list {
   display: block;
 }
 
