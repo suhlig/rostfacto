@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "shared/macros.html" as macros %}
 
 {% block header %}
 <header class="page-header">
@@ -16,12 +17,7 @@
       {% endif %}
     </ul>
     <ul>
-      {% if let Some(user) = user %}
-      <li><span>{{ user.username }}</span></li>
-      <li><a href="/auth/logout">Sign out</a></li>
-      {% else %}
-      <li><a href="/auth/login" role="button">Sign in with GitHub</a></li>
-      {% endif %}
+      {{ macros::account_nav_links() }}
       <li><a href="https://github.com/suhlig/rostfacto">Source Code</a></li>
     </ul>
   </nav>

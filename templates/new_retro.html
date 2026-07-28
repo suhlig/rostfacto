@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "shared/macros.html" as macros %}
 
 {% block header %}
 <header class="page-header">
@@ -12,8 +13,8 @@
       <li><a href="/retros">All Retros</a></li>
     </ul>
     <ul>
-      <li><span>{{ user.username }}</span></li>
-      <li><a href="/auth/logout">Sign out</a></li>
+      {{ macros::account_nav_links() }}
+      <li><a href="https://github.com/suhlig/rostfacto">Source Code</a></li>
     </ul>
   </nav>
 </header>

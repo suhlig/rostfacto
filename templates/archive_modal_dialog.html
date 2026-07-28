@@ -1,12 +1,3 @@
-<dialog id="archive-modal" open>
-  <article>
-    <h3>You're about to archive this retro.</h3>
-    <p>Are you sure?</p>
-    <form method="POST" action="/retro/{{ retro.id }}/archive">
-      <fieldset class="grid">
-        <button class="btn-cancel secondary" formmethod="dialog" onclick="this.closest('dialog').close()">Cancel</button>
-        <button class="btn-archive primary" formmethod="post">Archive</button>
-      </fieldset>
-    </form>
-  </article>
-</dialog>
+{% import "shared/macros.html" as macros %}
+
+{{ macros::archive_dialog(retro.id) }}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "shared/macros.html" as macros %}
 
 {% block title %}{{ retro.title }} - Rostfacto{% endblock %}
 
@@ -6,69 +7,16 @@
 <header class="retro-header">
   <h1>{{ retro.title }}</h1>
   <div class="retro-header-actions">
-    {% if let Some(user) = user %}
-    <div class="account-menu">
-      <button type="button">{{ user.username }}</button>
-      <ul class="account-menu-list">
-        <li><a href="/retros">Dashboard</a></li>
-        <li><a href="/auth/logout">Sign out</a></li>
-      </ul>
-    </div>
-    {% endif %}
+    {{ macros::account_menu() }}
   </div>
 </header>
 {% endblock %}
 
 {% block content %}
 <div class="grid">
-  <div class="column-happy">
-    <img class="column-icon" src="/static/happy.svg" alt="">
-    <form class="add-card-form"
-          hx-post="/items/Good/{{ retro.id }}"
-          hx-target="#good-items"
-          hx-swap="afterbegin"
-          hx-on::after-request="if(event.detail.successful) this.reset()">
-      <textarea name="text" class="add-card-input" rows="1" placeholder="I'm glad that…" required></textarea>
-      <button class="add-card-submit" type="submit">Add</button>
-    </form>
-    <section id="good-items" class="item-list">
-      {% for item in good_items %}
-        {% include "item_card.html" %}
-      {% endfor %}
-    </section>
-  </div>
-  <div class="column-meh">
-    <img class="column-icon" src="/static/meh.svg" alt="">
-    <form class="add-card-form"
-          hx-post="/items/Watch/{{ retro.id }}"
-          hx-target="#watch-items"
-          hx-swap="afterbegin"
-          hx-on::after-request="if(event.detail.successful) this.reset()">
-      <textarea name="text" class="add-card-input" rows="1" placeholder="I'm wondering about…" required></textarea>
-      <button class="add-card-submit" type="submit">Add</button>
-    </form>
-    <section id="watch-items" class="item-list">
-      {% for item in watch_items %}
-        {% include "item_card.html" %}
-      {% endfor %}
-    </section>
-  </div>
-  <div class="column-sad">
-    <img class="column-icon" src="/static/sad.svg" alt="">
-    <form class="add-card-form"
-          hx-post="/items/Bad/{{ retro.id }}"
-          hx-target="#bad-items"
-          hx-swap="afterbegin"
-          hx-on::after-request="if(event.detail.successful) this.reset()">
-      <textarea name="text" class="add-card-input" rows="1" placeholder="It wasn't so great that…" required></textarea>
-      <button class="add-card-submit" type="submit">Add</button>
-    </form>
-    <section id="bad-items" class="item-list">
-      {% for item in bad_items %}
-        {% include "item_card.html" %}
-      {% endfor %}
-    </section>
-  </div>
+  {{ macros::retro_column(category=Category::Good, placeholder="I'm glad that…", items=good_items, retro_id=retro.id) }}
+  {{ macros::retro_column(category=Category::Watch, placeholder="I'm wondering about…", items=watch_items, retro_id=retro.id) }}
+  {{ macros::retro_column(category=Category::Bad, placeholder="It wasn't so great that…", items=bad_items, retro_id=retro.id) }}
 </div>
 
 <section class="action-items" style="visibility: hidden;">

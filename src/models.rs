@@ -92,6 +92,53 @@ pub enum Status {
     Archived,
 }
 
+impl Category {
+    /// URL/path segment used in HTMX endpoints (e.g. `/items/Good/{id}`).
+    pub const fn url_segment(&self) -> &'static str {
+        match self {
+            Category::Good => "Good",
+            Category::Bad => "Bad",
+            Category::Watch => "Watch",
+        }
+    }
+
+    /// Human-readable column label.
+    pub const fn display_label(&self) -> &'static str {
+        match self {
+            Category::Good => "Good",
+            Category::Bad => "Bad",
+            Category::Watch => "Watch",
+        }
+    }
+
+    /// CSS class suffix for the retro board column.
+    pub const fn column_class(&self) -> &'static str {
+        match self {
+            Category::Good => "column-happy",
+            Category::Bad => "column-sad",
+            Category::Watch => "column-meh",
+        }
+    }
+
+    /// Icon filename for the column header.
+    pub const fn icon(&self) -> &'static str {
+        match self {
+            Category::Good => "happy.svg",
+            Category::Bad => "sad.svg",
+            Category::Watch => "meh.svg",
+        }
+    }
+
+    /// DOM id for the list container of items in this column.
+    pub const fn items_container_id(&self) -> &'static str {
+        match self {
+            Category::Good => "good-items",
+            Category::Bad => "bad-items",
+            Category::Watch => "watch-items",
+        }
+    }
+}
+
 impl Display for Category {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

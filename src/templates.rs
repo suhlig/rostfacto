@@ -1,12 +1,11 @@
 use crate::auth::AuthUser;
-use crate::models::{Item, Retrospective, Status};
+use crate::models::{Category, Item, Retrospective, Status};
 use askama::Template;
 
 #[derive(Template)]
 #[template(path = "item_card.html")]
 pub struct ItemCardTemplate {
     pub item: Item,
-    pub is_admin: bool,
 }
 
 #[derive(Template)]
@@ -27,7 +26,7 @@ pub struct NewRetroTemplate {
     pub is_admin: bool,
     pub teams: Vec<GitHubTeam>,
     pub demo_mode: bool,
-    pub user: AuthUser,
+    pub user: Option<AuthUser>,
 }
 
 #[derive(Template)]

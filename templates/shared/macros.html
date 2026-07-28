@@ -1,0 +1,91 @@
+{% macro account_nav_links() %}
+  {% if let Some(user) = user %}
+    <li><span>{{ user.username }}</span></li>
+    <li><a href="/auth/logout">Sign out</a></li>
+  {% else %}
+    <li><a href="/auth/login" role="button">Sign in with GitHub</a></li>
+  {% endif %}
+{% endmacro %}
+
+{% macro account_menu() %}
+  {% if let Some(user) = user %}
+    <div class="account-menu">
+      <button type="button">{{ user.username }}</button>
+      <ul class="account-menu-list">
+        <li><a href="/retros">Dashboard</a></li>
+        <li><a href="/auth/logout">Sign out</a></li>
+      </ul>
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{% macro card_text_edit_button(item, stop_propagation) %}
+  <button class="card-text-edit"
+          type="button"
+          aria-label="Edit card text"
+          hx-get="/items/{{ item.id }}/edit"
+          hx-target="closest .card"
+          hx-swap="outerHTML"
+          {% if stop_propagation %}
+          hx-on:click="event.stopPropagation()"
+          {% endif %}>
+    <span class="card-text">{{ item.text }}</span>
+    <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span>
+  </button>
+{% endmacro %}
+
+{% macro card_actions(item) %}
+  <div class="card-actions">
+    <button class="btn-secondary secondary"
+            hx-post="/items/{{ item.id }}/status?action=cancel"
+            hx-target="closest .card"
+            hx-swap="outerHTML">
+      Cancel
+    </button>
+    <button class="btn-primary primary"
+            hx-post="/items/{{ item.id }}/status?action=complete"
+            hx-target="closest .card"
+            hx-swap="outerHTML">
+      Done
+    </button>
+  </div>
+{% endmacro %}
+
+{% macro archive_dialog(retro_id) %}
+  <dialog id="archive-modal" open>
+    <article>
+      <h3>You're about to archive this retro.</h3>
+      <p>Are you sure?</p>
+      <form method="POST" action="/retro/{{ retro_id }}/archive">
+        <fieldset class="grid">
+          <button class="btn-cancel secondary" formmethod="dialog" onclick="this.closest('dialog').close()">Cancel</button>
+          <button class="btn-archive primary" formmethod="post">Archive</button>
+        </fieldset>
+      </form>
+    </article>
+  </dialog>
+{% endmacro %}
+
+{% macro add_card_form(category, target_id, placeholder, retro_id) %}
+  <form class="add-card-form"
+        hx-post="/items/{{ category.url_segment() }}/{{ retro_id }}"
+        hx-target="#{{ target_id }}"
+        hx-swap="afterbegin"
+        hx-on::after-request="if(event.detail.successful) this.reset()">
+    <textarea name="text" class="add-card-input" rows="1" placeholder="{{ placeholder }}" required></textarea>
+    <button class="add-card-submit" type="submit">Add</button>
+  </form>
+{% endmacro %}
+
+{% macro retro_column(category, placeholder, items, retro_id) %}
+  {% let target_id = category.items_container_id() %}
+  <div class="{{ category.column_class() }}">
+    <img class="column-icon" src="/static/{{ category.icon() }}" alt="">
+    {{ add_card_form(category, target_id, placeholder, retro_id) }}
+    <section id="{{ target_id }}" class="item-list">
+      {% for item in items %}
+        {% include "item_card.html" %}
+      {% endfor %}
+    </section>
+  </div>
+{% endmacro %}

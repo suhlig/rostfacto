@@ -240,7 +240,7 @@ pub async fn new_retro(
         is_admin: user.is_admin,
         teams,
         demo_mode: state.config.demo_mode(),
-        user,
+        user: Some(user),
     };
     Ok(Html(template.render().unwrap()))
 }
@@ -487,10 +487,7 @@ pub async fn add_item(
     );
 
     let needs_initials_refresh = item.author_initials.chars().count() > 2;
-    let template = ItemCardTemplate {
-        item,
-        is_admin: user.is_admin,
-    };
+    let template = ItemCardTemplate { item };
     let html = Html(template.render().unwrap());
 
     if needs_initials_refresh {
@@ -630,12 +627,7 @@ pub async fn change_item_status(
     let template = if all_completed.unwrap_or(false) {
         ArchiveModalTemplate { item }.render().unwrap()
     } else {
-        ItemCardTemplate {
-            item,
-            is_admin: user.is_admin,
-        }
-        .render()
-        .unwrap()
+        ItemCardTemplate { item }.render().unwrap()
     };
 
     Ok(Html(template))
@@ -661,14 +653,7 @@ pub async fn show_item(
         None => return Err(not_found_page(&state)),
     }
 
-    Ok(Html(
-        ItemCardTemplate {
-            item,
-            is_admin: user.is_admin,
-        }
-        .render()
-        .unwrap(),
-    ))
+    Ok(Html(ItemCardTemplate { item }.render().unwrap()))
 }
 
 pub async fn edit_item(
@@ -737,14 +722,7 @@ pub async fn update_item(
             database_error_response()
         })?;
 
-    Ok(Html(
-        ItemCardTemplate {
-            item,
-            is_admin: user.is_admin,
-        }
-        .render()
-        .unwrap(),
-    ))
+    Ok(Html(ItemCardTemplate { item }.render().unwrap()))
 }
 
 pub async fn archive_retro(

@@ -1,17 +1,5 @@
-<article class="card completed" data-item-id="{{ item.id }}">
-  <p>{{ item.text }} <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
-  <span class="completed-check">✓</span>
-</article>
+{% import "shared/macros.html" as macros %}
 
-<dialog id="archive-modal" open>
-  <article>
-    <h3>You're about to archive this retro.</h3>
-    <p>Are you sure?</p>
-    <form method="POST" action="/retro/{{ item.retro_id }}/archive">
-      <fieldset class="grid">
-        <button class="btn-cancel secondary" formmethod="dialog" onclick="this.closest('dialog').close()">Cancel</button>
-        <button class="btn-archive primary" formmethod="post">Archive</button>
-      </fieldset>
-    </form>
-  </article>
-</dialog>
+{% include "item_card.html" %}
+
+{{ macros::archive_dialog(item.retro_id) }}
