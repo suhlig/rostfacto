@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            u.id as user_id,\n            u.github_id,\n            u.username,\n            u.full_name,\n            u.access_token,\n            s.is_admin,\n            s.teams as \"teams: _\"\n        FROM users u\n        JOIN sessions s ON s.user_id = u.id\n        WHERE s.id = $1 AND s.expires_at > NOW()\n        ",
+  "query": "\n        SELECT\n            u.id as user_id,\n            u.github_id,\n            u.username,\n            u.full_name,\n            s.is_admin,\n            s.teams as \"teams: _\"\n        FROM users u\n        JOIN sessions s ON s.user_id = u.id\n        WHERE s.id = $1 AND s.expires_at > NOW()\n        ",
   "describe": {
     "columns": [
       {
@@ -49,17 +49,6 @@
       },
       {
         "ordinal": 4,
-        "name": "access_token",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "users",
-            "name": "access_token"
-          }
-        }
-      },
-      {
-        "ordinal": 5,
         "name": "is_admin",
         "type_info": "Bool",
         "origin": {
@@ -70,7 +59,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "teams: _",
         "type_info": "Jsonb",
         "origin": {
@@ -92,9 +81,8 @@
       false,
       true,
       false,
-      false,
       false
     ]
   },
-  "hash": "df8b215f3bb037c6aaa2500f42a3074f8e160e73bd720803d53571bbd9ca20ed"
+  "hash": "02b26d23eee2b6b89c34aabaaf3e2aabbb2d7835a6cc8c6e545eb3b44a34f91e"
 }

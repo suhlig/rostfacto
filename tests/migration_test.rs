@@ -139,3 +139,22 @@ async fn sessions_table_has_cached_team_columns() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn users_table_does_not_store_access_token() {
+    with_fresh_migrated_database("no_access_token", |pool| async move {
+        let columns: Vec<Option<String>> = sqlx::query_scalar!(
+            "SELECT column_name FROM information_schema.columns \
+             WHERE table_name = 'users' AND column_name = 'access_token'"
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("Failed to query users columns");
+
+        assert!(
+            columns.into_iter().flatten().next().is_none(),
+            "users table should not contain access_token column"
+        );
+    })
+    .await;
+}

@@ -26,7 +26,6 @@ pub struct AuthUser {
     pub github_id: i64,
     pub username: String,
     pub full_name: String,
-    pub access_token: String,
     pub is_admin: bool,
     pub team_slugs: Vec<String>,
     pub teams: Vec<CachedTeam>,
@@ -55,7 +54,6 @@ pub(crate) struct SessionRow {
     github_id: i64,
     username: String,
     full_name: Option<String>,
-    access_token: String,
     is_admin: bool,
     teams: sqlx::types::Json<Vec<CachedTeam>>,
 }
@@ -88,10 +86,10 @@ fn clear_cookie(name: &str) -> String {
 pub async fn ensure_demo_user(pool: &PgPool) -> Result<i32, sqlx::Error> {
     let user = sqlx::query_scalar!(
         r#"
-        INSERT INTO users (github_id, username, full_name, avatar_url, access_token)
-        VALUES ($1, 'demo', 'Demo User', NULL, 'demo')
+        INSERT INTO users (github_id, username, full_name, avatar_url)
+        VALUES ($1, 'demo', 'Demo User', NULL)
         ON CONFLICT (github_id) DO UPDATE SET
-            username = 'demo', full_name = 'Demo User', access_token = 'demo'
+            username = 'demo', full_name = 'Demo User'
         RETURNING id
         "#,
         DEMO_GITHUB_ID
@@ -113,7 +111,6 @@ pub(crate) async fn load_session(
             u.github_id,
             u.username,
             u.full_name,
-            u.access_token,
             s.is_admin,
             s.teams as "teams: _"
         FROM users u
@@ -126,28 +123,22 @@ pub(crate) async fn load_session(
     .await
 }
 
-async fn upsert_user(
-    pool: &PgPool,
-    github_user: &GitHubUser,
-    access_token: &str,
-) -> Result<UserRow, sqlx::Error> {
+async fn upsert_user(pool: &PgPool, github_user: &GitHubUser) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as!(
         UserRow,
         r#"
-        INSERT INTO users (github_id, username, full_name, avatar_url, access_token)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO users (github_id, username, full_name, avatar_url)
+        VALUES ($1, $2, $3, $4)
         ON CONFLICT (github_id) DO UPDATE SET
             username = EXCLUDED.username,
             full_name = EXCLUDED.full_name,
-            avatar_url = EXCLUDED.avatar_url,
-            access_token = EXCLUDED.access_token
+            avatar_url = EXCLUDED.avatar_url
         RETURNING id, username
         "#,
         github_user.id,
         github_user.login,
         github_user.name,
-        github_user.avatar_url,
-        access_token
+        github_user.avatar_url
     )
     .fetch_one(pool)
     .await
@@ -192,7 +183,6 @@ pub(crate) fn auth_user_from_session(session: SessionRow) -> AuthUser {
         github_id: session.github_id,
         username: session.username,
         full_name,
-        access_token: session.access_token,
         is_admin: session.is_admin,
         team_slugs,
         teams: session.teams.into_inner(),
@@ -248,7 +238,6 @@ where
                 github_id: DEMO_GITHUB_ID,
                 username: "demo".to_string(),
                 full_name: "Demo User".to_string(),
-                access_token: "demo".to_string(),
                 is_admin: true,
                 team_slugs: vec!["demo".to_string()],
                 teams: vec![CachedTeam {
@@ -323,7 +312,6 @@ where
                 github_id: DEMO_GITHUB_ID,
                 username: "demo".to_string(),
                 full_name: "Demo User".to_string(),
-                access_token: "demo".to_string(),
                 is_admin: true,
                 team_slugs: vec!["demo".to_string()],
                 teams: vec![CachedTeam {
@@ -479,7 +467,7 @@ pub async fn callback(
         "GitHub identity authenticated"
     );
 
-    let user = match upsert_user(&state.pool, &github_user, &token.access_token).await {
+    let user = match upsert_user(&state.pool, &github_user).await {
         Ok(user) => user,
         Err(error) => {
             tracing::error!(operation = "persist_user", "database operation failed");
