@@ -160,6 +160,50 @@ async fn users_table_does_not_store_access_token() {
 }
 
 #[tokio::test]
+async fn creator_foreign_keys_use_on_delete_restrict() {
+    with_fresh_migrated_database("fk_restrict", |pool| async move {
+        let constraints: Vec<Option<String>> = sqlx::query_scalar!(
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint \
+             WHERE conrelid = 'items'::regclass AND conname = 'items_created_by_fkey'"
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("Failed to query items foreign keys");
+
+        let def = constraints
+            .into_iter()
+            .flatten()
+            .next()
+            .expect("items_created_by_fkey should exist");
+        assert!(
+            def.contains("ON DELETE RESTRICT"),
+            "items.created_by FK should use ON DELETE RESTRICT, got: {}",
+            def
+        );
+
+        let constraints: Vec<Option<String>> = sqlx::query_scalar!(
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint \
+             WHERE conrelid = 'retrospectives'::regclass AND conname = 'retrospectives_created_by_fkey'"
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("Failed to query retrospectives foreign keys");
+
+        let def = constraints
+            .into_iter()
+            .flatten()
+            .next()
+            .expect("retrospectives_created_by_fkey should exist");
+        assert!(
+            def.contains("ON DELETE RESTRICT"),
+            "retrospectives.created_by FK should use ON DELETE RESTRICT, got: {}",
+            def
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn check_constraints_exist() {
     with_fresh_migrated_database("checks", |pool| async move {
         let constraints: Vec<String> = sqlx::query_scalar!(
