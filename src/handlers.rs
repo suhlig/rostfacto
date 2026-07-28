@@ -1,5 +1,5 @@
 use crate::auth::{AuthUser, MaybeAuthUser};
-use crate::models::{apply_author_initials, Category, Item, Retrospective};
+use crate::models::{apply_author_initials, Category, Item, Retrospective, Status};
 use crate::templates::{
     ArchiveModalTemplate, ErrorTemplate, GitHubTeam, HomeTemplate, ItemCardTemplate,
     ItemEditTemplate, NewRetroTemplate, RetroTemplate, RetrosTemplate,
@@ -526,8 +526,16 @@ pub async fn change_item_status(
         }
     }
 
+    #[derive(sqlx::FromRow)]
+    struct StatusChange {
+        id: i32,
+        old_status: Status,
+        new_status: Status,
+    }
+
     let action = params.get("action").map(|s| s.as_str());
-    let updated_item_id = match sqlx::query_scalar!(
+    let status_change = match sqlx::query_as!(
+        StatusChange,
         r#"
         UPDATE items
         SET status = CASE
@@ -538,7 +546,7 @@ pub async fn change_item_status(
             ELSE status
         END
         WHERE id = $1
-        RETURNING id
+        RETURNING id, old.status as "old_status: _", new.status as "new_status: _"
         "#,
         item_id,
         action
@@ -546,7 +554,7 @@ pub async fn change_item_status(
     .fetch_one(&state.pool)
     .await
     {
-        Ok(id) => id,
+        Ok(row) => row,
         Err(e) => {
             if e.as_database_error()
                 .and_then(|de| de.constraint())
@@ -592,12 +600,20 @@ pub async fn change_item_status(
         log_database_error("load_updated_item_acquire", &error);
         database_error_response()
     })?;
-    let item = load_item_with_initials(&mut conn, updated_item_id)
+    let item = load_item_with_initials(&mut conn, status_change.id)
         .await
         .map_err(|error| {
             log_database_error("load_updated_item", &error);
             database_error_response()
         })?;
+
+    tracing::debug!(
+        item_id = status_change.id,
+        old_status = ?status_change.old_status,
+        new_status = ?status_change.new_status,
+        action = action.unwrap_or("missing"),
+        "item status changed"
+    );
 
     // Check if all items in this retro are completed
     let all_completed = sqlx::query_scalar!(
