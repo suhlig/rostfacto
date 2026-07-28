@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT indexdef\n            FROM pg_indexes\n            WHERE schemaname = 'public'\n              AND tablename = 'items'\n              AND indexname = 'items_retro_category_status_idx'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "indexdef",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pg_indexes",
+            "name": "indexdef"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "99cf6c73c50fe7a1d86b22bbfd44b4308d7f45e45144eb161d61dab7a3238b27"
+}
