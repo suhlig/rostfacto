@@ -160,6 +160,71 @@ async fn users_table_does_not_store_access_token() {
 }
 
 #[tokio::test]
+async fn updated_at_columns_and_triggers() {
+    with_fresh_migrated_database("updated_at", |pool| async move {
+        for table in ["retrospectives", "items", "users", "sessions"] {
+            let column: Option<Option<String>> = sqlx::query_scalar!(
+                "SELECT column_name FROM information_schema.columns \
+                 WHERE table_name = $1 AND column_name = 'updated_at'",
+                table
+            )
+            .fetch_optional(&pool)
+            .await
+            .expect("Failed to query columns");
+
+            assert!(
+                column.flatten().is_some(),
+                "{} should have updated_at column",
+                table
+            );
+        }
+
+        // Verify the trigger fires for users.
+        let user_id: i32 = sqlx::query_scalar!(
+            "INSERT INTO users (github_id, username, full_name) VALUES ($1, $2, $3) RETURNING id",
+            789_i64,
+            "updater",
+            "Original Name"
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to insert user");
+
+        let before: chrono::DateTime<chrono::Utc> =
+            sqlx::query_scalar!("SELECT updated_at FROM users WHERE id = $1", user_id)
+                .fetch_one(&pool)
+                .await
+                .expect("Failed to read updated_at");
+
+        // Sleep briefly to ensure updated_at changes.
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        sqlx::query!(
+            "UPDATE users SET full_name = $1 WHERE id = $2",
+            "Updated Name",
+            user_id
+        )
+        .execute(&pool)
+        .await
+        .expect("Failed to update user");
+
+        let after: chrono::DateTime<chrono::Utc> =
+            sqlx::query_scalar!("SELECT updated_at FROM users WHERE id = $1", user_id)
+                .fetch_one(&pool)
+                .await
+                .expect("Failed to read updated_at");
+
+        assert!(
+            after > before,
+            "updated_at should advance after UPDATE: before={:?}, after={:?}",
+            before,
+            after
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn creator_foreign_keys_use_on_delete_restrict() {
     with_fresh_migrated_database("fk_restrict", |pool| async move {
         let constraints: Vec<Option<String>> = sqlx::query_scalar!(

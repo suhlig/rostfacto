@@ -68,6 +68,17 @@
             "name": "created_by"
           }
         }
+      },
+      {
+        "ordinal": 6,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "retrospectives",
+            "name": "updated_at"
+          }
+        }
       }
     ],
     "parameters": {
@@ -76,6 +87,7 @@
       ]
     },
     "nullable": [
+      false,
       false,
       false,
       false,

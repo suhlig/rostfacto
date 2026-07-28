@@ -9,6 +9,7 @@ pub struct Retrospective {
     pub title: String,
     pub slug: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
     pub team_slug: String,
     pub created_by: i32,
 }
