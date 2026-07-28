@@ -1,5 +1,4 @@
 use crate::auth::{AuthUser, MaybeAuthUser};
-use crate::github::list_org_teams;
 use crate::models::{apply_author_initials, Category, Item, Retrospective};
 use crate::templates::{
     ArchiveModalTemplate, ErrorTemplate, GitHubTeam, HomeTemplate, ItemCardTemplate,
@@ -117,11 +116,7 @@ async fn require_retro_access(
         }
     };
 
-    if user.is_admin
-        || user
-            .is_member_of_team(&retro.team_slug, &state.config)
-            .await
-    {
+    if user.is_admin || user.is_member_of_team(&retro.team_slug) {
         Ok(Some(retro))
     } else {
         Err(forbidden(
@@ -152,11 +147,7 @@ async fn require_retro_access_by_id(
         }
     };
 
-    if user.is_admin
-        || user
-            .is_member_of_team(&retro.team_slug, &state.config)
-            .await
-    {
+    if user.is_admin || user.is_member_of_team(&retro.team_slug) {
         Ok(Some(retro))
     } else {
         Err(forbidden(
@@ -216,25 +207,14 @@ pub async fn new_retro(
         return Err(forbidden(&state, "Only admins can create retrospectives"));
     }
 
-    let teams = if state.config.demo_mode() {
-        vec![]
-    } else if let Some(org) = state.config.github_user_org.as_deref() {
-        list_org_teams(org, &user.access_token, &state.config)
-            .await
-            .map_err(|error| {
-                tracing::error!(operation = "list_org_teams", "GitHub API operation failed");
-                tracing::debug!(error = %error, "GitHub team listing failure details");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Failed to load teams").into_response()
-            })?
-            .into_iter()
-            .map(|t| GitHubTeam {
-                slug: t.slug,
-                name: t.name,
-            })
-            .collect()
-    } else {
-        vec![]
-    };
+    let teams = user
+        .teams
+        .iter()
+        .map(|t| GitHubTeam {
+            slug: t.slug.clone(),
+            name: t.name.clone(),
+        })
+        .collect();
 
     let template = NewRetroTemplate {
         is_admin: user.is_admin,

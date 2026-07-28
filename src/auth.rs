@@ -1,4 +1,3 @@
-use crate::config::Config;
 use crate::github::{get_user, is_team_member, list_org_teams, GitHubUser};
 use axum::{
     extract::{FromRef, FromRequestParts, Query, State},
@@ -6,7 +5,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
 };
 use chrono::Utc;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::fmt::Write;
 
@@ -14,6 +13,12 @@ pub const SESSION_COOKIE: &str = "rostfacto_session";
 const OAUTH_STATE_COOKIE: &str = "rostfacto_oauth_state";
 const SESSION_MAX_AGE_SECONDS: i64 = 60 * 60 * 24 * 7; // 7 days
 const OAUTH_STATE_MAX_AGE_SECONDS: i64 = 60 * 10; // 10 minutes
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedTeam {
+    pub slug: String,
+    pub name: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct AuthUser {
@@ -24,24 +29,12 @@ pub struct AuthUser {
     pub access_token: String,
     pub is_admin: bool,
     pub team_slugs: Vec<String>,
+    pub teams: Vec<CachedTeam>,
 }
 
 impl AuthUser {
-    pub async fn is_member_of_team(&self, team_slug: &str, config: &Config) -> bool {
-        if self.is_admin {
-            return true;
-        }
-        if self.team_slugs.iter().any(|s| s == team_slug) {
-            return true;
-        }
-        // Fallback to a live check if the team is not in the cached list.
-        if let Some(org) = config.github_user_org.as_deref() {
-            is_team_member(org, team_slug, &self.username, &self.access_token, config)
-                .await
-                .unwrap_or(false)
-        } else {
-            false
-        }
+    pub fn is_member_of_team(&self, team_slug: &str) -> bool {
+        self.is_admin || self.team_slugs.iter().any(|s| s == team_slug)
     }
 }
 
@@ -53,10 +46,18 @@ const DEMO_GITHUB_ID: i64 = 0;
 #[derive(sqlx::FromRow)]
 struct UserRow {
     id: i32,
+    username: String,
+}
+
+#[derive(sqlx::FromRow)]
+pub(crate) struct SessionRow {
+    user_id: i32,
     github_id: i64,
     username: String,
     full_name: Option<String>,
     access_token: String,
+    is_admin: bool,
+    teams: sqlx::types::Json<Vec<CachedTeam>>,
 }
 
 #[derive(Deserialize)]
@@ -100,14 +101,21 @@ pub async fn ensure_demo_user(pool: &PgPool) -> Result<i32, sqlx::Error> {
     Ok(user)
 }
 
-async fn load_user_by_session(
+pub(crate) async fn load_session(
     pool: &PgPool,
     session_id: &str,
-) -> Result<Option<UserRow>, sqlx::Error> {
+) -> Result<Option<SessionRow>, sqlx::Error> {
     sqlx::query_as!(
-        UserRow,
+        SessionRow,
         r#"
-        SELECT u.id, u.github_id, u.username, u.full_name, u.access_token
+        SELECT
+            u.id as user_id,
+            u.github_id,
+            u.username,
+            u.full_name,
+            u.access_token,
+            s.is_admin,
+            s.teams as "teams: _"
         FROM users u
         JOIN sessions s ON s.user_id = u.id
         WHERE s.id = $1 AND s.expires_at > NOW()
@@ -133,7 +141,7 @@ async fn upsert_user(
             full_name = EXCLUDED.full_name,
             avatar_url = EXCLUDED.avatar_url,
             access_token = EXCLUDED.access_token
-        RETURNING id, github_id, username, full_name, access_token
+        RETURNING id, username
         "#,
         github_user.id,
         github_user.login,
@@ -145,62 +153,49 @@ async fn upsert_user(
     .await
 }
 
-async fn create_session(pool: &PgPool, user_id: i32) -> Result<String, sqlx::Error> {
+pub(crate) async fn create_session(
+    pool: &PgPool,
+    user_id: i32,
+    is_admin: bool,
+    teams: &[CachedTeam],
+) -> Result<String, sqlx::Error> {
     let session_id = generate_token();
     let expires_at = Utc::now() + chrono::Duration::try_seconds(SESSION_MAX_AGE_SECONDS).unwrap();
+    let teams_json = serde_json::to_value(teams).unwrap();
     sqlx::query!(
-        "INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)",
+        "INSERT INTO sessions (id, user_id, expires_at, is_admin, teams) VALUES ($1, $2, $3, $4, $5)",
         session_id,
         user_id,
-        expires_at
+        expires_at,
+        is_admin,
+        teams_json
     )
     .execute(pool)
     .await?;
     Ok(session_id)
 }
 
-async fn build_auth_user(user: UserRow, config: &Config) -> AuthUser {
-    let is_admin = if let Some((org, team)) = config.admin_team() {
-        match is_team_member(org, team, &user.username, &user.access_token, config).await {
-            Ok(is_member) => is_member,
-            Err(e) => {
-                tracing::warn!(org, team, "admin team membership check failed");
-                tracing::debug!(username = %user.username, error = %e, "admin team membership check failure details");
-                false
-            }
-        }
-    } else {
-        true
-    };
-
-    let team_slugs = if let Some(org) = config.github_user_org.as_deref() {
-        match list_org_teams(org, &user.access_token, config).await {
-            Ok(teams) => teams.into_iter().map(|t| t.slug).collect(),
-            Err(e) => {
-                tracing::warn!(org, "failed to list teams for authenticated user");
-                tracing::debug!(username = %user.username, error = %e, "team listing failure details");
-                Vec::new()
-            }
-        }
-    } else {
-        Vec::new()
-    };
+pub(crate) fn auth_user_from_session(session: SessionRow) -> AuthUser {
+    let team_slugs = session.teams.iter().map(|t| t.slug.clone()).collect();
+    let full_name = session
+        .full_name
+        .unwrap_or_else(|| session.username.clone());
 
     tracing::debug!(
-        "user '{}': admin={}, visible teams={:?}",
-        user.username,
-        is_admin,
-        team_slugs
+        user_id = session.user_id,
+        is_admin = session.is_admin,
+        "auth user loaded from session"
     );
 
     AuthUser {
-        user_id: user.id,
-        github_id: user.github_id,
-        full_name: user.full_name.unwrap_or_else(|| user.username.clone()),
-        username: user.username,
-        access_token: user.access_token,
-        is_admin,
+        user_id: session.user_id,
+        github_id: session.github_id,
+        username: session.username,
+        full_name,
+        access_token: session.access_token,
+        is_admin: session.is_admin,
         team_slugs,
+        teams: session.teams.into_inner(),
     }
 }
 
@@ -256,6 +251,10 @@ where
                 access_token: "demo".to_string(),
                 is_admin: true,
                 team_slugs: vec!["demo".to_string()],
+                teams: vec![CachedTeam {
+                    slug: "demo".to_string(),
+                    name: "Demo Team".to_string(),
+                }],
             });
         }
 
@@ -272,8 +271,8 @@ where
             }
         };
 
-        let user = match load_user_by_session(&state.pool, &session_id).await {
-            Ok(Some(user)) => user,
+        let session = match load_session(&state.pool, &session_id).await {
+            Ok(Some(session)) => session,
             Ok(None) => {
                 tracing::debug!("session not found or expired; redirecting to login");
                 return Err((
@@ -295,7 +294,7 @@ where
             }
         };
 
-        Ok(build_auth_user(user, &state.config).await)
+        Ok(auth_user_from_session(session))
     }
 }
 
@@ -327,6 +326,10 @@ where
                 access_token: "demo".to_string(),
                 is_admin: true,
                 team_slugs: vec!["demo".to_string()],
+                teams: vec![CachedTeam {
+                    slug: "demo".to_string(),
+                    name: "Demo Team".to_string(),
+                }],
             })));
         }
 
@@ -335,8 +338,8 @@ where
             None => return Ok(MaybeAuthUser(None)),
         };
 
-        let user = match load_user_by_session(&state.pool, &session_id).await {
-            Ok(Some(user)) => user,
+        let session = match load_session(&state.pool, &session_id).await {
+            Ok(Some(session)) => session,
             Ok(None) => return Ok(MaybeAuthUser(None)),
             Err(error) => {
                 tracing::error!(error_type = "session_lookup", "session lookup failed");
@@ -347,9 +350,7 @@ where
             }
         };
 
-        Ok(MaybeAuthUser(Some(
-            build_auth_user(user, &state.config).await,
-        )))
+        Ok(MaybeAuthUser(Some(auth_user_from_session(session))))
     }
 }
 
@@ -487,9 +488,56 @@ pub async fn callback(
         }
     };
 
-    tracing::info!(user_id = user.id, "user authenticated");
+    // Resolve team membership once at login and cache it in the session. Subsequent
+    // requests read the cached values and do not call the GitHub API.
+    let is_admin = if let Some((org, team)) = state.config.admin_team() {
+        match is_team_member(
+            org,
+            team,
+            &user.username,
+            &token.access_token,
+            &state.config,
+        )
+        .await
+        {
+            Ok(is_member) => is_member,
+            Err(e) => {
+                tracing::warn!(org, team, "admin team membership check failed");
+                tracing::debug!(username = %user.username, error = %e, "admin team membership check failure details");
+                false
+            }
+        }
+    } else {
+        true
+    };
 
-    let session_id = match create_session(&state.pool, user.id).await {
+    let teams: Vec<CachedTeam> = if let Some(org) = state.config.github_user_org.as_deref() {
+        match list_org_teams(org, &token.access_token, &state.config).await {
+            Ok(teams) => teams
+                .into_iter()
+                .map(|t| CachedTeam {
+                    slug: t.slug,
+                    name: t.name,
+                })
+                .collect(),
+            Err(e) => {
+                tracing::warn!(org, "failed to list teams for authenticated user");
+                tracing::debug!(username = %user.username, error = %e, "team listing failure details");
+                Vec::new()
+            }
+        }
+    } else {
+        Vec::new()
+    };
+
+    tracing::info!(
+        user_id = user.id,
+        is_admin,
+        team_count = teams.len(),
+        "user authenticated"
+    );
+
+    let session_id = match create_session(&state.pool, user.id, is_admin, &teams).await {
         Ok(id) => id,
         Err(error) => {
             tracing::error!(operation = "create_session", "database operation failed");
@@ -542,4 +590,60 @@ pub async fn logout(
         ],
     )
         .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::PgPool;
+
+    #[tokio::test]
+    async fn session_round_trip_caches_teams_and_admin_status() {
+        let database_url =
+            std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set");
+        let pool = PgPool::connect(&database_url)
+            .await
+            .expect("Failed to connect to database");
+
+        let user_id = ensure_demo_user(&pool)
+            .await
+            .expect("Failed to ensure demo user");
+
+        let teams = vec![
+            CachedTeam {
+                slug: "team-a".to_string(),
+                name: "Team A".to_string(),
+            },
+            CachedTeam {
+                slug: "team-b".to_string(),
+                name: "Team B".to_string(),
+            },
+        ];
+
+        let session_id = create_session(&pool, user_id, true, &teams)
+            .await
+            .expect("Failed to create session");
+
+        let session = load_session(&pool, &session_id)
+            .await
+            .expect("Failed to load session")
+            .expect("Session should exist");
+
+        let user = auth_user_from_session(session);
+
+        assert!(user.is_admin, "cached admin status should be true");
+        assert_eq!(
+            user.team_slugs,
+            vec!["team-a".to_string(), "team-b".to_string()]
+        );
+        assert_eq!(user.teams.len(), 2);
+        assert_eq!(user.teams[0].slug, "team-a");
+        assert_eq!(user.teams[1].name, "Team B");
+
+        // Clean up the test session.
+        sqlx::query!("DELETE FROM sessions WHERE id = $1", session_id)
+            .execute(&pool)
+            .await
+            .expect("Failed to delete test session");
+    }
 }

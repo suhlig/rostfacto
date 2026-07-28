@@ -1,11 +1,11 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO users (github_id, username, full_name, avatar_url, access_token)\n        VALUES ($1, $2, $3, $4, $5)\n        ON CONFLICT (github_id) DO UPDATE SET\n            username = EXCLUDED.username,\n            full_name = EXCLUDED.full_name,\n            avatar_url = EXCLUDED.avatar_url,\n            access_token = EXCLUDED.access_token\n        RETURNING id, github_id, username, full_name, access_token\n        ",
+  "query": "\n        SELECT\n            u.id as user_id,\n            u.github_id,\n            u.username,\n            u.full_name,\n            u.access_token,\n            s.is_admin,\n            s.teams as \"teams: _\"\n        FROM users u\n        JOIN sessions s ON s.user_id = u.id\n        WHERE s.id = $1 AND s.expires_at > NOW()\n        ",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id",
+        "name": "user_id",
         "type_info": "Int4",
         "origin": {
           "Table": {
@@ -57,14 +57,32 @@
             "name": "access_token"
           }
         }
+      },
+      {
+        "ordinal": 5,
+        "name": "is_admin",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "is_admin"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "teams: _",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "teams"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Int8",
-        "Text",
-        "Text",
-        "Text",
         "Text"
       ]
     },
@@ -73,8 +91,10 @@
       false,
       false,
       true,
+      false,
+      false,
       false
     ]
   },
-  "hash": "7ffe989e7244fb8992ab421ae0aff64d0709adc1b6f8119404f4f524226e87de"
+  "hash": "df8b215f3bb037c6aaa2500f42a3074f8e160e73bd720803d53571bbd9ca20ed"
 }

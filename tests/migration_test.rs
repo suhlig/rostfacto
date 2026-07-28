@@ -112,3 +112,30 @@ async fn items_retro_category_status_index_exists() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn sessions_table_has_cached_team_columns() {
+    with_fresh_migrated_database("session_cache", |pool| async move {
+        let columns: Vec<Option<String>> = sqlx::query_scalar!(
+            "SELECT column_name FROM information_schema.columns \
+             WHERE table_name = 'sessions' AND column_name IN ('is_admin', 'teams') \
+             ORDER BY column_name"
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("Failed to query sessions columns");
+
+        let columns: Vec<String> = columns.into_iter().flatten().collect();
+        assert!(
+            columns.iter().any(|c| c == "is_admin"),
+            "sessions should have is_admin column, got: {:?}",
+            columns
+        );
+        assert!(
+            columns.iter().any(|c| c == "teams"),
+            "sessions should have teams column, got: {:?}",
+            columns
+        );
+    })
+    .await;
+}
