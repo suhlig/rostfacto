@@ -160,6 +160,32 @@ async fn users_table_does_not_store_access_token() {
 }
 
 #[tokio::test]
+async fn identity_columns_use_generated_always() {
+    with_fresh_migrated_database("identity", |pool| async move {
+        for (table, column) in [("retrospectives", "id"), ("items", "id"), ("users", "id")] {
+            let sql = format!(
+                "SELECT attidentity::text FROM pg_attribute \
+                 WHERE attrelid = '{}'::regclass AND attname = '{}'",
+                table, column
+            );
+            let identity: Option<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+                .fetch_one(&pool)
+                .await
+                .expect("Failed to query identity attribute");
+
+            assert_eq!(
+                identity,
+                Some("a".to_string()),
+                "{}.{} should use GENERATED ALWAYS AS IDENTITY",
+                table,
+                column
+            );
+        }
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn updated_at_columns_and_triggers() {
     with_fresh_migrated_database("updated_at", |pool| async move {
         for table in ["retrospectives", "items", "users", "sessions"] {
