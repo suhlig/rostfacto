@@ -548,6 +548,13 @@ pub async fn callback(
     response
 }
 
+pub async fn cleanup_expired_sessions(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query!("DELETE FROM sessions WHERE expires_at <= NOW()")
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected())
+}
+
 pub async fn logout(
     State(state): State<crate::AppState>,
     _user: AuthUser,
@@ -631,5 +638,67 @@ mod tests {
             .execute(&pool)
             .await
             .expect("Failed to delete test session");
+    }
+
+    #[tokio::test]
+    async fn cleanup_expired_sessions_removes_only_expired() {
+        let database_url =
+            std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set");
+        let pool = PgPool::connect(&database_url)
+            .await
+            .expect("Failed to connect to database");
+
+        let user_id = ensure_demo_user(&pool)
+            .await
+            .expect("Failed to ensure demo user");
+
+        let expired_id = create_session(&pool, user_id, false, &[])
+            .await
+            .expect("Failed to create expired session");
+        sqlx::query!(
+            "UPDATE sessions SET expires_at = NOW() - interval '1 minute' WHERE id = $1",
+            expired_id
+        )
+        .execute(&pool)
+        .await
+        .expect("Failed to expire session");
+
+        let valid_id = create_session(&pool, user_id, false, &[])
+            .await
+            .expect("Failed to create valid session");
+
+        let deleted = cleanup_expired_sessions(&pool)
+            .await
+            .expect("Failed to clean up expired sessions");
+        assert!(
+            deleted >= 1,
+            "at least one expired session should be deleted"
+        );
+
+        let expired_exists: Option<bool> = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = $1)",
+            expired_id
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to check expired session");
+        assert!(
+            !expired_exists.unwrap_or(true),
+            "expired session should be deleted"
+        );
+
+        let valid_exists: Option<bool> = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = $1)",
+            valid_id
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to check valid session");
+        assert!(valid_exists.unwrap_or(false), "valid session should remain");
+
+        sqlx::query!("DELETE FROM sessions WHERE id = $1", valid_id)
+            .execute(&pool)
+            .await
+            .expect("Failed to delete valid session");
     }
 }

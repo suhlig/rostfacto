@@ -65,6 +65,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    let cleaned_sessions = auth::cleanup_expired_sessions(&pool).await?;
+    if cleaned_sessions > 0 {
+        tracing::info!(count = cleaned_sessions, "cleaned up expired sessions");
+    }
+
     let demo_user_id = if config.demo_mode() {
         Some(auth::ensure_demo_user(&pool).await?)
     } else {
