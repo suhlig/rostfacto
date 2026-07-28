@@ -7,7 +7,7 @@ if [ -z "${DATABASE_URL:-}" ]; then
     exit 1
 fi
 
-cargo sqlx prepare -- --bins
+cargo sqlx prepare -- --all-targets
 
 if ! git diff --quiet .sqlx; then
     echo ""
