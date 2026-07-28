@@ -150,18 +150,16 @@ pub(crate) async fn create_session(
     is_admin: bool,
     teams: &[CachedTeam],
 ) -> Result<String, sqlx::Error> {
-    let session_id = generate_token();
     let expires_at = Utc::now() + chrono::Duration::try_seconds(SESSION_MAX_AGE_SECONDS).unwrap();
     let teams_json = serde_json::to_value(teams).unwrap();
-    sqlx::query!(
-        "INSERT INTO sessions (id, user_id, expires_at, is_admin, teams) VALUES ($1, $2, $3, $4, $5)",
-        session_id,
+    let session_id = sqlx::query_scalar!(
+        "INSERT INTO sessions (user_id, expires_at, is_admin, teams) VALUES ($1, $2, $3, $4) RETURNING id",
         user_id,
         expires_at,
         is_admin,
         teams_json
     )
-    .execute(pool)
+    .fetch_one(pool)
     .await?;
     Ok(session_id)
 }

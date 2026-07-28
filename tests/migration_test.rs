@@ -160,6 +160,37 @@ async fn users_table_does_not_store_access_token() {
 }
 
 #[tokio::test]
+async fn session_ids_use_uuidv7() {
+    with_fresh_migrated_database("uuidv7", |pool| async move {
+        let user_id: i32 = sqlx::query_scalar!(
+            "INSERT INTO users (github_id, username, full_name) VALUES ($1, $2, $3) RETURNING id",
+            1000_i64,
+            "uuid-user",
+            "UUID User"
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to insert user");
+
+        let session_id: String = sqlx::query_scalar!(
+            "INSERT INTO sessions (user_id, expires_at, is_admin, teams) \
+             VALUES ($1, NOW() + interval '1 hour', false, '[]'::jsonb) RETURNING id",
+            user_id
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to insert session");
+
+        assert!(
+            session_id.len() == 36 && session_id.chars().filter(|c| *c == '-').count() == 4,
+            "session id should be a UUID, got: {}",
+            session_id
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn identity_columns_use_generated_always() {
     with_fresh_migrated_database("identity", |pool| async move {
         for (table, column) in [("retrospectives", "id"), ("items", "id"), ("users", "id")] {
