@@ -158,3 +158,52 @@ async fn users_table_does_not_store_access_token() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn users_display_name_virtual_column() {
+    with_fresh_migrated_database("display_name", |pool| async move {
+        sqlx::query!(
+            "INSERT INTO users (github_id, username, full_name) VALUES ($1, $2, $3)",
+            123_i64,
+            "jdoe",
+            "John Doe"
+        )
+        .execute(&pool)
+        .await
+        .expect("Failed to insert user with full name");
+
+        let with_full_name: Option<String> =
+            sqlx::query_scalar!("SELECT display_name FROM users WHERE username = $1", "jdoe")
+                .fetch_one(&pool)
+                .await
+                .expect("Failed to query display_name");
+
+        assert_eq!(
+            with_full_name.expect("display_name should be set"),
+            "John Doe"
+        );
+
+        sqlx::query!(
+            "INSERT INTO users (github_id, username, full_name) VALUES ($1, $2, NULL)",
+            456_i64,
+            "msmith"
+        )
+        .execute(&pool)
+        .await
+        .expect("Failed to insert user without full name");
+
+        let without_full_name: Option<String> = sqlx::query_scalar!(
+            "SELECT display_name FROM users WHERE username = $1",
+            "msmith"
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to query display_name");
+
+        assert_eq!(
+            without_full_name.expect("display_name should be set"),
+            "msmith"
+        );
+    })
+    .await;
+}

@@ -42,7 +42,7 @@ async fn load_item_with_initials(
         Item,
         r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
                   i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
-                  i.created_by as "author_id!", COALESCE(u.full_name, u.username) as "author_name!",
+                  i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!"
            FROM items i
            JOIN users u ON u.id = i.created_by
@@ -327,7 +327,7 @@ pub async fn show_retro(
         Item,
         r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
                   i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
-                  i.created_by as "author_id!", COALESCE(u.full_name, u.username) as "author_name!",
+                  i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!"
            FROM items i
            JOIN users u ON u.id = i.created_by
@@ -348,7 +348,7 @@ pub async fn show_retro(
         Item,
         r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
                   i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
-                  i.created_by as "author_id!", COALESCE(u.full_name, u.username) as "author_name!",
+                  i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!"
            FROM items i
            JOIN users u ON u.id = i.created_by
@@ -369,7 +369,7 @@ pub async fn show_retro(
         Item,
         r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
                   i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
-                  i.created_by as "author_id!", COALESCE(u.full_name, u.username) as "author_name!",
+                  i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!"
            FROM items i
            JOIN users u ON u.id = i.created_by

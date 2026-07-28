@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                  i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                  i.created_by as \"author_id!\", COALESCE(u.full_name, u.username) as \"author_name!\",\n                  ''::text as \"author_initials!\"\n           FROM items i\n           JOIN users u ON u.id = i.created_by\n           WHERE i.retro_id = $1\n           AND i.category = 'GOOD'\n           AND i.status != 'ARCHIVED'::status\n           ORDER BY i.created_at ASC",
+  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                  i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                  i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                  ''::text as \"author_initials!\"\n           FROM items i\n           JOIN users u ON u.id = i.created_by\n           WHERE i.retro_id = (SELECT retro_id FROM items WHERE id = $1)",
   "describe": {
     "columns": [
       {
@@ -107,7 +107,12 @@
         "ordinal": 7,
         "name": "author_name!",
         "type_info": "Text",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_name"
+          }
+        }
       },
       {
         "ordinal": 8,
@@ -129,9 +134,9 @@
       false,
       false,
       false,
-      null,
+      true,
       null
     ]
   },
-  "hash": "3123fa3b1f345a0c80704f12a8268acbb7e6318b0b8fd68db6f4786d126d3100"
+  "hash": "7cd8c543585fc5fcd3ba0d4c7a18c5f427dd480906fb8e742592b64379c05ce1"
 }
