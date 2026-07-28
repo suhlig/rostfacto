@@ -69,10 +69,10 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
-- Timer for each retro card
 - Likes for each retro card
 - Archive button (if opportunity to archive after last card complete was not used)
 - Archive display, grouped by the day the items were created
+- Timer for each retro card
 - Sync across all clients with SSE when
   * A new card appears
   * A card changes status
@@ -80,9 +80,9 @@ SHOW_BROWSER=1 cargo test --test integration_test
   * Retro was completed (all cards disappear)
 
   Do not introduce a new infrastructure component. Use Postgres as hub, as much as sensible.
+- Allow adding a card anonymously
 - Publish a container image on every release and tag it with the release version
 - Release 2.0
-- Allow adding a card anonymously
 
 # License
 
