@@ -34,7 +34,10 @@ fn database_error_response() -> Response {
     (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response()
 }
 
-async fn load_item_with_initials(pool: &PgPool, item_id: i32) -> Result<Item, sqlx::Error> {
+async fn load_item_with_initials(
+    conn: &mut sqlx::PgConnection,
+    item_id: i32,
+) -> Result<Item, sqlx::Error> {
     let mut items = sqlx::query_as!(
         Item,
         r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
@@ -46,7 +49,7 @@ async fn load_item_with_initials(pool: &PgPool, item_id: i32) -> Result<Item, sq
            WHERE i.retro_id = (SELECT retro_id FROM items WHERE id = $1)"#,
         item_id
     )
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     apply_author_initials(&mut [&mut items]);
@@ -436,6 +439,11 @@ pub async fn add_item(
         }
     }
 
+    let mut tx = state.pool.begin().await.map_err(|error| {
+        log_database_error("add_item_begin_transaction", &error);
+        database_error_response()
+    })?;
+
     let item_id = sqlx::query_scalar!(
         r#"INSERT INTO items (retro_id, text, category, status, created_by)
            VALUES ($1, $2, $3, 'CREATED'::status, $4)
@@ -445,19 +453,24 @@ pub async fn add_item(
         category as Category,
         user.user_id
     )
-    .fetch_one(&state.pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|error| {
         log_database_error("add_item", &error);
         database_error_response()
     })?;
 
-    let item = load_item_with_initials(&state.pool, item_id)
+    let item = load_item_with_initials(&mut tx, item_id)
         .await
         .map_err(|error| {
             log_database_error("load_added_item", &error);
             database_error_response()
         })?;
+
+    tx.commit().await.map_err(|error| {
+        log_database_error("add_item_commit_transaction", &error);
+        database_error_response()
+    })?;
 
     tracing::debug!(
         item_id = item.id,
@@ -540,12 +553,17 @@ pub async fn change_item_status(
                 .is_some_and(|c| c.contains("single_highlighted_item_per_retro"))
             {
                 // Fetch the original item so we can re-render it with the error message
-                let original = load_item_with_initials(&state.pool, item_id)
-                    .await
-                    .map_err(|error| {
-                        log_database_error("reload_item_after_highlight_conflict", &error);
-                        database_error_response()
-                    })?;
+                let mut conn = state.pool.acquire().await.map_err(|error| {
+                    log_database_error("reload_item_after_highlight_conflict_acquire", &error);
+                    database_error_response()
+                })?;
+                let original =
+                    load_item_with_initials(&mut conn, item_id)
+                        .await
+                        .map_err(|error| {
+                            log_database_error("reload_item_after_highlight_conflict", &error);
+                            database_error_response()
+                        })?;
                 tracing::debug!(item_id, retro_id, "item highlight conflict");
                 return Ok(Html(format!(
                     r##"<article class="card"
@@ -570,7 +588,11 @@ pub async fn change_item_status(
         }
     };
 
-    let item = load_item_with_initials(&state.pool, updated_item_id)
+    let mut conn = state.pool.acquire().await.map_err(|error| {
+        log_database_error("load_updated_item_acquire", &error);
+        database_error_response()
+    })?;
+    let item = load_item_with_initials(&mut conn, updated_item_id)
         .await
         .map_err(|error| {
             log_database_error("load_updated_item", &error);
@@ -618,7 +640,11 @@ pub async fn show_item(
     user: AuthUser,
     Path(item_id): Path<i32>,
 ) -> Result<Html<String>, Response> {
-    let item = load_item_with_initials(&state.pool, item_id)
+    let mut conn = state.pool.acquire().await.map_err(|error| {
+        log_database_error("load_item_acquire", &error);
+        database_error_response()
+    })?;
+    let item = load_item_with_initials(&mut conn, item_id)
         .await
         .map_err(|error| match error {
             sqlx::Error::RowNotFound => not_found_page(&state),
@@ -641,7 +667,11 @@ pub async fn edit_item(
     user: AuthUser,
     Path(item_id): Path<i32>,
 ) -> Result<Html<String>, Response> {
-    let item = load_item_with_initials(&state.pool, item_id)
+    let mut conn = state.pool.acquire().await.map_err(|error| {
+        log_database_error("load_item_for_edit_acquire", &error);
+        database_error_response()
+    })?;
+    let item = load_item_with_initials(&mut conn, item_id)
         .await
         .map_err(|error| match error {
             sqlx::Error::RowNotFound => not_found_page(&state),
@@ -665,7 +695,11 @@ pub async fn update_item(
     Path(item_id): Path<i32>,
     Form(form): Form<NewItem>,
 ) -> Result<Html<String>, Response> {
-    let item = load_item_with_initials(&state.pool, item_id)
+    let mut conn = state.pool.acquire().await.map_err(|error| {
+        log_database_error("load_item_for_update_acquire", &error);
+        database_error_response()
+    })?;
+    let item = load_item_with_initials(&mut conn, item_id)
         .await
         .map_err(|error| match error {
             sqlx::Error::RowNotFound => not_found_page(&state),
@@ -685,22 +719,32 @@ pub async fn update_item(
         return Err(bad_request(&state, "Card text is required"));
     }
 
+    let mut tx = state.pool.begin().await.map_err(|error| {
+        log_database_error("update_item_begin_transaction", &error);
+        database_error_response()
+    })?;
+
     sqlx::query!("UPDATE items SET text = $1 WHERE id = $2", text, item_id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await
         .map_err(|error| {
             log_database_error("update_item", &error);
             database_error_response()
         })?;
 
-    tracing::debug!(item_id, user_id = user.user_id, "item text updated");
-
-    let item = load_item_with_initials(&state.pool, item_id)
+    let item = load_item_with_initials(&mut tx, item_id)
         .await
         .map_err(|error| {
             log_database_error("load_updated_item_text", &error);
             database_error_response()
         })?;
+
+    tx.commit().await.map_err(|error| {
+        log_database_error("update_item_commit_transaction", &error);
+        database_error_response()
+    })?;
+
+    tracing::debug!(item_id, user_id = user.user_id, "item text updated");
 
     Ok(Html(ItemCardTemplate { item }.render().unwrap()))
 }
@@ -752,7 +796,7 @@ pub async fn delete_retro(
 
     let retro = match sqlx::query_as!(
         Retrospective,
-        "SELECT * FROM retrospectives WHERE slug = $1",
+        "DELETE FROM retrospectives WHERE slug = $1 RETURNING *",
         slug
     )
     .fetch_one(&state.pool)
@@ -761,18 +805,10 @@ pub async fn delete_retro(
         Ok(retro) => retro,
         Err(sqlx::Error::RowNotFound) => return not_found_page(&state),
         Err(error) => {
-            log_database_error("load_retro_for_delete", &error);
+            log_database_error("delete_retro", &error);
             return database_error_response();
         }
     };
-
-    if let Err(error) = sqlx::query!("DELETE FROM retrospectives WHERE id = $1", retro.id)
-        .execute(&state.pool)
-        .await
-    {
-        log_database_error("delete_retro", &error);
-        return database_error_response();
-    }
 
     tracing::info!(
         retro_id = retro.id,

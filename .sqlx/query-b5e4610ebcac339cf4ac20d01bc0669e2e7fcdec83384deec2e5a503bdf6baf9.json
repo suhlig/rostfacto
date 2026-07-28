@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM retrospectives WHERE slug = $1 RETURNING *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "retrospectives",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "retrospectives",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "retrospectives",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "retrospectives",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "team_slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "retrospectives",
+            "name": "team_slug"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_by",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "retrospectives",
+            "name": "created_by"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b5e4610ebcac339cf4ac20d01bc0669e2e7fcdec83384deec2e5a503bdf6baf9"
+}
