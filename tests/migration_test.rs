@@ -160,6 +160,55 @@ async fn users_table_does_not_store_access_token() {
 }
 
 #[tokio::test]
+async fn check_constraints_exist() {
+    with_fresh_migrated_database("checks", |pool| async move {
+        let constraints: Vec<String> = sqlx::query_scalar!(
+            "SELECT conname FROM pg_constraint WHERE conrelid = 'retrospectives'::regclass AND contype = 'c'"
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("Failed to query retrospectives constraints");
+
+        assert!(
+            constraints
+                .iter()
+                .any(|c| c == "retrospectives_slug_format_check"),
+            "retrospectives should have slug format CHECK constraint, got: {:?}",
+            constraints
+        );
+
+        let constraints: Vec<String> = sqlx::query_scalar!(
+            "SELECT conname FROM pg_constraint WHERE conrelid = 'items'::regclass AND contype = 'c'"
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("Failed to query items constraints");
+
+        assert!(
+            constraints.iter().any(|c| c == "items_text_not_empty_check"),
+            "items should have text not-empty CHECK constraint, got: {:?}",
+            constraints
+        );
+
+        let constraints: Vec<String> = sqlx::query_scalar!(
+            "SELECT conname FROM pg_constraint WHERE conrelid = 'users'::regclass AND contype = 'c'"
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("Failed to query users constraints");
+
+        assert!(
+            constraints
+                .iter()
+                .any(|c| c == "users_username_not_empty_check"),
+            "users should have username not-empty CHECK constraint, got: {:?}",
+            constraints
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn users_display_name_virtual_column() {
     with_fresh_migrated_database("display_name", |pool| async move {
         sqlx::query!(
