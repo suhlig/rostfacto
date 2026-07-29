@@ -3,7 +3,10 @@
 {% match item.status %}
   {% when Status::Highlighted %}
     <article class="card highlighted" data-item-id="{{ item.id }}">
-      <div class="timer-badge">5:00</div>
+      <div class="timer-wrap">
+        <div class="timer-badge" data-initial-seconds="300">5:00</div>
+        <button type="button" class="timer-extend" hidden data-extend-seconds="120">+2 min</button>
+      </div>
       {{ macros::like_button(item) }}
       <div class="card-content">
         {{ macros::card_text_edit_button(item, false) }}

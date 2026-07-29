@@ -61,5 +61,99 @@
       menu.classList.remove('is-open');
     });
   });
+
+  (function() {
+    const cardTimers = new Map(); // item id -> end timestamp
+    const intervals = new Map();   // badge element -> interval id
+
+    function formatTime(totalSeconds) {
+      const seconds = Math.max(0, Math.ceil(totalSeconds));
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return m + ':' + String(s).padStart(2, '0');
+    }
+
+    function updateBadge(badge, remainingMs) {
+      const wrap = badge.closest('.timer-wrap');
+      const extendBtn = wrap ? wrap.querySelector('.timer-extend') : null;
+
+      if (remainingMs <= 0) {
+        badge.textContent = '0:00';
+        badge.classList.remove('timer-warning');
+        badge.classList.add('timer-over');
+        if (extendBtn) extendBtn.hidden = false;
+      } else {
+        badge.textContent = formatTime(remainingMs / 1000);
+        badge.classList.remove('timer-over');
+        if (extendBtn) extendBtn.hidden = true;
+        if (remainingMs <= 30000) {
+          badge.classList.add('timer-warning');
+        } else {
+          badge.classList.remove('timer-warning');
+        }
+      }
+    }
+
+    function startTimer(badge) {
+      if (intervals.has(badge)) return;
+      const card = badge.closest('article.card');
+      const id = card ? card.dataset.itemId : null;
+      if (!id) return;
+
+      const endAt = cardTimers.has(id)
+        ? cardTimers.get(id)
+        : Date.now() + parseInt(badge.dataset.initialSeconds || '300', 10) * 1000;
+      cardTimers.set(id, endAt);
+      badge.dataset.endAt = String(endAt);
+      updateBadge(badge, endAt - Date.now());
+
+      const interval = setInterval(function() {
+        if (!badge.isConnected) {
+          clearInterval(interval);
+          intervals.delete(badge);
+          return;
+        }
+        updateBadge(badge, endAt - Date.now());
+      }, 1000);
+      intervals.set(badge, interval);
+    }
+
+    function extendTimer(button) {
+      const card = button.closest('article.card');
+      const badge = card ? card.querySelector('.timer-badge') : null;
+      if (!badge) return;
+      const id = card.dataset.itemId;
+      const existing = intervals.get(badge);
+      if (existing) {
+        clearInterval(existing);
+        intervals.delete(badge);
+      }
+      const seconds = parseInt(button.dataset.extendSeconds || '120', 10);
+      const endAt = Date.now() + seconds * 1000;
+      cardTimers.set(id, endAt);
+      badge.dataset.initialSeconds = String(seconds);
+      startTimer(badge);
+    }
+
+    function initTimers() {
+      document.querySelectorAll('.timer-badge').forEach(startTimer);
+      // Clear stored times for cards that are no longer highlighted
+      for (const id of Array.from(cardTimers.keys())) {
+        if (!document.querySelector(`article.card[data-item-id="${id}"] .timer-badge`)) {
+          cardTimers.delete(id);
+        }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', initTimers);
+    document.body.addEventListener('htmx:afterSettle', initTimers);
+    document.body.addEventListener('click', function(e) {
+      const button = e.target.closest('.timer-extend');
+      if (button) {
+        e.stopPropagation();
+        extendTimer(button);
+      }
+    });
+  })();
 </script>
 {% endblock %}

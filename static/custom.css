@@ -539,7 +539,7 @@ button.add-card-submit:hover {
 .card.highlighted {
   cursor: default;
   border: 2px solid var(--rf-green);
-  padding-top: 2.25rem;
+  padding-top: 3rem;
 }
 
 .card.highlighted:hover {
@@ -550,16 +550,68 @@ button.add-card-submit:hover {
   width: 100%;
 }
 
-.timer-badge {
+.timer-wrap {
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  z-index: 1;
+}
+
+.timer-badge {
   background-color: var(--rf-text-dark);
   color: #fff;
   font-size: 0.8rem;
   font-weight: 700;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
+}
+
+.timer-extend {
+  display: none;
+  background-color: var(--rf-blue);
+  border-color: var(--rf-blue);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.timer-extend:hover {
+  background-color: var(--rf-blue-dark);
+  border-color: var(--rf-blue-dark);
+}
+
+.timer-extend:not([hidden]) {
+  display: inline-block;
+}
+
+@keyframes timer-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+@keyframes timer-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.timer-badge.timer-warning {
+  background-color: var(--rf-yellow);
+  color: var(--rf-text-dark);
+  animation: timer-pulse 1s ease-in-out infinite;
+}
+
+.timer-badge.timer-over {
+  background-color: var(--rf-red);
+  animation: timer-shake 0.5s ease-in-out infinite;
 }
 
 /* Action items section */

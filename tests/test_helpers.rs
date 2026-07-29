@@ -505,6 +505,17 @@ impl<'a> RetroPage<'a> {
         Ok(())
     }
 
+    pub async fn timer_text(&self, id: i32) -> WebDriverResult<String> {
+        let badge = self
+            .driver
+            .find(By::Css(format!(
+                "article[data-item-id='{}'] .timer-badge",
+                id
+            )))
+            .await?;
+        badge.text().await
+    }
+
     pub async fn complete_card(&self) -> WebDriverResult<()> {
         self.driver.find(By::Css(".primary")).await?.click().await?;
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;

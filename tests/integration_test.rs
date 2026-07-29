@@ -5,6 +5,14 @@ use thirtyfour::error::WebDriverResult;
 use thirtyfour::prelude::*;
 use thirtyfour::By;
 
+fn parse_timer(text: &str) -> u32 {
+    let parts: Vec<&str> = text.trim().split(':').collect();
+    assert_eq!(parts.len(), 2, "Timer should be in m:ss format");
+    let minutes: u32 = parts[0].parse().expect("Invalid timer minutes");
+    let seconds: u32 = parts[1].parse().expect("Invalid timer seconds");
+    minutes * 60 + seconds
+}
+
 /// Submit the new-retro form directly via HTTP to test server-side validation.
 async fn post_retros_form(
     driver: &WebDriver,
@@ -569,6 +577,46 @@ async fn test_like_card() -> WebDriverResult<()> {
     let card = retro_page.get_card(card_id).await?;
     let count = card.find(By::Css(".like-count")).await?.text().await?;
     assert_eq!(count, "0", "Liking again should toggle the like off");
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_like_does_not_restart_highlighted_timer() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Timer Like Test Retro").await?;
+
+    let card_id = retro_page.add_card("Good", "card to time").await?;
+    retro_page.click_card(card_id).await?;
+
+    // Wait long enough to be sure the timer has counted down from 5:00.
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    let before = retro_page.timer_text(card_id).await?;
+    let before_seconds = parse_timer(&before);
+    assert!(
+        before_seconds < 300,
+        "Timer should have counted down before the like (got {})",
+        before
+    );
+
+    retro_page.like_card(card_id).await?;
+    let after = retro_page.timer_text(card_id).await?;
+    let after_seconds = parse_timer(&after);
+    assert!(
+        after_seconds < 300,
+        "Timer should not restart after liking the card (got {})",
+        after
+    );
+    assert!(
+        after_seconds <= before_seconds,
+        "Timer should not jump forward after liking (before: {}, after: {})",
+        before,
+        after
+    );
 
     browser.close().await?;
     Ok(())
