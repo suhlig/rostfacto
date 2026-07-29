@@ -75,7 +75,8 @@ SHOW_BROWSER=1 cargo test --test integration_test
   * A new card appears
   * A card changes status
   * A card was liked
-  * Retro was completed (all cards disappear)
+  * A card's timer was (re-)started (incl. duration), elpsed, or was cancelled
+  * Retro was completed (all cards disappear and all timers stop)
 
   Do not introduce a new infrastructure component. Use Postgres as hub, as much as sensible.
 - Allow adding a card anonymously
