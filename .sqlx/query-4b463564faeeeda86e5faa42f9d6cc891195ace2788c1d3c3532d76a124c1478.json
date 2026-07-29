@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                  i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                  i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                  ''::text as \"author_initials!\"\n           FROM items i\n           JOIN users u ON u.id = i.created_by\n           WHERE i.retro_id = $1\n           AND i.category = 'GOOD'\n           AND i.status != 'ARCHIVED'::status\n           ORDER BY i.created_at ASC",
+  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                  i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                  i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                  ''::text as \"author_initials!\",\n                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as \"likes_count!\"\n           FROM items i\n           JOIN users u ON u.id = i.created_by\n           WHERE i.retro_id = $1\n           AND i.category = 'WATCH'\n           AND i.status != 'ARCHIVED'::status\n           ORDER BY i.created_at ASC",
   "describe": {
     "columns": [
       {
@@ -119,6 +119,12 @@
         "name": "author_initials!",
         "type_info": "Text",
         "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "likes_count!",
+        "type_info": "Int8",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -135,8 +141,9 @@
       false,
       false,
       true,
+      null,
       null
     ]
   },
-  "hash": "503f783a2ac4eb6d0973b2034285a17bcc7e5d0fe2cf6df1929394e827d6af9f"
+  "hash": "4b463564faeeeda86e5faa42f9d6cc891195ace2788c1d3c3532d76a124c1478"
 }

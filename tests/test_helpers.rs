@@ -496,6 +496,15 @@ impl<'a> RetroPage<'a> {
         Ok(())
     }
 
+    pub async fn like_card(&self, id: i32) -> WebDriverResult<()> {
+        let card = self.get_card(id).await?;
+        let like_button = card.find(By::Css(".like-button")).await?;
+        like_button.click().await?;
+        // Wait for HTMX to swap the card with the updated like count.
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        Ok(())
+    }
+
     pub async fn complete_card(&self) -> WebDriverResult<()> {
         self.driver.find(By::Css(".primary")).await?.click().await?;
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;

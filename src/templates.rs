@@ -6,6 +6,7 @@ use askama::Template;
 #[template(path = "item_card.html")]
 pub struct ItemCardTemplate {
     pub item: Item,
+    pub error_message: Option<String>,
 }
 
 #[derive(Template)]
@@ -18,6 +19,7 @@ pub struct ItemEditTemplate {
 #[template(path = "archive_modal.html")]
 pub struct ArchiveModalTemplate {
     pub item: Item,
+    pub error_message: Option<String>,
 }
 
 #[derive(Template)]
@@ -64,6 +66,7 @@ pub struct RetroTemplate {
     pub is_admin: bool,
     pub user: Option<AuthUser>,
     pub demo_mode: bool,
+    pub error_message: Option<String>,
 }
 
 pub struct GitHubTeam {

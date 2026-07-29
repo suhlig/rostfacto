@@ -25,6 +25,7 @@ pub struct Item {
     pub author_id: i32,
     pub author_name: String,
     pub author_initials: String,
+    pub likes_count: i64,
 }
 
 pub fn apply_author_initials(items: &mut [&mut Vec<Item>]) {

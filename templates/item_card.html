@@ -4,13 +4,19 @@
   {% when Status::Highlighted %}
     <article class="card highlighted" data-item-id="{{ item.id }}">
       <div class="timer-badge">5:00</div>
-      {{ macros::card_text_edit_button(item, false) }}
-      {{ macros::card_actions(item) }}
+      {{ macros::like_button(item) }}
+      <div class="card-content">
+        {{ macros::card_text_edit_button(item, false) }}
+        {{ macros::card_actions(item) }}
+      </div>
     </article>
   {% when Status::Completed %}
     <article class="card completed" data-item-id="{{ item.id }}">
-      <p><span class="card-text">{{ item.text }}</span> <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
-      <span class="completed-check">✓</span>
+      {{ macros::like_button(item) }}
+      <div class="card-content">
+        <p><span class="card-text">{{ item.text }}</span> <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
+        <span class="completed-check">✓</span>
+      </div>
     </article>
   {% else %}
     <article class="card"
@@ -20,6 +26,12 @@
              hx-post="/items/{{ item.id }}/status?action=highlight"
              hx-target="closest .card"
              hx-swap="outerHTML">
-      {{ macros::card_text_edit_button(item, true) }}
+      {{ macros::like_button(item) }}
+      <div class="card-content">
+        {{ macros::card_text_edit_button(item, true) }}
+        {% if let Some(message) = error_message %}
+          <div class="error-message">{{ message }}</div>
+        {% endif %}
+      </div>
     </article>
 {% endmatch %}

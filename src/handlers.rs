@@ -43,7 +43,8 @@ async fn load_item_with_initials(
         r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
                   i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
                   i.created_by as "author_id!", u.display_name as "author_name!",
-                  ''::text as "author_initials!"
+                  ''::text as "author_initials!",
+                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = (SELECT retro_id FROM items WHERE id = $1)"#,
@@ -328,7 +329,8 @@ pub async fn show_retro(
         r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
                   i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
                   i.created_by as "author_id!", u.display_name as "author_name!",
-                  ''::text as "author_initials!"
+                  ''::text as "author_initials!",
+                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = $1
@@ -349,7 +351,8 @@ pub async fn show_retro(
         r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
                   i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
                   i.created_by as "author_id!", u.display_name as "author_name!",
-                  ''::text as "author_initials!"
+                  ''::text as "author_initials!",
+                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = $1
@@ -370,7 +373,8 @@ pub async fn show_retro(
         r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
                   i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
                   i.created_by as "author_id!", u.display_name as "author_name!",
-                  ''::text as "author_initials!"
+                  ''::text as "author_initials!",
+                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = $1
@@ -421,6 +425,7 @@ pub async fn show_retro(
         is_admin: user.is_admin,
         user: Some(user),
         demo_mode: state.config.demo_mode(),
+        error_message: None,
     };
 
     Ok(Html(template.render().unwrap()).into_response())
@@ -480,7 +485,10 @@ pub async fn add_item(
     );
 
     let needs_initials_refresh = item.author_initials.chars().count() > 2;
-    let template = ItemCardTemplate { item };
+    let template = ItemCardTemplate {
+        item,
+        error_message: None,
+    };
     let html = Html(template.render().unwrap());
 
     if needs_initials_refresh {
@@ -573,23 +581,16 @@ pub async fn change_item_status(
                             database_error_response()
                         })?;
                 tracing::debug!(item_id, retro_id, "item highlight conflict");
-                return Ok(Html(format!(
-                    r##"<article class="card"
-                                 data-item-id="{}"
-                                 hx-post="/items/{}/status?action=highlight"
-                                 hx-target="closest .card"
-                                 hx-swap="outerHTML">
-                            <p>{} <span class="card-author" title="{}">[{}]</span></p>
-                            <div class="error-message" style="color: #D25948; margin-top: 0.5rem; font-weight: 700;">
-                                Only one item can be highlighted at a time
-                            </div>
-                        </article>"##,
-                    item_id,
-                    item_id,
-                    htmlescape::encode_minimal(&original.text),
-                    htmlescape::encode_attribute(&original.author_name),
-                    htmlescape::encode_minimal(&original.author_initials)
-                )));
+                return Ok(Html(
+                    ItemCardTemplate {
+                        item: original,
+                        error_message: Some(
+                            "Only one item can be highlighted at a time".to_string(),
+                        ),
+                    }
+                    .render()
+                    .unwrap(),
+                ));
             }
             log_database_error("change_item_status", &e);
             return Err(database_error_response());
@@ -643,9 +644,19 @@ pub async fn change_item_status(
     );
 
     let template = if all_completed.unwrap_or(false) {
-        ArchiveModalTemplate { item }.render().unwrap()
+        ArchiveModalTemplate {
+            item,
+            error_message: None,
+        }
+        .render()
+        .unwrap()
     } else {
-        ItemCardTemplate { item }.render().unwrap()
+        ItemCardTemplate {
+            item,
+            error_message: None,
+        }
+        .render()
+        .unwrap()
     };
 
     Ok(Html(template))
@@ -675,7 +686,14 @@ pub async fn show_item(
         None => return Err(not_found_page(&state)),
     }
 
-    Ok(Html(ItemCardTemplate { item }.render().unwrap()))
+    Ok(Html(
+        ItemCardTemplate {
+            item,
+            error_message: None,
+        }
+        .render()
+        .unwrap(),
+    ))
 }
 
 pub async fn edit_item(
@@ -762,7 +780,115 @@ pub async fn update_item(
 
     tracing::debug!(item_id, user_id = user.user_id, "item text updated");
 
-    Ok(Html(ItemCardTemplate { item }.render().unwrap()))
+    Ok(Html(
+        ItemCardTemplate {
+            item,
+            error_message: None,
+        }
+        .render()
+        .unwrap(),
+    ))
+}
+
+pub async fn like_item(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(item_id): Path<i32>,
+) -> Result<Html<String>, Response> {
+    let retro_id = match sqlx::query_scalar!("SELECT retro_id FROM items WHERE id = $1", item_id)
+        .fetch_optional(&state.pool)
+        .await
+    {
+        Ok(Some(id)) => id,
+        Ok(None) => return Err(not_found_response(&state, "")),
+        Err(error) => {
+            log_database_error("load_item_retro_id_for_like", &error);
+            return Err(database_error_response());
+        }
+    };
+
+    match require_retro_access_by_id(&state, &user, retro_id).await? {
+        Some(_) => {}
+        None => {
+            return Err(forbidden(
+                &state,
+                "You do not have access to this retrospective",
+            ))
+        }
+    }
+
+    let mut tx = state.pool.begin().await.map_err(|error| {
+        log_database_error("like_item_begin_transaction", &error);
+        database_error_response()
+    })?;
+
+    let already_liked = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM likes WHERE item_id = $1 AND user_id = $2)"#,
+        item_id,
+        user.user_id
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|error| {
+        log_database_error("check_existing_like", &error);
+        database_error_response()
+    })?
+    .unwrap_or(false);
+
+    if already_liked {
+        sqlx::query!(
+            r#"DELETE FROM likes WHERE item_id = $1 AND user_id = $2"#,
+            item_id,
+            user.user_id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| {
+            log_database_error("delete_like", &error);
+            database_error_response()
+        })?;
+    } else {
+        sqlx::query!(
+            r#"INSERT INTO likes (item_id, user_id) VALUES ($1, $2)"#,
+            item_id,
+            user.user_id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| {
+            log_database_error("insert_like", &error);
+            database_error_response()
+        })?;
+    }
+
+    let item = load_item_with_initials(&mut tx, item_id)
+        .await
+        .map_err(|error| {
+            log_database_error("load_item_after_like", &error);
+            database_error_response()
+        })?;
+
+    tx.commit().await.map_err(|error| {
+        log_database_error("like_item_commit_transaction", &error);
+        database_error_response()
+    })?;
+
+    tracing::debug!(
+        item_id,
+        retro_id,
+        user_id = user.user_id,
+        liked = !already_liked,
+        "item like toggled"
+    );
+
+    Ok(Html(
+        ItemCardTemplate {
+            item,
+            error_message: None,
+        }
+        .render()
+        .unwrap(),
+    ))
 }
 
 pub async fn archive_retro(

@@ -168,10 +168,11 @@ async fn test_edit_card() -> WebDriverResult<()> {
         .await?;
 
     let card = retro_page.get_card(card_id).await?;
-    assert!(card
-        .text()
-        .await?
-        .starts_with("Updated first line\nUpdated second line"));
+    let card_text = card.find(By::Css(".card-text")).await?;
+    assert_eq!(
+        card_text.text().await?,
+        "Updated first line\nUpdated second line"
+    );
 
     browser.close().await?;
     Ok(())
@@ -540,6 +541,34 @@ async fn test_single_highlight_error_message() -> WebDriverResult<()> {
         error.text().await?,
         "Only one item can be highlighted at a time"
     );
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_like_card() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Like Test Retro").await?;
+
+    let card_id = retro_page.add_card("Good", "card to like").await?;
+
+    let card = retro_page.get_card(card_id).await?;
+    let count = card.find(By::Css(".like-count")).await?.text().await?;
+    assert_eq!(count, "0", "New cards should start with zero likes");
+
+    retro_page.like_card(card_id).await?;
+    let card = retro_page.get_card(card_id).await?;
+    let count = card.find(By::Css(".like-count")).await?.text().await?;
+    assert_eq!(count, "1", "Liking a card should increment the count");
+
+    retro_page.like_card(card_id).await?;
+    let card = retro_page.get_card(card_id).await?;
+    let count = card.find(By::Css(".like-count")).await?.text().await?;
+    assert_eq!(count, "0", "Liking again should toggle the like off");
 
     browser.close().await?;
     Ok(())

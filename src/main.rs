@@ -95,6 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route("/items/{id}/edit", get(handlers::edit_item))
         .route("/items/{id}/status", post(handlers::change_item_status))
+        .route("/items/{id}/like", post(handlers::like_item))
         .route("/retro/{retro_id}/archive", post(handlers::archive_retro))
         .route("/retro/{slug}/delete", delete(handlers::delete_retro))
         .route("/auth/login", get(auth::login))
