@@ -129,7 +129,8 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 
 - Integration tests are in `tests/integration_test.rs` using `thirtyfour`.
 - `tests/test_helpers.rs` starts a geckodriver instance and provides page objects (`HomePage`, `RetrosPage`, `RetroPage`).
-- The integration tests start their own app instance on a random port; you do not need to start a server beforehand and it will not conflict with a dev server on port 3000.
+- Each integration test starts its own app instance on a random port with a fresh PostgreSQL database copied from a migrated template; you do not need to start a server beforehand and it will not conflict with a dev server on port 3000.
+- The template database (`rostfacto_test_template`) is created automatically on the first test run, so `rostfacto-dev` is no longer polluted by test data.
 - The tests rely on **demo mode** (no `GITHUB_ADMIN_ORG` set) so they run without real GitHub credentials.
 - You need Firefox and geckodriver installed. On macOS:
   ```bash

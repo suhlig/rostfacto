@@ -1,27 +1,144 @@
 use portpicker::pick_unused_port;
 use std::process::{Child, Command};
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use thirtyfour::{common::capabilities::firefox::FirefoxPreferences, prelude::*};
-use tokio::sync::{Semaphore, SemaphorePermit};
-
-static TEST_SERVER: OnceLock<(u16, Child)> = OnceLock::new();
+use tokio::sync::{Mutex, Semaphore, SemaphorePermit};
+use url::Url;
 
 // Firefox becomes unstable when multiple browser instances run concurrently.
 // Limit the suite to one Firefox at a time, matching thirtyfour's own test
 // harness.
 static FIREFOX_LOCK: Semaphore = Semaphore::const_new(2);
 
-/// Return the base URL of the test server, starting it on a random port if necessary.
-pub fn base_url() -> String {
-    let port = test_server_port();
-    format!("http://127.0.0.1:{}", port)
+const TEMPLATE_DB_NAME: &str = "rostfacto_test_template";
+static TEMPLATE_READY: AtomicBool = AtomicBool::new(false);
+static TEMPLATE_LOCK: Mutex<()> = Mutex::const_new(());
+
+/// A fresh PostgreSQL database created from a migrated template.
+pub struct TestDb {
+    pub database_url: String,
+    db_name: String,
+    admin_url: String,
 }
 
-fn test_server_port() -> u16 {
-    let (port, _) = TEST_SERVER.get_or_init(|| {
-        let port = pick_unused_port().expect("No ports available");
+impl TestDb {
+    pub async fn new() -> Self {
         let database_url =
             std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set");
+        let base_url = Url::parse(&database_url).expect("DATABASE_URL must be a valid URL");
+        let admin_url = Self::admin_url(&base_url);
+
+        {
+            let _guard = TEMPLATE_LOCK.lock().await;
+            if !TEMPLATE_READY.load(Ordering::SeqCst) {
+                Self::ensure_template_db(&admin_url).await;
+                TEMPLATE_READY.store(true, Ordering::SeqCst);
+            }
+        }
+
+        let db_name = format!("rostfacto_test_{:016x}", rand::random::<u64>());
+        let pool = sqlx::PgPool::connect(&admin_url)
+            .await
+            .expect("Failed to connect to Postgres for test DB setup");
+
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "CREATE DATABASE \"{}\" TEMPLATE \"{}\"",
+            db_name, TEMPLATE_DB_NAME
+        )))
+        .execute(&pool)
+        .await
+        .expect("Failed to create test database");
+
+        let database_url = Self::replace_db_name(&base_url, &db_name);
+
+        Self {
+            database_url,
+            db_name,
+            admin_url,
+        }
+    }
+
+    async fn ensure_template_db(admin_url: &str) {
+        let pool = sqlx::PgPool::connect(admin_url)
+            .await
+            .expect("Failed to connect to Postgres for template setup");
+
+        let create_result = sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "CREATE DATABASE \"{}\"",
+            TEMPLATE_DB_NAME
+        )))
+        .execute(&pool)
+        .await;
+
+        if let Err(e) = create_result {
+            let message = e.to_string();
+            if !message.contains("already exists") {
+                panic!("Failed to create template database: {}", e);
+            }
+        }
+
+        let template_url = Self::replace_db_name(
+            &Url::parse(admin_url).expect("admin URL should be valid"),
+            TEMPLATE_DB_NAME,
+        );
+        let template_pool = sqlx::PgPool::connect(&template_url)
+            .await
+            .expect("Failed to connect to template database");
+
+        sqlx::migrate!("./migrations")
+            .run(&template_pool)
+            .await
+            .expect("Failed to run migrations on template database");
+    }
+
+    fn admin_url(base_url: &Url) -> String {
+        let mut url = base_url.clone();
+        url.set_path("/postgres");
+        url.to_string()
+    }
+
+    fn replace_db_name(base_url: &Url, db_name: &str) -> String {
+        let mut url = base_url.clone();
+        url.set_path(&format!("/{}", db_name));
+        url.to_string()
+    }
+}
+
+impl Drop for TestDb {
+    fn drop(&mut self) {
+        let admin_url = self.admin_url.clone();
+        let db_name = self.db_name.clone();
+
+        std::thread::spawn(move || {
+            let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+            runtime.block_on(async {
+                let pool = match sqlx::PgPool::connect(&admin_url).await {
+                    Ok(p) => p,
+                    Err(_) => return,
+                };
+
+                let _ = sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+                    "DROP DATABASE IF EXISTS \"{}\" WITH (FORCE)",
+                    db_name
+                )))
+                .execute(&pool)
+                .await;
+            });
+        })
+        .join()
+        .ok();
+    }
+}
+
+/// A test server process started for a single test.
+pub struct TestServer {
+    process: Child,
+    port: u16,
+}
+
+impl TestServer {
+    pub async fn start(database_url: &str) -> Self {
+        let port = pick_unused_port().expect("No ports available");
 
         let mut child = Command::new("cargo")
             .args([
@@ -43,23 +160,35 @@ fn test_server_port() -> u16 {
             .spawn()
             .expect("Failed to start test server");
 
-        // Wait for the server to accept connections.
-        let addr = format!("127.0.0.1:{}", port);
+        let base_url = format!("http://127.0.0.1:{}", port);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
         loop {
             if std::time::Instant::now() >= deadline {
                 let _ = child.kill();
-                panic!("Test server failed to start on {}", addr);
+                panic!("Test server failed to start on {}", base_url);
             }
-            if std::net::TcpStream::connect(&addr).is_ok() {
-                break;
+            match reqwest::get(&base_url).await {
+                Ok(response) if response.status().is_success() => break,
+                _ => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
             }
-            std::thread::sleep(std::time::Duration::from_millis(100));
         }
 
-        (port, child)
-    });
-    *port
+        Self {
+            process: child,
+            port,
+        }
+    }
+
+    pub fn base_url(&self) -> String {
+        format!("http://127.0.0.1:{}", self.port)
+    }
+}
+
+impl Drop for TestServer {
+    fn drop(&mut self) {
+        let _ = self.process.kill();
+        let _ = self.process.wait();
+    }
 }
 
 /// Guard that kills the geckodriver process if driver setup fails before we take ownership.
@@ -78,6 +207,7 @@ pub struct BrowserSession {
     pub driver: WebDriver,
     process: Child,
     _firefox_permit: SemaphorePermit<'static>,
+    base_url: String,
 }
 
 impl Drop for BrowserSession {
@@ -100,11 +230,16 @@ impl BrowserSession {
         self.driver.clone().quit().await?;
         Ok(())
     }
+
     pub async fn home_page(&self) -> WebDriverResult<HomePage<'_>> {
-        HomePage::new(&self.driver).await
+        HomePage::new(&self.driver, &self.base_url).await
     }
 
-    pub async fn new() -> WebDriverResult<Self> {
+    pub async fn retros_page(&self) -> WebDriverResult<RetrosPage<'_>> {
+        RetrosPage::new(&self.driver, &self.base_url).await
+    }
+
+    pub async fn new(base_url: &str) -> WebDriverResult<Self> {
         let permit = FIREFOX_LOCK.acquire().await.unwrap();
         let port = pick_unused_port().expect("No ports available");
         let mut guard = GeckodriverGuard(Some(
@@ -142,11 +277,8 @@ impl BrowserSession {
             driver,
             process,
             _firefox_permit: permit,
+            base_url: base_url.to_string(),
         })
-    }
-
-    pub async fn retros_page(&self) -> WebDriverResult<RetrosPage<'_>> {
-        RetrosPage::new(&self.driver).await
     }
 }
 
@@ -155,8 +287,8 @@ pub struct HomePage<'a> {
 }
 
 impl<'a> HomePage<'a> {
-    pub async fn new(driver: &'a WebDriver) -> WebDriverResult<Self> {
-        driver.goto(&base_url()).await?;
+    pub async fn new(driver: &'a WebDriver, base_url: &str) -> WebDriverResult<Self> {
+        driver.goto(base_url).await?;
         Ok(Self { driver })
     }
 
@@ -169,19 +301,21 @@ impl<'a> HomePage<'a> {
 
 pub struct RetrosPage<'a> {
     pub driver: &'a WebDriver,
+    base_url: String,
 }
 
 impl<'a> RetrosPage<'a> {
-    pub async fn new(driver: &'a WebDriver) -> WebDriverResult<Self> {
-        driver
-            .goto(format!("{}/retros", base_url()).as_str())
-            .await?;
-        Ok(Self { driver })
+    pub async fn new(driver: &'a WebDriver, base_url: &str) -> WebDriverResult<Self> {
+        driver.goto(format!("{}/retros", base_url).as_str()).await?;
+        Ok(Self {
+            driver,
+            base_url: base_url.to_string(),
+        })
     }
 
     pub async fn submit_new_retro(&self, title: &str, slug: &str) -> WebDriverResult<()> {
         self.driver
-            .goto(format!("{}/retros/new", base_url()).as_str())
+            .goto(format!("{}/retros/new", self.base_url).as_str())
             .await?;
         let title_input = self.driver.find(By::Css("input[name='title']")).await?;
         title_input.send_keys(title).await?;
@@ -207,7 +341,7 @@ impl<'a> RetrosPage<'a> {
             .take(255)
             .collect::<String>();
         self.submit_new_retro(&test_title, &slug).await?;
-        RetroPage::new(self.driver, &slug).await
+        RetroPage::new(self.driver, &self.base_url, &slug).await
     }
 
     pub async fn create_retro_with_slug(
@@ -216,7 +350,7 @@ impl<'a> RetrosPage<'a> {
         slug: &str,
     ) -> WebDriverResult<RetroPage<'_>> {
         self.submit_new_retro(title, slug).await?;
-        RetroPage::new(self.driver, slug).await
+        RetroPage::new(self.driver, &self.base_url, slug).await
     }
 }
 
@@ -224,12 +358,13 @@ pub struct RetroPage<'a> {
     pub driver: &'a WebDriver,
     pub title: String,
     pub slug: String,
+    base_url: String,
 }
 
 impl<'a> RetroPage<'a> {
-    pub async fn new(driver: &'a WebDriver, slug: &str) -> WebDriverResult<Self> {
+    pub async fn new(driver: &'a WebDriver, base_url: &str, slug: &str) -> WebDriverResult<Self> {
         driver
-            .goto(format!("{}/retro/{}", base_url(), slug).as_str())
+            .goto(format!("{}/retro/{}", base_url, slug).as_str())
             .await?;
         // Get the actual title from the page
         let title_element = driver.find(By::Css("h1")).await?;
@@ -238,6 +373,7 @@ impl<'a> RetroPage<'a> {
             driver,
             title,
             slug: slug.to_string(),
+            base_url: base_url.to_string(),
         })
     }
 
@@ -379,7 +515,7 @@ impl<'a> RetroPage<'a> {
 
     pub async fn delete(&self) -> WebDriverResult<()> {
         self.driver
-            .goto(format!("{}/retros", base_url()).as_str())
+            .goto(format!("{}/retros", self.base_url).as_str())
             .await?;
         let rows = self.driver.find_all(By::Css("table tr")).await?;
         let mut clicked = false;
@@ -414,10 +550,5 @@ impl<'a> RetroPage<'a> {
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         }
-    }
-
-    pub async fn cleanup(self) -> WebDriverResult<()> {
-        self.delete().await?;
-        Ok(())
     }
 }

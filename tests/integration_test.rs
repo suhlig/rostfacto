@@ -8,10 +8,11 @@ use thirtyfour::By;
 /// Submit the new-retro form directly via HTTP to test server-side validation.
 async fn post_retros_form(
     driver: &WebDriver,
+    base_url: &str,
     title: &str,
     slug: &str,
 ) -> WebDriverResult<(u64, String)> {
-    driver.goto(&base_url()).await?;
+    driver.goto(base_url).await?;
     let script = format!(
         r#"return fetch('/retros', {{
             method: 'POST',
@@ -27,8 +28,8 @@ async fn post_retros_form(
 }
 
 /// Fetch a path and return the HTTP status code.
-async fn fetch_status(driver: &WebDriver, path: &str) -> WebDriverResult<u64> {
-    driver.goto(&base_url()).await?;
+async fn fetch_status(driver: &WebDriver, base_url: &str, path: &str) -> WebDriverResult<u64> {
+    driver.goto(base_url).await?;
     let script = format!(r#"return fetch('{}').then(r => r.status);"#, path);
     let result = driver.execute(&script, vec![]).await?;
     Ok(result.json().as_u64().unwrap())
@@ -36,7 +37,9 @@ async fn fetch_status(driver: &WebDriver, path: &str) -> WebDriverResult<u64> {
 
 #[tokio::test]
 async fn test_home_page() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let home_page = browser.home_page().await?;
     home_page.verify_title("Rostfacto").await?;
     browser.close().await?;
@@ -45,12 +48,14 @@ async fn test_home_page() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_invalid_url() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
 
     // Navigate to non-existent page
     browser
         .driver
-        .goto(format!("{}/non-existent-page", base_url()).as_str())
+        .goto(format!("{}/non-existent-page", server.base_url()).as_str())
         .await?;
 
     // Verify 404 page content
@@ -73,7 +78,9 @@ async fn test_invalid_url() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_archive_retro() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page.create_retro("Archive Test Retro").await?;
 
@@ -89,14 +96,15 @@ async fn test_archive_retro() -> WebDriverResult<()> {
     let remaining_cards = retro_page.driver.find_all(By::ClassName("card")).await?;
     assert_eq!(remaining_cards.len(), 0, "All cards should be archived");
 
-    retro_page.cleanup().await?;
     browser.close().await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_create_cards() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page.create_retro("Test Retro").await?;
 
@@ -110,14 +118,15 @@ async fn test_create_cards() -> WebDriverResult<()> {
     retro_page.verify_card_state(bad_id, "card").await?;
     retro_page.verify_card_state(watch_id, "card").await?;
 
-    retro_page.cleanup().await?;
     browser.close().await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_edit_card() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page.create_retro("Edit Card Multiline Test").await?;
 
@@ -164,14 +173,15 @@ async fn test_edit_card() -> WebDriverResult<()> {
         .await?
         .starts_with("Updated first line\nUpdated second line"));
 
-    retro_page.cleanup().await?;
     browser.close().await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_create_retro() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page.create_retro("Test Retro").await?;
 
@@ -179,14 +189,15 @@ async fn test_create_retro() -> WebDriverResult<()> {
     let title = retro_page.driver.find(By::Css("h1")).await?;
     assert_eq!(title.text().await?, retro_page.title);
 
-    retro_page.cleanup().await?;
     browser.close().await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_card_state_transitions() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page.create_retro("State Test Retro").await?;
 
@@ -224,19 +235,20 @@ async fn test_card_state_transitions() -> WebDriverResult<()> {
         .verify_card_state(card2_id, "card highlighted")
         .await?;
 
-    retro_page.cleanup().await?;
     browser.close().await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_nonexistent_retro() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
 
     // Navigate to non-existent retro directly
     browser
         .driver
-        .goto(format!("{}/retro/99999", base_url()).as_str())
+        .goto(format!("{}/retro/99999", server.base_url()).as_str())
         .await?;
 
     // Verify 404 page content
@@ -259,7 +271,9 @@ async fn test_nonexistent_retro() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_archived_card_display() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page.create_retro("Archive Display Test").await?;
 
@@ -282,14 +296,15 @@ async fn test_archived_card_display() -> WebDriverResult<()> {
         .verify_card_state(card_id, "card completed")
         .await?;
 
-    retro_page.cleanup().await?;
     browser.close().await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page.create_retro("Cancel Test Retro").await?;
 
@@ -309,15 +324,16 @@ async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
     // Verify card state
     retro_page.verify_card_state(card_id, "card").await?;
 
-    retro_page.cleanup().await?;
     browser.close().await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_retros_trailing_slash() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
-    let status = fetch_status(&browser.driver, "/retros/").await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let status = fetch_status(&browser.driver, &server.base_url(), "/retros/").await?;
     assert_eq!(status, 200, "/retros/ should be normalized to /retros");
     browser.close().await?;
     Ok(())
@@ -325,7 +341,9 @@ async fn test_retros_trailing_slash() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_retros_list_page() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page.create_retro("List Test Retro").await?;
 
@@ -346,15 +364,16 @@ async fn test_retros_list_page() -> WebDriverResult<()> {
     let delete_button = row.find(By::Tag("button")).await?;
     assert_eq!(delete_button.text().await?, "Delete");
 
-    retro_page.cleanup().await?;
     browser.close().await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_create_retro_validation_empty_slug() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
-    let (status, text) = post_retros_form(&browser.driver, "Test", "").await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let (status, text) = post_retros_form(&browser.driver, &server.base_url(), "Test", "").await?;
     assert_eq!(status, 400);
     assert!(text.contains("Slug is required"));
     browser.close().await?;
@@ -363,8 +382,11 @@ async fn test_create_retro_validation_empty_slug() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_create_retro_validation_invalid_slug() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
-    let (status, text) = post_retros_form(&browser.driver, "Test", "BadSlug").await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let (status, text) =
+        post_retros_form(&browser.driver, &server.base_url(), "Test", "BadSlug").await?;
     assert_eq!(status, 400);
     assert!(text.contains("Slug can only contain lowercase letters, numbers, and dashes"));
     browser.close().await?;
@@ -373,9 +395,12 @@ async fn test_create_retro_validation_invalid_slug() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_create_retro_validation_long_slug() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let slug = "a".repeat(256);
-    let (status, text) = post_retros_form(&browser.driver, "Test", &slug).await?;
+    let (status, text) =
+        post_retros_form(&browser.driver, &server.base_url(), "Test", &slug).await?;
     assert_eq!(status, 400);
     assert!(text.contains("Slug must be 255 characters or less"));
     browser.close().await?;
@@ -384,24 +409,33 @@ async fn test_create_retro_validation_long_slug() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_create_retro_validation_duplicate_slug() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page
         .create_retro_with_slug("Duplicate Test", "duplicate-test-slug")
         .await?;
 
-    let (status, text) = post_retros_form(&browser.driver, "Another", &retro_page.slug).await?;
+    let (status, text) = post_retros_form(
+        &browser.driver,
+        &server.base_url(),
+        "Another",
+        &retro_page.slug,
+    )
+    .await?;
     assert_eq!(status, 500);
     assert!(text.contains("Slug is already in use"));
 
-    retro_page.cleanup().await?;
     browser.close().await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_delete_retro() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page.create_retro("Delete Test Retro").await?;
 
@@ -410,7 +444,7 @@ async fn test_delete_retro() -> WebDriverResult<()> {
     // Verify the retro is gone
     browser
         .driver
-        .goto(format!("{}/retro/{}", base_url(), retro_page.slug).as_str())
+        .goto(format!("{}/retro/{}", server.base_url(), retro_page.slug).as_str())
         .await?;
     let error_code = browser.driver.find(By::Css(".error-page h1")).await?;
     assert_eq!(error_code.text().await?, "404");
@@ -421,7 +455,9 @@ async fn test_delete_retro() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_item_ordering() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page.create_retro("Ordering Test Retro").await?;
 
@@ -447,14 +483,15 @@ async fn test_item_ordering() -> WebDriverResult<()> {
     assert_eq!(first_card_id, second_id);
     assert_eq!(second_card_id, first_id);
 
-    retro_page.cleanup().await?;
     browser.close().await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_completed_card_cannot_be_highlighted() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page.create_retro("Completed Lock Test").await?;
 
@@ -475,14 +512,15 @@ async fn test_completed_card_cannot_be_highlighted() -> WebDriverResult<()> {
         .verify_card_state(card_id, "card completed")
         .await?;
 
-    retro_page.cleanup().await?;
     browser.close().await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_single_highlight_error_message() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     let retros_page = browser.retros_page().await?;
     let retro_page = retros_page.create_retro("Highlight Error Test").await?;
 
@@ -503,17 +541,18 @@ async fn test_single_highlight_error_message() -> WebDriverResult<()> {
         "Only one item can be highlighted at a time"
     );
 
-    retro_page.cleanup().await?;
     browser.close().await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_static_asset_served() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     browser
         .driver
-        .goto(format!("{}/static/happy.svg", base_url()).as_str())
+        .goto(format!("{}/static/happy.svg", server.base_url()).as_str())
         .await?;
     let svg = browser.driver.find(By::Tag("svg")).await?;
     assert!(svg.is_displayed().await?);
@@ -523,8 +562,15 @@ async fn test_static_asset_served() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_missing_static_file_404() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
-    let status = fetch_status(&browser.driver, "/static/nonexistent.css").await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let status = fetch_status(
+        &browser.driver,
+        &server.base_url(),
+        "/static/nonexistent.css",
+    )
+    .await?;
     assert_eq!(status, 404);
     browser.close().await?;
     Ok(())
@@ -532,8 +578,10 @@ async fn test_missing_static_file_404() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_demo_banner_shown() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
-    browser.driver.goto(&base_url()).await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    browser.driver.goto(&server.base_url()).await?;
     let banner = browser.driver.find(By::Css(".demo-banner")).await?;
     let text = banner.text().await?;
     assert!(text.contains("unsecured demo instance"));
@@ -543,9 +591,11 @@ async fn test_demo_banner_shown() -> WebDriverResult<()> {
 
 #[tokio::test]
 async fn test_auth_login_redirects_in_demo_mode() -> WebDriverResult<()> {
-    let browser = BrowserSession::new().await?;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
     // In demo mode, /auth/login should redirect back to / (demo mode has no real OAuth).
-    let status = fetch_status(&browser.driver, "/auth/login").await?;
+    let status = fetch_status(&browser.driver, &server.base_url(), "/auth/login").await?;
     assert_eq!(status, 200, "/auth/login should be reachable in demo mode");
     browser.close().await?;
     Ok(())
