@@ -154,9 +154,3 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - `Status::Archived` is a real enum variant but `archived_retro.html` is currently not wired to any route (only `archive_modal.html` is used).
 - The `AuthUser` extractor performs a live GitHub API call on every request to check admin/team membership; in demo mode this is skipped.
 - OAuth callbacks use `PUBLIC_URL` to build the redirect URI, so it must match the GitHub OAuth app settings.
-
-## Common next steps
-
-- Add SSE for real-time updates across clients.
-- Add "likes" per item, edit item text, per-item timer, and an archive history view.
-- Replace the integration test DB setup with a fixture/cleanup helper.
