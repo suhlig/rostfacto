@@ -442,6 +442,9 @@ async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
     // Click to highlight and cancel
     retro_page.click_card(card_id).await?;
     retro_page
+        .verify_card_state(card_id, "card highlighted")
+        .await?;
+    retro_page
         .driver
         .find(By::Css(".card-actions .secondary"))
         .await?
