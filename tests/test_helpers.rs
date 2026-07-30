@@ -517,7 +517,11 @@ impl<'a> RetroPage<'a> {
     }
 
     pub async fn complete_card(&self) -> WebDriverResult<()> {
-        self.driver.find(By::Css(".primary")).await?.click().await?;
+        self.driver
+            .find(By::Css(".card-actions .btn-primary"))
+            .await?
+            .click()
+            .await?;
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         Ok(())
     }
@@ -529,6 +533,33 @@ impl<'a> RetroPage<'a> {
             "Archive dialog should be visible"
         );
         archive_button.click().await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        Ok(())
+    }
+
+    pub async fn archive_from_menu(&self) -> WebDriverResult<()> {
+        self.driver
+            .find(By::Css(".account-menu button"))
+            .await?
+            .click()
+            .await?;
+        let archive_link = self.driver.find(By::Css(".archive-menu-link")).await?;
+        assert!(
+            archive_link.is_displayed().await?,
+            "Archive menu item should be visible"
+        );
+        archive_link.click().await?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+        // If there are unaddressed cards, a confirmation dialog is shown.
+        if let Ok(confirm_button) = self
+            .driver
+            .find(By::Css(".archive-confirm-dialog[open] .btn-archive"))
+            .await
+        {
+            confirm_button.click().await?;
+        }
+
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         Ok(())
     }

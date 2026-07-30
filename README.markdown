@@ -69,7 +69,6 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
-- Archive button (if opportunity to archive after last card complete was not used)
 - Archive display, grouped by the day the items were created
 - Sync across all clients with SSE when
   * A new card appears

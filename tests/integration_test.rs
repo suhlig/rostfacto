@@ -109,6 +109,125 @@ async fn test_archive_retro() -> WebDriverResult<()> {
 }
 
 #[tokio::test]
+async fn test_archive_retro_from_menu() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Menu Archive Test Retro").await?;
+
+    // Add, highlight, and complete the only card
+    let card_id = retro_page.add_card("Good", "Card to archive").await?;
+    retro_page.click_card(card_id).await?;
+    retro_page.complete_card().await?;
+
+    // Dismiss the automatic archive modal
+    let cancel_button = retro_page
+        .driver
+        .find(By::Css("#archive-modal .btn-cancel"))
+        .await?;
+    cancel_button.click().await?;
+
+    // Refresh so the server-rendered menu includes the archive button.
+    // The archive modal is shown again on load, so dismiss it first.
+    retro_page.driver.refresh().await?;
+    retro_page
+        .driver
+        .find(By::Css("#archive-modal .btn-cancel"))
+        .await?
+        .click()
+        .await?;
+
+    // Archive all cards from the account menu
+    retro_page.archive_from_menu().await?;
+
+    // Verify all cards are archived
+    let remaining_cards = retro_page.driver.find_all(By::ClassName("card")).await?;
+    assert_eq!(remaining_cards.len(), 0, "All cards should be archived");
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_archive_menu_shows_confirmation_dialog_for_unaddressed_cards() -> WebDriverResult<()>
+{
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page
+        .create_retro("Menu Archive Dialog Test Retro")
+        .await?;
+
+    let _card_id = retro_page.add_card("Good", "Unaddressed card").await?;
+
+    retro_page
+        .driver
+        .find(By::Css(".account-menu button"))
+        .await?
+        .click()
+        .await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+    let archive_link = retro_page
+        .driver
+        .find(By::Css(".archive-menu-link"))
+        .await?;
+    assert!(archive_link.is_displayed().await?);
+    archive_link.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+    let dialog = retro_page
+        .driver
+        .find(By::Css(".archive-confirm-dialog[open]"))
+        .await?;
+    assert!(
+        dialog.is_displayed().await?,
+        "Confirmation dialog should be shown for unaddressed cards"
+    );
+
+    // Cancel the dialog
+    dialog.find(By::Css(".btn-cancel")).await?.click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+    // Card should still be present
+    let remaining_cards = retro_page.driver.find_all(By::ClassName("card")).await?;
+    assert_eq!(
+        remaining_cards.len(),
+        1,
+        "Card should remain after canceling the archive dialog"
+    );
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_archive_retro_from_menu_with_unaddressed_cards() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page
+        .create_retro("Menu Archive Unaddressed Test Retro")
+        .await?;
+
+    // Add a card but leave it unaddressed
+    retro_page.add_card("Good", "Unaddressed card").await?;
+
+    // Archive all cards from the account menu; this should show a confirmation dialog
+    retro_page.archive_from_menu().await?;
+
+    // Verify all cards are archived
+    let remaining_cards = retro_page.driver.find_all(By::ClassName("card")).await?;
+    assert_eq!(remaining_cards.len(), 0, "All cards should be archived");
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_create_cards() -> WebDriverResult<()> {
     let db = TestDb::new().await;
     let server = TestServer::start(&db.database_url).await;
@@ -324,7 +443,7 @@ async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
     retro_page.click_card(card_id).await?;
     retro_page
         .driver
-        .find(By::Css(".secondary"))
+        .find(By::Css(".card-actions .secondary"))
         .await?
         .click()
         .await?;

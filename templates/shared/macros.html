@@ -7,15 +7,49 @@
   {% endif %}
 {% endmacro %}
 
-{% macro account_menu() %}
+{% macro account_menu(retro_id=0, show_archive=false) %}
   {% if let Some(user) = user %}
     <div class="account-menu">
       <button type="button">{{ user.username }}</button>
       <ul class="account-menu-list">
         <li><a href="/retros">Dashboard</a></li>
+        {% if show_archive %}
+          <li>
+            <dialog id="archive-confirm-{{ retro_id }}" class="archive-confirm-dialog">
+              <article>
+                <h3>Archive this retro?</h3>
+                <p id="archive-confirm-message-{{ retro_id }}">Are you sure you want to archive all cards?</p>
+                <form method="POST" action="/retro/{{ retro_id }}/archive">
+                  <fieldset class="grid">
+                    <button type="button" class="btn-cancel secondary" onclick="this.closest('dialog').close()">Cancel</button>
+                    <button type="submit" class="btn-archive primary">Archive</button>
+                  </fieldset>
+                </form>
+              </article>
+            </dialog>
+            <form id="archive-direct-form-{{ retro_id }}" method="POST" action="/retro/{{ retro_id }}/archive" class="archive-menu-form" hidden></form>
+            <a href="#" class="archive-menu-link" onclick="openArchiveMenuDialog(event, {{ retro_id }}); return false;">Archive</a>
+          </li>
+        {% endif %}
         <li><a href="/auth/logout">Sign out</a></li>
       </ul>
     </div>
+    <script>
+      function openArchiveMenuDialog(event, retroId) {
+        event.preventDefault();
+        const unaddressed = document.querySelectorAll('article.card:not(.completed)');
+        if (unaddressed.length > 0) {
+          const dialog = document.getElementById('archive-confirm-' + retroId);
+          const message = document.getElementById('archive-confirm-message-' + retroId);
+          message.textContent = 'There ' + (unaddressed.length === 1 ? 'is' : 'are') + ' ' +
+            unaddressed.length + ' unaddressed card' + (unaddressed.length === 1 ? '' : 's') +
+            '. Are you sure you want to archive them?';
+          dialog.showModal();
+        } else {
+          document.getElementById('archive-direct-form-' + retroId).submit();
+        }
+      }
+    </script>
   {% endif %}
 {% endmacro %}
 

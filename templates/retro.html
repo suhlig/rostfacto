@@ -7,7 +7,7 @@
 <header class="retro-header">
   <h1>{{ retro.title }}</h1>
   <div class="retro-header-actions">
-    {{ macros::account_menu() }}
+    {{ macros::account_menu(retro.id, true) }}
   </div>
 </header>
 {% endblock %}
