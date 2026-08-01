@@ -8,11 +8,11 @@ A Rust web app for running team retrospectives (inspired by the archived Postfac
 
 - Rust 2021 edition, Tokio async runtime.
 - Web framework: Axum 0.8.
-- DB access: sqlx 0.7 with compile-time checked queries against PostgreSQL.
-- Templating: Askama (Jinja-like HTML templates under `templates/`).
-- Frontend: HTMX 2.0.4 for partial updates, Pico CSS for styling.
+- DB access: sqlx 0.9 with compile-time checked queries against PostgreSQL.
+- Templating: Askama 0.16 (Jinja-like HTML templates under `templates/`).
+- Frontend: HTMX 2.0.10 for partial updates, custom CSS (`static/custom.css`) for styling.
 - CLI args: clap.
-- Tests: `thirtyfour` (WebDriver/Selenium) integration tests that drive Firefox via geckodriver.
+- Tests: `thirtyfour` 0.37 (WebDriver/Selenium) integration tests that drive Firefox via geckodriver.
 
 ## Running the app
 
@@ -44,16 +44,16 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 ## Project structure
 
 - `src/main.rs` — Axum router setup, routes, and startup.
-- `src/handlers.rs` — All HTTP handlers. Heavy use of `sqlx::query_as!` and `query!` macros.
-- `src/auth.rs` — GitHub OAuth login, session management, and Axum extractors (`AuthUser`, `MaybeAuthUser`).
+- `src/handlers.rs` — HTTP handlers for retros, items, and archive/delete.
+- `src/auth.rs` — GitHub OAuth login/logout, session management, and Axum extractors (`AuthUser`, `MaybeAuthUser`).
 - `src/config.rs` — Environment-based configuration (`Config::from_env`).
 - `src/github.rs` — GitHub API helpers (get user, check team membership, list org teams).
-- `src/models.rs` — `Retrospective`, `Item`, `Category` and `Status` enum types.
+- `src/models.rs` — `Retrospective`, `Item`, `Category`, `Status` and author-initials logic.
 - `src/templates.rs` — Askama template structs for each page.
 - `templates/` — Askama HTML templates.
 - `migrations/` — sqlx migrations (PostgreSQL enum types, tables, constraints).
 - `static/` — CSS, SVG icons, favicon.
-- `tests/` — WebDriver integration tests plus shared helpers.
+- `tests/` — WebDriver integration tests plus migration tests and shared helpers.
 
 ## Authentication & authorization
 
@@ -61,7 +61,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - **GitHub OAuth**: when `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are set, users must sign in via GitHub (or GitHub Enterprise Server if `GITHUB_ENTERPRISE_URL` is configured).
 - **Admins**: users who are members of the configured admin team (`GITHUB_ADMIN_ORG` / `GITHUB_ADMIN_TEAM_SLUG`). Only admins can create or delete retros.
 - **Retro access**: each retro is assigned a team at creation time (`team_slug`). Non-admin users can only view or change retros whose team they belong to (checked live against the GitHub API). Admins can see and manage all retros.
-- **Sessions**: stored in Postgres (`sessions` table) and referenced by a random `rostfacto_session` cookie.
+- **Sessions**: stored in Postgres (`sessions` table) and referenced by a `rostfacto_session` cookie. Admin status and team membership are resolved once at login and cached in the session (`is_admin`, `teams` JSONB); subsequent requests read the cache.
 - **403 vs 404**: non-existent retros return 404; existing retros the user is not authorized to access return 403.
 
 ### Required environment variables for production
@@ -90,7 +90,11 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 | `/retro/{slug}/delete` | DELETE | Delete a retro and its items (admin only) |
 | `/retro/{retro_id}/archive` | POST | Archive all items in the retro |
 | `/items/{category}/{retro_id}` | POST | Add a new item card |
+| `/items/{id}` | GET | Render a single item card |
+| `/items/{id}` | POST | Update item text |
+| `/items/{id}/edit` | GET | Show inline edit form for an item |
 | `/items/{id}/status` | POST | Change item status (highlight/complete/cancel) |
+| `/items/{id}/like` | POST | Toggle a like on the item |
 | `/auth/login` | GET | Start GitHub OAuth login |
 | `/auth/callback` | GET | GitHub OAuth callback |
 | `/auth/logout` | GET | Sign out and clear session |
@@ -98,20 +102,28 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 
 ## Database schema
 
-- `retrospectives(id, title, slug, created_at, team_slug, created_by)` — unique slug is the public URL key; `team_slug` controls access.
-- `items(id, retro_id, text, category, created_at, status)` — FK to `retrospectives` with `ON DELETE CASCADE`.
-- `users(id, github_id, username, avatar_url, access_token, created_at)` — GitHub users who have logged in.
-- `sessions(id, user_id, expires_at, created_at)` — server-side sessions.
+- `retrospectives(id, title, slug, created_at, updated_at, team_slug, created_by)` — unique slug is the public URL key; `team_slug` controls access.
+- `items(id, retro_id, text, category, created_at, updated_at, status, created_by, author_id, author_name, author_initials, likes_count)` — FK to `retrospectives` with `ON DELETE CASCADE`, FK to `users` with `ON DELETE RESTRICT`.
+- `users(id, github_id, username, full_name, display_name, avatar_url, created_at, updated_at)` — GitHub users who have logged in. `display_name` is a virtual column (`COALESCE(full_name, username)`).
+- `sessions(id, user_id, expires_at, created_at, updated_at, is_admin, teams)` — server-side sessions. `id` is a UUIDv7 text token; `teams` is a JSONB cache of team slugs/names.
+- `likes(item_id, user_id)` — toggled likes on items.
 - Enums:
   - `category` = `GOOD`, `BAD`, `WATCH`
   - `status` = `CREATED`, `HIGHLIGHTED`, `COMPLETED`, `ARCHIVED`
-- Partial unique index: only one `HIGHLIGHTED` item per retro (`single_highlighted_item_per_retro`).
+- Indexes/constraints:
+  - Partial unique index: only one `HIGHLIGHTED` item per retro (`single_highlighted_item_per_retro`).
+  - `items_retro_category_status_idx` covering index on `(retro_id, category, status)`.
+  - CHECK constraints on slug format, non-empty item text, and non-empty username.
+  - Integer identity columns use `GENERATED ALWAYS AS IDENTITY`.
 
 ## Core domain logic
 
-- **Card lifecycle**: `CREATED` → `HIGHLIGHTED` → `COMPLETED`. `ARCHIVED` is a terminal state used for all items at once.
-- **Highlighting**: clicking a created card marks it highlighted. Because of the DB index, only one item per retro can be highlighted; an attempt to highlight a second card fails.
-- **Completing**: a highlighted card shows "Complete" and "Cancel" buttons. Completing sets it to `COMPLETED`. Cancel returns it to `CREATED`.
+- **Card lifecycle**: `CREATED` → `HIGHLIGHTED` → `COMPLETED`. `ARCHIVED` is a terminal state used for all items at once. Completed cards cannot be re-highlighted.
+- **Highlighting**: clicking a created card marks it highlighted. Because of the DB index, only one item per retro can be highlighted; an attempt to highlight a second card renders an error on that card.
+- **Completing**: a highlighted card shows "Done" and "Cancel" buttons. Completing sets it to `COMPLETED`. Cancel returns it to `CREATED`.
+- **Timer**: highlighted cards show a 5-minute countdown timer with a +2 minute extend button. The timer is client-side only (no server state).
+- **Likes**: any card can be liked; likes are per-user and toggle on/off.
+- **Editing**: item text can be edited inline.
 - **All-done prompt**: when the last active item is completed, the server returns a modal asking whether to archive all cards. Declining keeps them visible as completed.
 - **Archived items** are hidden from the retro board view.
 - **Slug rules**: lowercase letters, numbers, dashes only, max 255 chars, unique.
@@ -121,13 +133,17 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - Templates are server-rendered Askama HTML.
 - HTMX attributes are used for inline updates:
   - Adding cards swaps the result into `#good-items`, `#bad-items`, or `#watch-items`.
-  - Status changes replace the nearest `.card`.
+  - Status changes, likes, and text edits replace the nearest `.card`.
   - Delete buttons target the closest table row.
-  - No custom JavaScript beyond HTMX attributes.
+- Small inline JS snippets are still present:
+  - Account menu open/close on the retro page.
+  - Archive confirmation dialog from the account menu.
+  - Card countdown timers and timer extension.
 
 ## Testing
 
 - Integration tests are in `tests/integration_test.rs` using `thirtyfour`.
+- Migration tests are in `tests/migration_test.rs`.
 - `tests/test_helpers.rs` starts a geckodriver instance and provides page objects (`HomePage`, `RetrosPage`, `RetroPage`).
 - Each integration test starts its own app instance on a random port with a fresh PostgreSQL database copied from a migrated template; you do not need to start a server beforehand and it will not conflict with a dev server on port 3000.
 - The template database (`rostfacto_test_template`) is created automatically on the first test run, so `rostfacto-dev` is no longer polluted by test data.
@@ -151,7 +167,6 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 
 - `sqlx` macros are compile-time checked against a live database. Any schema change must be reflected in the DB or in `sqlx` prepare data; otherwise compilation fails with "set `DATABASE_URL` to use query macros online". Use `DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev`.
 - Askama templates are embedded and type-checked. The struct fields in `src/templates.rs` must match the template variables.
-- `models.rs` defines a `Category::ToString` that returns uppercase (`GOOD`/`BAD`/`WATCH`) to match the DB enum; don't confuse this with standard display formatting.
-- `Status::Archived` is a real enum variant but `archived_retro.html` is currently not wired to any route (only `archive_modal.html` is used).
-- The `AuthUser` extractor performs a live GitHub API call on every request to check admin/team membership; in demo mode this is skipped.
+- `models.rs` implements `Display` for `Category` so that `to_string()` returns uppercase (`GOOD`/`BAD`/`WATCH`) to match the DB enum. The same file also defines `url_segment()`, `display_label()`, `column_class()`, `icon()`, and `items_container_id()` helpers.
+- The `AuthUser` extractor reads cached admin/team data from the session; it does **not** call the GitHub API on every request. Live API calls happen only during the OAuth callback.
 - OAuth callbacks use `PUBLIC_URL` to build the redirect URI, so it must match the GitHub OAuth app settings.
