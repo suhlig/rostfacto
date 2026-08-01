@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH new_archive AS (\n                INSERT INTO archives (retro_id) VALUES ($1) RETURNING id\n            )\n            UPDATE items\n            SET status = 'ARCHIVED'::status,\n                archive_id = new_archive.id,\n                archived_at = NOW()\n            FROM new_archive\n            WHERE items.retro_id = $1\n              AND items.archive_id IS NULL\n            RETURNING items.id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1f7dcc902685c6d0665a3d1b5df579ca7692afa8cfeaed53b4b984c34854ded5"
+}

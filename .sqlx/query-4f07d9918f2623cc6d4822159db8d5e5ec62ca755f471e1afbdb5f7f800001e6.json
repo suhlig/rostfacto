@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = $1)",
+  "query": "SELECT EXISTS(SELECT 1 FROM items WHERE retro_id = $1 AND archive_id IS NULL)",
   "describe": {
     "columns": [
       {
@@ -12,12 +12,12 @@
     ],
     "parameters": {
       "Left": [
-        "Text"
+        "Int4"
       ]
     },
     "nullable": [
       null
     ]
   },
-  "hash": "586104f4cd1e80ee5a3c3ceb19e069e3446ea71fa38f979bc88d6742f1a73b1e"
+  "hash": "4f07d9918f2623cc6d4822159db8d5e5ec62ca755f471e1afbdb5f7f800001e6"
 }
