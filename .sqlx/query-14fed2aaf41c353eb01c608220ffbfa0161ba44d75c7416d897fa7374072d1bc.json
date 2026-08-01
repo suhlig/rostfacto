@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT conname FROM pg_constraint WHERE conrelid = 'retrospectives'::regclass AND contype = 'c'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "conname",
+        "type_info": "Name",
+        "origin": {
+          "Table": {
+            "table": "pg_constraint",
+            "name": "conname"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "14fed2aaf41c353eb01c608220ffbfa0161ba44d75c7416d897fa7374072d1bc"
+}

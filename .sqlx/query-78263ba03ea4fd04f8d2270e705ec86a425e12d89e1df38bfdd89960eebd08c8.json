@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO sessions (user_id, expires_at, is_admin, teams) VALUES ($1, NOW() + interval '1 hour', false, '[]'::jsonb) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "78263ba03ea4fd04f8d2270e705ec86a425e12d89e1df38bfdd89960eebd08c8"
+}

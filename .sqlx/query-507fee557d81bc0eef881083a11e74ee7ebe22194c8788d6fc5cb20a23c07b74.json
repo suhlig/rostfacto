@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT conname FROM pg_constraint WHERE conrelid = 'items'::regclass AND contype = 'c'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "conname",
+        "type_info": "Name",
+        "origin": {
+          "Table": {
+            "table": "pg_constraint",
+            "name": "conname"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "507fee557d81bc0eef881083a11e74ee7ebe22194c8788d6fc5cb20a23c07b74"
+}

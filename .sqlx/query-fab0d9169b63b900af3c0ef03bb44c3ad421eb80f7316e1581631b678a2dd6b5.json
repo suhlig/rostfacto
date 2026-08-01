@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT enumlabel FROM pg_enum WHERE enumtypid = 'status'::regtype ORDER BY enumlabel",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "enumlabel",
+        "type_info": "Name",
+        "origin": {
+          "Table": {
+            "table": "pg_enum",
+            "name": "enumlabel"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fab0d9169b63b900af3c0ef03bb44c3ad421eb80f7316e1581631b678a2dd6b5"
+}

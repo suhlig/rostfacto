@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'retrospectives'::regclass AND conname = 'retrospectives_created_by_fkey'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pg_get_constraintdef",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1ead8b1b20aaa8620712767159e71a6c90c3c57c15d801e3805ec94f5bbcd256"
+}
