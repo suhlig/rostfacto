@@ -69,6 +69,7 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
+- Check the HTML for correctness in all templates.
 - Action Items
 - Sync across all clients with SSE when
   * A new card appears
