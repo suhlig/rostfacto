@@ -4,10 +4,10 @@
 {% block title %}{{ retro.title }} - Rostfacto{% endblock %}
 
 {% block header %}
-<header class="retro-header">
+<header class="retro-header" data-retro-id="{{ retro.id }}">
   <h1>{{ retro.title }}</h1>
   <div class="retro-header-actions">
-    {{ macros::account_menu(retro, true) }}
+    {{ macros::account_menu(retro, true, can_archive) }}
   </div>
 </header>
 {% endblock %}

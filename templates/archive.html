@@ -4,11 +4,11 @@
 {% block title %}{{ retro.title }} - Archive {{ archive.created_at.format("%Y-%m-%d %H:%M") }}{% endblock %}
 
 {% block header %}
-<header class="retro-header">
+<header class="retro-header" data-retro-id="{{ retro.id }}">
   <h1>{{ retro.title }}</h1>
   <p>Archived {{ archive.created_at.format("%Y-%m-%d %H:%M") }}</p>
   <div class="retro-header-actions">
-    {{ macros::account_menu(retro, false) }}
+    {{ macros::account_menu(retro, false, can_archive) }}
   </div>
 </header>
 {% endblock %}

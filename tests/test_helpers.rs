@@ -377,6 +377,12 @@ impl<'a> RetroPage<'a> {
         })
     }
 
+    pub async fn retro_id(&self) -> WebDriverResult<i32> {
+        let header = self.driver.find(By::Css(".retro-header")).await?;
+        let id_str = header.attr("data-retro-id").await?.unwrap();
+        Ok(id_str.parse::<i32>().unwrap())
+    }
+
     pub async fn add_card(&self, category: &str, text: &str) -> WebDriverResult<i32> {
         let target = match category {
             "Good" => "#good-items",

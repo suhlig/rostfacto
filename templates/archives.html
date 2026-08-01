@@ -4,10 +4,10 @@
 {% block title %}{{ retro.title }} - Archives{% endblock %}
 
 {% block header %}
-<header class="retro-header">
+<header class="retro-header" data-retro-id="{{ retro.id }}">
   <h1>{{ retro.title }}</h1>
   <div class="retro-header-actions">
-    {{ macros::account_menu(retro, false) }}
+    {{ macros::account_menu(retro, false, can_archive) }}
   </div>
 </header>
 {% endblock %}
@@ -21,7 +21,7 @@
     <ul class="archive-list">
       {% for archive in archives %}
         <li>
-         </li> <a href="/retro/{{ retro.slug }}/archives/{{ archive.id }}">
+          <a href="/retro/{{ retro.slug }}/archives/{{ archive.id }}">
             {{ archive.created_at.format("%Y-%m-%d %H:%M") }}
           </a>
         </li>

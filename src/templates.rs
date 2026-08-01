@@ -67,6 +67,7 @@ pub struct RetroTemplate {
     pub user: Option<AuthUser>,
     pub demo_mode: bool,
     pub error_message: Option<String>,
+    pub can_archive: bool,
 }
 
 #[derive(Template)]
@@ -77,6 +78,7 @@ pub struct ArchivesTemplate {
     pub is_admin: bool,
     pub user: Option<AuthUser>,
     pub demo_mode: bool,
+    pub can_archive: bool,
 }
 
 #[derive(Template)]
@@ -90,6 +92,7 @@ pub struct ArchiveTemplate {
     pub is_admin: bool,
     pub user: Option<AuthUser>,
     pub demo_mode: bool,
+    pub can_archive: bool,
 }
 
 pub struct GitHubTeam {

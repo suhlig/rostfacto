@@ -1008,3 +1008,73 @@ async fn test_archive_snapshot_is_created_and_viewable() -> WebDriverResult<()> 
     browser.close().await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn test_archive_link_disabled_when_empty() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Empty Retro Archive Link").await?;
+
+    retro_page
+        .driver
+        .find(By::Css(".account-menu button"))
+        .await?
+        .click()
+        .await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+    let archive_link = retro_page
+        .driver
+        .find(By::Css(".archive-menu-link"))
+        .await?;
+    let class_attr = archive_link.attr("class").await?.unwrap_or_default();
+    assert!(
+        class_attr.contains("disabled"),
+        "Archive link should be disabled when there are no cards"
+    );
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_archive_empty_retro_creates_no_snapshot() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page
+        .create_retro("Empty Retro Archive Server")
+        .await?;
+
+    // Submit the archive form directly via fetch, even though the UI disables the link
+    let script = format!(
+        r#"return fetch('/retro/{}/archive', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/x-www-form-urlencoded'}}
+        }}).then(r => r.status);"#,
+        retro_page.retro_id().await?
+    );
+    let result = browser.driver.execute(&script, vec![]).await?;
+    let status = result.json().as_u64().unwrap();
+    assert_eq!(
+        status, 200,
+        "Archive request should redirect and be followed"
+    );
+
+    retro_page.navigate_to_archives().await?;
+    let archive_links = retro_page
+        .driver
+        .find_all(By::Css(".archive-list a"))
+        .await?;
+    assert_eq!(
+        archive_links.len(),
+        0,
+        "No archive snapshot should be created for an empty retro"
+    );
+
+    browser.close().await?;
+    Ok(())
+}

@@ -421,6 +421,8 @@ pub async fn show_retro(
     })?
     .unwrap_or(false);
 
+    let can_archive = !good_items.is_empty() || !bad_items.is_empty() || !watch_items.is_empty();
+
     let template = RetroTemplate {
         retro,
         good_items,
@@ -431,6 +433,7 @@ pub async fn show_retro(
         user: Some(user),
         demo_mode: state.config.demo_mode(),
         error_message: None,
+        can_archive,
     };
 
     Ok(Html(template.render().unwrap()).into_response())
@@ -908,35 +911,55 @@ pub async fn archive_retro(
         }
     };
 
-    let archived_item_ids = sqlx::query_scalar!(
-        r#"
-        WITH new_archive AS (
-            INSERT INTO archives (retro_id) VALUES ($1) RETURNING id
-        )
-        UPDATE items
-        SET status = 'ARCHIVED'::status,
-            archive_id = new_archive.id,
-            archived_at = NOW()
-        FROM new_archive
-        WHERE items.retro_id = $1
-          AND items.archive_id IS NULL
-        RETURNING items.id
-        "#,
+    let active_items_count = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM items WHERE retro_id = $1 AND archive_id IS NULL",
         retro_id
     )
-    .fetch_all(&state.pool)
+    .fetch_one(&state.pool)
     .await
     .map_err(|error| {
-        log_database_error("archive_retro", &error);
+        log_database_error("archive_retro_count_active_items", &error);
         database_error_response()
-    })?;
+    })?
+    .unwrap_or(0);
 
-    tracing::info!(
-        retro_id,
-        user_id = user.user_id,
-        archived_items = archived_item_ids.len(),
-        "retrospective archived"
-    );
+    if active_items_count > 0 {
+        let archived_item_ids = sqlx::query_scalar!(
+            r#"
+            WITH new_archive AS (
+                INSERT INTO archives (retro_id) VALUES ($1) RETURNING id
+            )
+            UPDATE items
+            SET status = 'ARCHIVED'::status,
+                archive_id = new_archive.id,
+                archived_at = NOW()
+            FROM new_archive
+            WHERE items.retro_id = $1
+              AND items.archive_id IS NULL
+            RETURNING items.id
+            "#,
+            retro_id
+        )
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|error| {
+            log_database_error("archive_retro", &error);
+            database_error_response()
+        })?;
+
+        tracing::info!(
+            retro_id,
+            user_id = user.user_id,
+            archived_items = archived_item_ids.len(),
+            "retrospective archived"
+        );
+    } else {
+        tracing::info!(
+            retro_id,
+            user_id = user.user_id,
+            "retro has no active items to archive"
+        );
+    }
 
     Ok((
         StatusCode::SEE_OTHER,
@@ -1005,6 +1028,18 @@ pub async fn list_archives(
         database_error_response()
     })?;
 
+    let can_archive = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM items WHERE retro_id = $1 AND archive_id IS NULL)",
+        retro.id
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("list_archives_can_archive", &error);
+        database_error_response()
+    })?
+    .unwrap_or(false);
+
     Ok(Html(
         ArchivesTemplate {
             retro,
@@ -1012,6 +1047,7 @@ pub async fn list_archives(
             is_admin: user.is_admin,
             user: Some(user),
             demo_mode: state.config.demo_mode(),
+            can_archive,
         }
         .render()
         .unwrap(),
@@ -1118,6 +1154,18 @@ pub async fn show_archive(
 
     apply_author_initials(&mut [&mut good_items, &mut bad_items, &mut watch_items]);
 
+    let can_archive = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM items WHERE retro_id = $1 AND archive_id IS NULL)",
+        retro.id
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("show_archive_can_archive", &error);
+        database_error_response()
+    })?
+    .unwrap_or(false);
+
     Ok(Html(
         ArchiveTemplate {
             retro,
@@ -1128,6 +1176,7 @@ pub async fn show_archive(
             is_admin: user.is_admin,
             user: Some(user),
             demo_mode: state.config.demo_mode(),
+            can_archive,
         }
         .render()
         .unwrap(),

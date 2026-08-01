@@ -7,7 +7,7 @@
   {% endif %}
 {% endmacro %}
 
-{% macro account_menu(retro, show_archive=false) %}
+{% macro account_menu(retro, show_archive=false, can_archive=false) %}
   {% if let Some(user) = user %}
     <div class="account-menu">
       <button type="button">{{ user.username }}</button>
@@ -29,7 +29,7 @@
               </article>
             </dialog>
             <form id="archive-direct-form-{{ retro.id }}" method="POST" action="/retro/{{ retro.id }}/archive" class="archive-menu-form" hidden></form>
-            <a href="#" class="archive-menu-link" onclick="openArchiveMenuDialog(event, {{ retro.id }}); return false;">Archive this retro</a>
+            <a href="#" class="archive-menu-link {% if !can_archive %}disabled{% endif %}" id="archive-menu-link-{{ retro.id }}" onclick="{% if can_archive %}openArchiveMenuDialog(event, {{ retro.id }}); return false;{% else %}return false;{% endif %}">Archive this retro</a>
           </li>
         {% endif %}
         <li><a href="/auth/logout">Sign out</a></li>
@@ -69,6 +69,31 @@
           document.getElementById('archive-direct-form-' + retroId).submit();
         }
       }
+
+      (function() {
+        const retroId = {{ retro.id }};
+
+        function updateArchiveLink() {
+          const link = document.getElementById('archive-menu-link-' + retroId);
+          if (!link) return;
+          const hasCards = document.querySelectorAll('article.card').length > 0;
+          if (hasCards) {
+            link.classList.remove('disabled');
+            link.onclick = function(event) {
+              openArchiveMenuDialog(event, retroId);
+              return false;
+            };
+          } else {
+            link.classList.add('disabled');
+            link.onclick = function() {
+              return false;
+            };
+          }
+        }
+
+        document.addEventListener('DOMContentLoaded', updateArchiveLink);
+        document.body.addEventListener('htmx:afterSettle', updateArchiveLink);
+      })();
     </script>
   {% endif %}
 {% endmacro %}
