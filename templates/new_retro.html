@@ -29,8 +29,9 @@
     <label for="slug">Slug</label>
     <input type="text" id="slug" name="slug" required
            pattern="[a-z0-9-]+"
-           maxlength="255">
-    <small id="slug">
+           maxlength="255"
+           aria-describedby="slug-help">
+    <small id="slug-help">
       Lowercase letters, numbers and dashes only; up to 255 characters
     </small>
 
@@ -47,7 +48,7 @@
       <small>Only members of this team will be able to view or change this retrospective.</small>
     {% endif %}
 
-    <input type="submit" value="Create Retrospective" class="btn-primary">
+    <button type="submit" class="btn-primary">Create Retrospective</button>
   </form>
 </div>
 {% endblock %}

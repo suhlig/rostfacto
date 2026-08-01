@@ -3,7 +3,7 @@
     <li><span>{{ user.username }}</span></li>
     <li><a href="/auth/logout">Sign out</a></li>
   {% else %}
-    <li><a href="/auth/login" role="button">Sign in with GitHub</a></li>
+    <li><a href="/auth/login" class="header-button-link">Sign in with GitHub</a></li>
   {% endif %}
 {% endmacro %}
 
@@ -23,13 +23,16 @@
                 <p id="archive-confirm-message-{{ retro.id }}">Are you sure you want to archive all cards?</p>
                 <form method="POST" action="/retro/{{ retro.id }}/archive">
                   <fieldset class="grid">
+                    <legend class="visually-hidden">Archive actions</legend>
                     <button type="button" class="btn-cancel secondary" onclick="this.closest('dialog').close()">Cancel</button>
                     <button type="submit" class="btn-archive primary">Archive</button>
                   </fieldset>
                 </form>
               </article>
             </dialog>
-            <form id="archive-direct-form-{{ retro.id }}" method="POST" action="/retro/{{ retro.id }}/archive" class="archive-menu-form" hidden></form>
+            <form id="archive-direct-form-{{ retro.id }}" method="POST" action="/retro/{{ retro.id }}/archive" class="archive-menu-form" hidden>
+              <button type="submit" hidden>Archive</button>
+            </form>
             <a href="#" class="archive-menu-link {% if !can_archive %}disabled{% endif %}" id="archive-menu-link-{{ retro.id }}" onclick="{% if can_archive %}openArchiveMenuDialog(event, {{ retro.id }}); return false;{% else %}return false;{% endif %}">Archive this retro</a>
           </li>
         {% endif %}
@@ -131,13 +134,15 @@
 
 {% macro card_actions(item) %}
   <div class="card-actions">
-    <button class="btn-secondary secondary"
+    <button type="button"
+            class="btn-secondary secondary"
             hx-post="/items/{{ item.id }}/status?action=cancel"
             hx-target="closest .card"
             hx-swap="outerHTML">
       Cancel
     </button>
-    <button class="btn-primary primary"
+    <button type="button"
+            class="btn-primary primary"
             hx-post="/items/{{ item.id }}/status?action=complete"
             hx-target="closest .card"
             hx-swap="outerHTML">
@@ -150,7 +155,7 @@
 <article class="card completed" data-item-id="{{ item.id }}">
   <div class="card-content">
     <p>
-      <span class="card-text">{{ item.text }}</span></p>
+      <span class="card-text">{{ item.text }}</span>
       <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span>
     </p>
     <span class="completed-check">✓</span>
@@ -165,8 +170,9 @@
       <p>Are you sure?</p>
       <form method="POST" action="/retro/{{ retro_id }}/archive">
         <fieldset class="grid">
-          <button class="btn-cancel secondary" formmethod="dialog" onclick="this.closest('dialog').close()">Cancel</button>
-          <button class="btn-archive primary" formmethod="post">Archive</button>
+          <legend class="visually-hidden">Archive actions</legend>
+          <button type="button" class="btn-cancel secondary" formmethod="dialog" onclick="this.closest('dialog').close()">Cancel</button>
+          <button type="submit" class="btn-archive primary" formmethod="post">Archive</button>
         </fieldset>
       </form>
     </article>

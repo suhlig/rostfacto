@@ -23,12 +23,12 @@
     </article>
   {% else %}
     <article class="card"
-             role="button"
              tabindex="0"
              data-item-id="{{ item.id }}"
              hx-post="/items/{{ item.id }}/status?action=highlight"
              hx-target="closest .card"
-             hx-swap="outerHTML">
+             hx-swap="outerHTML"
+             aria-label="Highlight card">
       {{ macros::like_button(item) }}
       <div class="card-content">
         {{ macros::card_text_edit_button(item, true) }}
