@@ -13,6 +13,7 @@
       <button type="button">{{ user.username }}</button>
       <ul class="account-menu-list">
         <li><a href="/retros">Dashboard</a></li>
+        <li><a href="/retro/{{ retro.slug }}">Board</a></li>
         <li><a href="/retro/{{ retro.slug }}/archives">Show Archive</a></li>
         {% if show_archive %}
           <li>

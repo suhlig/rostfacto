@@ -264,6 +264,10 @@ label {
   font-weight: 700;
 }
 
+.retro-table a[role="button"] {
+  color: #fff;
+}
+
 .retro-table .actions-col {
   width: 120px;
 }
