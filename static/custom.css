@@ -840,7 +840,8 @@ button.add-card-submit:hover {
 
 /* Archive modal */
 #archive-modal,
-.archive-confirm-dialog {
+.archive-confirm-dialog,
+.keyboard-help-dialog {
   position: fixed;
   inset: 0;
   margin: auto;
@@ -853,12 +854,14 @@ button.add-card-submit:hover {
 }
 
 #archive-modal::backdrop,
-.archive-confirm-dialog::backdrop {
+.archive-confirm-dialog::backdrop,
+.keyboard-help-dialog::backdrop {
   background-color: rgba(0, 0, 0, 0.45);
 }
 
 #archive-modal article,
-.archive-confirm-dialog article {
+.archive-confirm-dialog article,
+.keyboard-help-dialog article {
   background-color: #fff;
   border-radius: var(--rf-card-radius);
   padding: 1.5rem;
@@ -867,7 +870,8 @@ button.add-card-submit:hover {
 }
 
 #archive-modal h3,
-.archive-confirm-dialog h3 {
+.archive-confirm-dialog h3,
+.keyboard-help-dialog h3 {
   margin-top: 0;
   font-size: 1.25rem;
   font-weight: 700;
@@ -897,7 +901,8 @@ button.add-card-submit:hover {
 }
 
 #archive-modal button,
-.archive-confirm-dialog button {
+.archive-confirm-dialog button,
+.keyboard-help-dialog button {
   margin: 0;
   border-radius: var(--rf-button-radius);
   padding: 0.5rem 1.25rem;
@@ -907,7 +912,8 @@ button.add-card-submit:hover {
 #archive-modal .btn-cancel,
 .archive-confirm-dialog .btn-cancel,
 #archive-modal .btn-secondary,
-.archive-confirm-dialog .btn-secondary {
+.archive-confirm-dialog .btn-secondary,
+.keyboard-help-dialog .secondary {
   background-color: transparent;
   border-color: var(--rf-text-muted);
   color: var(--rf-text-muted);
@@ -916,7 +922,8 @@ button.add-card-submit:hover {
 #archive-modal .btn-archive,
 .archive-confirm-dialog .btn-archive,
 #archive-modal .btn-primary,
-.archive-confirm-dialog .btn-primary {
+.archive-confirm-dialog .btn-primary,
+.keyboard-help-dialog .primary {
   background-color: var(--rf-green);
   border-color: var(--rf-green);
   color: #fff;
@@ -1016,6 +1023,44 @@ button.add-card-submit:hover {
 .error-page a {
   display: inline-block;
   margin-top: 2rem;
+}
+
+/* Keyboard shortcuts help */
+.keyboard-help-dialog {
+  max-width: 480px;
+}
+
+.keyboard-help-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+}
+
+.keyboard-help-table tr:not(:last-child) td {
+  border-bottom: 1px solid #E5E0D4;
+}
+
+.keyboard-help-table td {
+  padding: 0.6rem 0;
+  vertical-align: top;
+}
+
+.keyboard-help-table td:first-child {
+  white-space: nowrap;
+  padding-right: 1.5rem;
+  width: 42%;
+}
+
+.keyboard-help-table kbd {
+  display: inline-block;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
 }
 
 /* Utility */

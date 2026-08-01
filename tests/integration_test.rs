@@ -250,6 +250,174 @@ async fn test_create_cards() -> WebDriverResult<()> {
 }
 
 #[tokio::test]
+async fn test_command_enter_submits_new_card() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Keyboard Shortcut Test").await?;
+
+    let form = retro_page
+        .driver
+        .find(By::Css("form[hx-target='#good-items']"))
+        .await?;
+    let input = form.find(By::Tag("textarea")).await?;
+    input.send_keys("Cmd+Enter card").await?;
+    input.send_keys(Key::Control + Key::Enter).await?;
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    let cards = retro_page.get_cards_in_category("Good").await?;
+    assert_eq!(
+        cards.len(),
+        1,
+        "Card should be submitted via keyboard shortcut"
+    );
+    let card_text = cards[0].find(By::Css(".card-text")).await?.text().await?;
+    assert_eq!(card_text, "Cmd+Enter card");
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_keyboard_shortcuts() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Keyboard Shortcuts Test").await?;
+
+    let card_id = retro_page
+        .add_card("Good", "Keyboard shortcut card")
+        .await?;
+
+    // Esc cancels inline editing.
+    retro_page
+        .driver
+        .find(By::Css(format!(
+            "article[data-item-id='{}'] .card-text-edit",
+            card_id
+        )))
+        .await?
+        .click()
+        .await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+    let edit_input = retro_page
+        .driver
+        .find(By::Css(format!(
+            "article[data-item-id='{}'] textarea[name='text']",
+            card_id
+        )))
+        .await?;
+    edit_input.send_keys(Key::Escape).await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+    retro_page.verify_card_state(card_id, "card").await?;
+
+    // Enter highlights a focused card.
+    let card = retro_page.get_card(card_id).await?;
+    let script = r#"
+        arguments[0].focus();
+        arguments[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        return true;
+    "#;
+    retro_page
+        .driver
+        .execute(script, vec![card.to_json()?])
+        .await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+    retro_page
+        .verify_card_state(card_id, "card highlighted")
+        .await?;
+
+    // Esc cancels the highlight.
+    let highlighted_card = retro_page.get_card(card_id).await?;
+    let script = r#"
+        arguments[0].focus();
+        arguments[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        return true;
+    "#;
+    retro_page
+        .driver
+        .execute(script, vec![highlighted_card.to_json()?])
+        .await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+    retro_page.verify_card_state(card_id, "card").await?;
+
+    // L likes a focused card.
+    let card = retro_page.get_card(card_id).await?;
+    let script = r#"
+        arguments[0].focus();
+        arguments[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'l', bubbles: true, cancelable: true }));
+        return true;
+    "#;
+    retro_page
+        .driver
+        .execute(script, vec![card.to_json()?])
+        .await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+    let like_count = retro_page
+        .driver
+        .find(By::Css(format!(
+            "article[data-item-id='{}'] .like-count",
+            card_id
+        )))
+        .await?
+        .text()
+        .await?;
+    assert_eq!(like_count, "1", "L should like the focused card");
+
+    // N focuses the add-card input.
+    let active_class = retro_page
+        .driver
+        .execute(
+            r#"
+                document.body.focus();
+                document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', bubbles: true, cancelable: true }));
+                return document.activeElement ? document.activeElement.className : '';
+            "#,
+            vec![],
+        )
+        .await?
+        .json()
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        active_class.contains("add-card-input"),
+        "N should focus the add-card input, got classes: {}",
+        active_class
+    );
+
+    // ? opens the keyboard shortcuts help dialog.
+    let dialog_open = retro_page
+        .driver
+        .execute(
+            r#"
+                document.body.focus();
+                document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true, cancelable: true }));
+                return document.getElementById('keyboard-help').hasAttribute('open');
+            "#,
+            vec![],
+        )
+        .await?
+        .json()
+        .as_bool()
+        .unwrap();
+    assert!(
+        dialog_open,
+        "? should open the keyboard shortcuts help dialog"
+    );
+    retro_page
+        .driver
+        .execute("document.getElementById('keyboard-help').close();", vec![])
+        .await?;
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_edit_card() -> WebDriverResult<()> {
     let db = TestDb::new().await;
     let server = TestServer::start(&db.database_url).await;

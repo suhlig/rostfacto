@@ -2,7 +2,7 @@
 
 {% match item.status %}
   {% when Status::Highlighted %}
-    <article class="card highlighted" data-item-id="{{ item.id }}">
+    <article class="card highlighted" tabindex="0" data-item-id="{{ item.id }}">
       <div class="timer-wrap">
         <div class="timer-badge" data-initial-seconds="300">5:00</div>
         <button type="button" class="timer-extend" hidden data-extend-seconds="120">+2 min</button>
@@ -14,7 +14,7 @@
       </div>
     </article>
   {% when Status::Completed %}
-    <article class="card completed" data-item-id="{{ item.id }}">
+    <article class="card completed" tabindex="0" data-item-id="{{ item.id }}">
       {{ macros::like_button(item) }}
       <div class="card-content">
         <p><span class="card-text">{{ item.text }}</span> <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>

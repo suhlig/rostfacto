@@ -43,6 +43,23 @@
   {% include "archive_modal_dialog.html" %}
 {% endif %}
 
+<dialog id="keyboard-help" class="keyboard-help-dialog">
+  <article>
+    <h3>Keyboard shortcuts</h3>
+    <table class="keyboard-help-table">
+      <tbody>
+        <tr><td><kbd>Cmd</kbd> + <kbd>Enter</kbd></td><td>Add or save a card</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Cancel editing or cancel a highlighted card</td></tr>
+        <tr><td><kbd>Enter</kbd> / <kbd>Space</kbd></td><td>Highlight a focused card</td></tr>
+        <tr><td><kbd>L</kbd></td><td>Like a focused card</td></tr>
+        <tr><td><kbd>N</kbd></td><td>Focus the add-card input</td></tr>
+        <tr><td><kbd>?</kbd></td><td>Show this help</td></tr>
+      </tbody>
+    </table>
+    <button type="button" class="secondary" onclick="this.closest('dialog').close()">Close</button>
+  </article>
+</dialog>
+
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const menu = document.querySelector('.account-menu');
@@ -152,6 +169,59 @@
       if (button) {
         e.stopPropagation();
         extendTimer(button);
+      }
+    });
+  })();
+
+  (function() {
+    function isTyping(target) {
+      const tag = target.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || target.isContentEditable;
+    }
+
+    function isInsideDialog(target) {
+      return target.closest('dialog[open]') !== null;
+    }
+
+    document.addEventListener('keydown', function(e) {
+      const card = e.target.closest('article.card');
+      if (card && e.target === card) {
+        if ((e.key === 'Enter' || e.key === ' ') && card.hasAttribute('hx-post')) {
+          e.preventDefault();
+          card.click();
+          return;
+        }
+        if (e.key === 'Escape' && card.classList.contains('highlighted')) {
+          e.preventDefault();
+          const cancel = card.querySelector('.card-actions .btn-secondary');
+          if (cancel) cancel.click();
+          return;
+        }
+        if (e.key === 'l' || e.key === 'L') {
+          e.preventDefault();
+          const like = card.querySelector('.like-button');
+          if (like) like.click();
+          return;
+        }
+      }
+
+      if (isTyping(e.target) || isInsideDialog(e.target)) return;
+
+      if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        const input = document.querySelector('.add-card-input');
+        if (input) {
+          input.focus();
+          input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+
+      if (e.key === '?') {
+        e.preventDefault();
+        const dialog = document.getElementById('keyboard-help');
+        if (dialog) dialog.showModal();
+        return;
       }
     });
   })();

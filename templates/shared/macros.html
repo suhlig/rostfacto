@@ -121,7 +121,8 @@
         hx-target="#{{ target_id }}"
         hx-swap="afterbegin"
         hx-on::after-request="if(event.detail.successful) this.reset()">
-    <textarea name="text" class="add-card-input" rows="1" placeholder="{{ placeholder }}" required></textarea>
+    <textarea name="text" class="add-card-input" rows="1" placeholder="{{ placeholder }}" required
+              hx-on:keydown="if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); this.closest('form').requestSubmit(); }"></textarea>
     <button class="add-card-submit" type="submit">Add</button>
   </form>
 {% endmacro %}
