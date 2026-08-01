@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "shared/macros.html" as macros %}
+
+{% block title %}{{ retro.title }} - Archives{% endblock %}
+
+{% block header %}
+<header class="retro-header">
+  <h1>{{ retro.title }}</h1>
+  <div class="retro-header-actions">
+    <a href="/retro/{{ retro.slug }}">Back to retro</a>
+    {{ macros::account_menu(retro.id, false) }}
+  </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h2>Archives</h2>
+  {% if archives.is_empty() %}
+    <p>No archives yet.</p>
+  {% else %}
+    <ul class="archive-list">
+      {% for archive in archives %}
+        <li>
+         </li> <a href="/retro/{{ retro.slug }}/archives/{{ archive.id }}">
+            {{ archive.created_at.format("%Y-%m-%d %H:%M") }}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>
+{% endblock %}

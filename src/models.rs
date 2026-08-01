@@ -15,6 +15,13 @@ pub struct Retrospective {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct Archive {
+    pub id: i32,
+    pub retro_id: i32,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Item {
     pub id: i32,
     pub retro_id: i32,
@@ -26,6 +33,8 @@ pub struct Item {
     pub author_name: String,
     pub author_initials: String,
     pub likes_count: i64,
+    pub archive_id: Option<i32>,
+    pub archived_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 pub fn apply_author_initials(items: &mut [&mut Vec<Item>]) {

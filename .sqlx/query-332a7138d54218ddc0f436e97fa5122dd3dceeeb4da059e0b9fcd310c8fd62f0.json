@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                  i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                  i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                  ''::text as \"author_initials!\",\n                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as \"likes_count!\"\n           FROM items i\n           JOIN users u ON u.id = i.created_by\n           WHERE i.retro_id = $1\n           AND i.category = 'BAD'\n           AND i.status != 'ARCHIVED'::status\n           ORDER BY i.created_at ASC",
+  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                  i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                  i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                  ''::text as \"author_initials!\",\n                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as \"likes_count!\",\n                  i.archive_id as \"archive_id: _\", i.archived_at as \"archived_at: _\"\n           FROM items i\n           JOIN users u ON u.id = i.created_by\n           WHERE i.retro_id = (SELECT retro_id FROM items WHERE id = $1)",
   "describe": {
     "columns": [
       {
@@ -125,6 +125,28 @@
         "name": "likes_count!",
         "type_info": "Int8",
         "origin": "Expression"
+      },
+      {
+        "ordinal": 10,
+        "name": "archive_id: _",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "archive_id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "archived_at: _",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "archived_at"
+          }
+        }
       }
     ],
     "parameters": {
@@ -142,8 +164,10 @@
       false,
       true,
       null,
-      null
+      null,
+      true,
+      true
     ]
   },
-  "hash": "b99f496f1b500b0f3cf16ae5dd3f2ce417f5e9ab72b6aecc3fe60c0bc3aa7251"
+  "hash": "332a7138d54218ddc0f436e97fa5122dd3dceeeb4da059e0b9fcd310c8fd62f0"
 }

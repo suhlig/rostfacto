@@ -7,6 +7,7 @@
 <header class="retro-header">
   <h1>{{ retro.title }}</h1>
   <div class="retro-header-actions">
+    <a href="/retro/{{ retro.slug }}/archives">Archives</a>
     {{ macros::account_menu(retro.id, true) }}
   </div>
 </header>

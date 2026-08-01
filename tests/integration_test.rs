@@ -967,3 +967,44 @@ async fn test_auth_login_redirects_in_demo_mode() -> WebDriverResult<()> {
     browser.close().await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn test_archive_snapshot_is_created_and_viewable() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Snapshot Archive Test").await?;
+
+    let card_id = retro_page.add_card("Good", "Card in snapshot").await?;
+    retro_page.click_card(card_id).await?;
+    retro_page.complete_card().await?;
+    retro_page.archive().await?;
+
+    retro_page.navigate_to_archives().await?;
+    let archive_links = retro_page
+        .driver
+        .find_all(By::Css(".archive-list a"))
+        .await?;
+    assert_eq!(
+        archive_links.len(),
+        1,
+        "One archive snapshot should be listed"
+    );
+
+    archive_links[0].click().await?;
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    let archived_cards = retro_page
+        .driver
+        .find_all(By::Css("#good-items .card"))
+        .await?;
+    assert_eq!(
+        archived_cards.len(),
+        1,
+        "Archived card should be visible in snapshot"
+    );
+
+    browser.close().await?;
+    Ok(())
+}

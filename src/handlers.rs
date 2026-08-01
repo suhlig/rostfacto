@@ -1,8 +1,9 @@
 use crate::auth::{AuthUser, MaybeAuthUser};
-use crate::models::{apply_author_initials, Category, Item, Retrospective, Status};
+use crate::models::{apply_author_initials, Archive, Category, Item, Retrospective, Status};
 use crate::templates::{
-    ArchiveModalTemplate, ErrorTemplate, GitHubTeam, HomeTemplate, ItemCardTemplate,
-    ItemEditTemplate, NewRetroTemplate, RetroTemplate, RetrosTemplate,
+    ArchiveModalTemplate, ArchiveTemplate, ArchivesTemplate, ErrorTemplate, GitHubTeam,
+    HomeTemplate, ItemCardTemplate, ItemEditTemplate, NewRetroTemplate, RetroTemplate,
+    RetrosTemplate,
 };
 use crate::AppState;
 use askama::Template;
@@ -44,7 +45,8 @@ async fn load_item_with_initials(
                   i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
                   i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!",
-                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!"
+                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = (SELECT retro_id FROM items WHERE id = $1)"#,
@@ -330,12 +332,13 @@ pub async fn show_retro(
                   i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
                   i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!",
-                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!"
+                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = $1
            AND i.category = 'GOOD'
-           AND i.status != 'ARCHIVED'::status
+           AND i.archive_id IS NULL
            ORDER BY i.created_at ASC"#,
         retro.id
     )
@@ -352,12 +355,13 @@ pub async fn show_retro(
                   i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
                   i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!",
-                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!"
+                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = $1
            AND i.category = 'BAD'
-           AND i.status != 'ARCHIVED'::status
+           AND i.archive_id IS NULL
            ORDER BY i.created_at ASC"#,
         retro.id
     )
@@ -374,12 +378,13 @@ pub async fn show_retro(
                   i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
                   i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!",
-                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!"
+                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = $1
            AND i.category = 'WATCH'
-           AND i.status != 'ARCHIVED'::status
+           AND i.archive_id IS NULL
            ORDER BY i.created_at ASC"#,
         retro.id
     )
@@ -397,13 +402,13 @@ pub async fn show_retro(
         SELECT EXISTS (
             SELECT 1 FROM items
             WHERE retro_id = $1
-            AND status != 'ARCHIVED'::status
+            AND archive_id IS NULL
         )
         AND NOT EXISTS (
             SELECT 1 FROM items
             WHERE retro_id = $1
+            AND archive_id IS NULL
             AND status != 'COMPLETED'::status
-            AND status != 'ARCHIVED'::status
         )
         "#,
         retro.id
@@ -622,8 +627,8 @@ pub async fn change_item_status(
         SELECT NOT EXISTS (
             SELECT 1 FROM items
             WHERE retro_id = $1
+            AND archive_id IS NULL
             AND status != 'COMPLETED'::status
-            AND status != 'ARCHIVED'::status
         )
         "#,
         item.retro_id
@@ -903,22 +908,35 @@ pub async fn archive_retro(
         }
     };
 
-    sqlx::query!(
+    let archived_item_ids = sqlx::query_scalar!(
         r#"
+        WITH new_archive AS (
+            INSERT INTO archives (retro_id) VALUES ($1) RETURNING id
+        )
         UPDATE items
-        SET status = 'ARCHIVED'::status
-        WHERE retro_id = $1
+        SET status = 'ARCHIVED'::status,
+            archive_id = new_archive.id,
+            archived_at = NOW()
+        FROM new_archive
+        WHERE items.retro_id = $1
+          AND items.archive_id IS NULL
+        RETURNING items.id
         "#,
         retro_id
     )
-    .execute(&state.pool)
+    .fetch_all(&state.pool)
     .await
     .map_err(|error| {
         log_database_error("archive_retro", &error);
         database_error_response()
     })?;
 
-    tracing::info!(retro_id, user_id = user.user_id, "retrospective archived");
+    tracing::info!(
+        retro_id,
+        user_id = user.user_id,
+        archived_items = archived_item_ids.len(),
+        "retrospective archived"
+    );
 
     Ok((
         StatusCode::SEE_OTHER,
@@ -958,6 +976,163 @@ pub async fn delete_retro(
         "retrospective deleted"
     );
     StatusCode::OK.into_response()
+}
+
+pub async fn list_archives(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(slug): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let retro = match require_retro_access(&state, &user, &slug).await? {
+        Some(r) => r,
+        None => return Ok(not_found_response(&state, &slug)),
+    };
+
+    let archives = sqlx::query_as!(
+        Archive,
+        r#"
+        SELECT id, retro_id, created_at
+        FROM archives
+        WHERE retro_id = $1
+        ORDER BY created_at DESC
+        "#,
+        retro.id
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("list_archives", &error);
+        database_error_response()
+    })?;
+
+    Ok(Html(
+        ArchivesTemplate {
+            retro,
+            archives,
+            is_admin: user.is_admin,
+            user: Some(user),
+            demo_mode: state.config.demo_mode(),
+        }
+        .render()
+        .unwrap(),
+    )
+    .into_response())
+}
+
+pub async fn show_archive(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((slug, archive_id)): Path<(String, i32)>,
+) -> Result<impl IntoResponse, Response> {
+    let retro = match require_retro_access(&state, &user, &slug).await? {
+        Some(r) => r,
+        None => return Ok(not_found_response(&state, &slug)),
+    };
+
+    let archive = match sqlx::query_as!(
+        Archive,
+        r#"
+        SELECT id, retro_id, created_at
+        FROM archives
+        WHERE id = $1 AND retro_id = $2
+        "#,
+        archive_id,
+        retro.id
+    )
+    .fetch_optional(&state.pool)
+    .await
+    {
+        Ok(Some(a)) => a,
+        Ok(None) => return Err(not_found_page(&state)),
+        Err(error) => {
+            log_database_error("show_archive", &error);
+            return Err(database_error_response());
+        }
+    };
+
+    let mut good_items = sqlx::query_as!(
+        Item,
+        r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
+                  i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
+                  i.created_by as "author_id!", u.display_name as "author_name!",
+                  ''::text as "author_initials!",
+                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
+           FROM items i
+           JOIN users u ON u.id = i.created_by
+           WHERE i.archive_id = $1
+           AND i.category = 'GOOD'
+           ORDER BY i.created_at ASC"#,
+        archive.id
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("show_archive_good_items", &error);
+        database_error_response()
+    })?;
+
+    let mut bad_items = sqlx::query_as!(
+        Item,
+        r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
+                  i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
+                  i.created_by as "author_id!", u.display_name as "author_name!",
+                  ''::text as "author_initials!",
+                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
+           FROM items i
+           JOIN users u ON u.id = i.created_by
+           WHERE i.archive_id = $1
+           AND i.category = 'BAD'
+           ORDER BY i.created_at ASC"#,
+        archive.id
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("show_archive_bad_items", &error);
+        database_error_response()
+    })?;
+
+    let mut watch_items = sqlx::query_as!(
+        Item,
+        r#"SELECT i.id as "id!", i.retro_id as "retro_id!", i.text as "text!",
+                  i.category as "category: _", i.created_at as "created_at!", i.status as "status: _",
+                  i.created_by as "author_id!", u.display_name as "author_name!",
+                  ''::text as "author_initials!",
+                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
+           FROM items i
+           JOIN users u ON u.id = i.created_by
+           WHERE i.archive_id = $1
+           AND i.category = 'WATCH'
+           ORDER BY i.created_at ASC"#,
+        archive.id
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("show_archive_watch_items", &error);
+        database_error_response()
+    })?;
+
+    apply_author_initials(&mut [&mut good_items, &mut bad_items, &mut watch_items]);
+
+    Ok(Html(
+        ArchiveTemplate {
+            retro,
+            archive,
+            good_items,
+            bad_items,
+            watch_items,
+            is_admin: user.is_admin,
+            user: Some(user),
+            demo_mode: state.config.demo_mode(),
+        }
+        .render()
+        .unwrap(),
+    )
+    .into_response())
 }
 
 pub async fn not_found(State(state): State<AppState>, _user: MaybeAuthUser) -> impl IntoResponse {

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT NOT EXISTS (\n            SELECT 1 FROM items\n            WHERE retro_id = $1\n            AND status != 'COMPLETED'::status\n            AND status != 'ARCHIVED'::status\n        )\n        ",
+  "query": "\n        SELECT NOT EXISTS (\n            SELECT 1 FROM items\n            WHERE retro_id = $1\n            AND archive_id IS NULL\n            AND status != 'COMPLETED'::status\n        )\n        ",
   "describe": {
     "columns": [
       {
@@ -19,5 +19,5 @@
       null
     ]
   },
-  "hash": "496cd34b4733452ba60b5b0e7e797b41eab6846d0e87dbcfe9cf17d1dcddbb62"
+  "hash": "422ce0eb148dc7f188c01af4cdec89614d702fa074e4976728c1f48b940a6717"
 }

@@ -564,6 +564,13 @@ impl<'a> RetroPage<'a> {
         Ok(())
     }
 
+    pub async fn navigate_to_archives(&self) -> WebDriverResult<()> {
+        self.driver
+            .goto(format!("{}/retro/{}/archives", self.base_url, self.slug).as_str())
+            .await?;
+        Ok(())
+    }
+
     pub async fn delete(&self) -> WebDriverResult<()> {
         self.driver
             .goto(format!("{}/retros", self.base_url).as_str())

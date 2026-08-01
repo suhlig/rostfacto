@@ -1,5 +1,5 @@
 use crate::auth::AuthUser;
-use crate::models::{Category, Item, Retrospective, Status};
+use crate::models::{Archive, Category, Item, Retrospective, Status};
 use askama::Template;
 
 #[derive(Template)]
@@ -67,6 +67,29 @@ pub struct RetroTemplate {
     pub user: Option<AuthUser>,
     pub demo_mode: bool,
     pub error_message: Option<String>,
+}
+
+#[derive(Template)]
+#[template(path = "archives.html")]
+pub struct ArchivesTemplate {
+    pub retro: Retrospective,
+    pub archives: Vec<Archive>,
+    pub is_admin: bool,
+    pub user: Option<AuthUser>,
+    pub demo_mode: bool,
+}
+
+#[derive(Template)]
+#[template(path = "archive.html")]
+pub struct ArchiveTemplate {
+    pub retro: Retrospective,
+    pub archive: Archive,
+    pub good_items: Vec<Item>,
+    pub bad_items: Vec<Item>,
+    pub watch_items: Vec<Item>,
+    pub is_admin: bool,
+    pub user: Option<AuthUser>,
+    pub demo_mode: bool,
 }
 
 pub struct GitHubTeam {

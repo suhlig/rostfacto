@@ -100,6 +100,18 @@
   </div>
 {% endmacro %}
 
+{% macro archived_card(item) %}
+<article class="card completed" data-item-id="{{ item.id }}">
+  <div class="card-content">
+    <p>
+      <span class="card-text">{{ item.text }}</span></p>
+      <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span>
+    </p>
+    <span class="completed-check">✓</span>
+  </div>
+</article>
+{% endmacro %}
+
 {% macro archive_dialog(retro_id) %}
   <dialog id="archive-modal" open>
     <article>
