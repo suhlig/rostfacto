@@ -69,10 +69,7 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
-- Archive display, grouped by the day the items were created
 - Action Items
-- Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs
-- Allow multiple `GITHUB_USER_ORG`s
 - Sync across all clients with SSE when
   * A new card appears
   * A card changes status
@@ -81,6 +78,8 @@ SHOW_BROWSER=1 cargo test --test integration_test
   * Retro was completed (all cards disappear and all timers stop)
 
   Do not introduce a new infrastructure component. Use Postgres as hub, as much as sensible.
+- Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs
+- Allow multiple `GITHUB_USER_ORG`s
 - Allow adding a card anonymously
 - Publish a container image on every release and tag it with the release version
 - Release 2.0
