@@ -18,42 +18,161 @@
   --rf-text-muted: #6B6B6B;
   --rf-card-radius: 8px;
   --rf-button-radius: 6px;
+  --rf-spacing: 1rem;
+}
+
+/* Minimal reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+ul, ol {
+  list-style: none;
+}
+
+html {
+  font-size: 16px;
 }
 
 body {
   font-family: var(--font-family);
+  line-height: 1.5;
   color: var(--rf-text-dark);
   background-color: var(--rf-cream);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-header, footer {
-  padding: var(--pico-block-spacing-vertical) var(--pico-block-spacing-horizontal);
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
 }
 
-/* Global primary button */
-button[type="submit"],
-input[type="submit"],
-.btn-primary,
-a[role="button"] {
-  border-radius: var(--rf-button-radius);
+a {
+  color: var(--rf-blue);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Typography */
+h1, h2, h3, h4 {
   font-weight: 700;
+  line-height: 1.2;
 }
 
-button[type="submit"],
+p {
+  margin-bottom: 0.75rem;
+}
+
+small {
+  font-size: 0.85rem;
+  color: var(--rf-text-muted);
+  display: block;
+  margin-top: 0.25rem;
+}
+
+/* Layout */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+main {
+  flex: 1;
+}
+
+/* Buttons */
+button,
 input[type="submit"],
-.btn-primary,
 a[role="button"] {
-  background-color: var(--rf-green);
-  border-color: var(--rf-green);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: var(--rf-button-radius);
+  padding: 0.5rem 1rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: var(--rf-green);
   color: #fff;
+  line-height: 1.35;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-button[type="submit"]:hover,
+button:hover,
 input[type="submit"]:hover,
-.btn-primary:hover,
 a[role="button"]:hover {
-  background-color: var(--rf-green-dark);
-  border-color: var(--rf-green-dark);
+  background: var(--rf-green-dark);
+  text-decoration: none;
+}
+
+button:focus-visible,
+input[type="submit"]:focus-visible,
+a[role="button"]:focus-visible {
+  outline: 3px solid var(--rf-blue);
+  outline-offset: 2px;
+}
+
+button:disabled,
+input[type="submit"]:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Forms */
+input[type="text"],
+select,
+textarea {
+  font-family: inherit;
+  font-size: 1rem;
+  border-radius: var(--rf-card-radius);
+  border: 1px solid #ccc;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  color: var(--rf-text-dark);
+  width: 100%;
+}
+
+input[type="text"]:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--rf-blue);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+}
+
+label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+/* Demo banner */
+.demo-banner {
+  background-color: var(--rf-red);
+  color: #fff;
+  padding: 1rem;
+  text-align: center;
+  font-weight: 500;
+}
+
+.demo-banner strong {
+  font-weight: 700;
 }
 
 /* Page header (home, retros, new retro) */
@@ -84,24 +203,23 @@ a[role="button"]:hover {
   justify-content: center;
   gap: 1.5rem;
   flex-wrap: wrap;
+  margin-top: 1rem;
 }
 
 .page-header nav ul {
   display: flex;
   gap: 1.5rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
 }
 
 .page-header nav a {
   color: var(--rf-blue);
   font-weight: 700;
-  text-decoration: none;
 }
 
-.page-header nav a:hover {
-  text-decoration: underline;
+.page-header nav a[role="button"] {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.95rem;
+  text-decoration: none;
 }
 
 /* Page actions */
@@ -110,22 +228,24 @@ a[role="button"]:hover {
   text-align: right;
 }
 
-.page-actions a[role="button"] {
-  padding: 0.5rem 1.25rem;
-  font-size: 0.95rem;
-  text-decoration: none;
-}
-
 /* Retros table */
 .retro-table {
+  width: 100%;
   background-color: #fff;
   border-radius: var(--rf-card-radius);
   overflow: hidden;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+  border-collapse: collapse;
 }
 
 .retro-table thead {
   background-color: var(--rf-cream);
+}
+
+.retro-table th,
+.retro-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
 }
 
 .retro-table th {
@@ -136,16 +256,12 @@ a[role="button"]:hover {
 
 .retro-table td {
   vertical-align: middle;
+  border-bottom: 1px solid #eee;
 }
 
 .retro-table a {
   color: var(--rf-blue);
   font-weight: 700;
-  text-decoration: none;
-}
-
-.retro-table a:hover {
-  text-decoration: underline;
 }
 
 .retro-table .actions-col {
@@ -174,19 +290,23 @@ a[role="button"]:hover {
   border-radius: var(--rf-card-radius);
   padding: 2rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+  max-width: 600px;
+  margin: 0 auto;
 }
 
-.new-retro-form label {
-  font-weight: 700;
-  margin-bottom: 0.25rem;
+.new-retro-form label,
+.new-retro-form input,
+.new-retro-form select {
+  margin-bottom: 1rem;
 }
 
-.new-retro-form input[type="text"] {
+.new-retro-form input[type="text"],
+.new-retro-form select {
   border-radius: var(--rf-card-radius);
 }
 
-.new-retro-form small {
-  color: var(--rf-text-muted);
+.new-retro-form input[type="submit"] {
+  margin-top: 0.5rem;
 }
 
 /* Header bar on retro page */
@@ -233,19 +353,18 @@ a[role="button"]:hover {
 }
 
 /* Three-column board */
-main.container-fluid {
-  padding: 0;
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  min-height: 60vh;
 }
 
-div.grid {
-  grid-column-gap: 0px;
-  grid-row-gap: 0px;
-  margin: 0;
-}
-
-.grid > div {
+.board > div {
   min-height: 420px;
   padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .column-happy {
@@ -260,17 +379,9 @@ div.grid {
   background-color: var(--rf-red);
 }
 
-.column-happy,
-.column-meh,
-.column-sad {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
 .column-icon {
-  width: 64px;
-  height: 64px;
+  width: 80px;
+  height: 80px;
   margin-bottom: 1rem;
 }
 
@@ -302,19 +413,6 @@ div.grid {
   field-sizing: content;
 }
 
-button.add-card-submit {
-  width: auto;
-  min-height: calc(1.35em + 1.8rem);
-  margin: 0;
-  padding-inline: 0.9rem;
-  border-color: rgba(255, 255, 255, 0.7);
-  background-color: rgba(255, 255, 255, 0.18);
-}
-
-button.add-card-submit:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-}
-
 .add-card-input::placeholder {
   color: rgba(255, 255, 255, 0.9);
 }
@@ -341,6 +439,20 @@ button.add-card-submit:hover {
   background-color: var(--rf-red-dark);
 }
 
+button.add-card-submit {
+  width: auto;
+  min-height: calc(1.35em + 1.8rem);
+  margin: 0;
+  padding-inline: 0.9rem;
+  border-color: rgba(255, 255, 255, 0.7);
+  background-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+button.add-card-submit:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
 /* Item lists */
 .item-list {
   width: 100%;
@@ -364,10 +476,17 @@ button.add-card-submit:hover {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
+  border: 2px solid transparent;
 }
 
 .card:hover {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.card:focus-visible {
+  outline: none;
+  border-color: var(--rf-blue);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
 }
 
 .card-content {
@@ -398,6 +517,7 @@ button.add-card-submit:hover {
   min-width: 1.5rem;
   font-size: 0.8rem;
   font-weight: 700;
+  border-radius: 0;
 }
 
 .like-button:hover {
@@ -442,26 +562,43 @@ button.add-card-submit:hover {
   text-align: left;
   box-shadow: none;
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%232b3040' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E") 2 16, text;
+  font-family: inherit;
 }
 
 .card-text-edit:hover,
 .card-text-edit:focus {
   background: transparent;
   box-shadow: none;
+  outline: none;
+}
+
+.card-author {
+  color: var(--rf-text-muted);
+  font-weight: 700;
 }
 
 .edit-card-input {
   width: 100%;
   min-height: calc(3 * 1.35em + 1.5rem);
   max-height: 20rem;
-  margin: 0;
+  margin: 0 0 0.5rem;
   line-height: 1.35;
   resize: vertical;
   field-sizing: content;
+  border-radius: var(--rf-card-radius);
+  border: 1px solid #ccc;
+  padding: 0.75rem;
+  font-family: inherit;
 }
 
 .card.editing {
   cursor: default;
+}
+
+.card.editing form {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
 }
 
 .card .card-actions {
@@ -581,6 +718,7 @@ button.add-card-submit:hover {
   border-radius: 4px;
   cursor: pointer;
   margin: 0;
+  min-height: auto;
 }
 
 .timer-extend:hover {
@@ -650,6 +788,8 @@ button.add-card-submit:hover {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .action-column h4 {
@@ -695,26 +835,30 @@ button.add-card-submit:hover {
   color: var(--rf-green);
   font-weight: 700;
   font-size: 0.875rem;
-  text-decoration: none;
   margin: 0 0.75rem;
 }
 
-.site-footer a:hover {
-  text-decoration: underline;
-}
-
 /* Archive modal */
-#archive-modal {
+#archive-modal,
+.archive-confirm-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
   border: none;
   background: transparent;
   max-width: 420px;
+  width: 100%;
+  padding: 0;
+  max-height: min-content;
 }
 
-#archive-modal::backdrop {
+#archive-modal::backdrop,
+.archive-confirm-dialog::backdrop {
   background-color: rgba(0, 0, 0, 0.45);
 }
 
-#archive-modal article {
+#archive-modal article,
+.archive-confirm-dialog article {
   background-color: #fff;
   border-radius: var(--rf-card-radius);
   padding: 1.5rem;
@@ -722,18 +866,22 @@ button.add-card-submit:hover {
   text-align: left;
 }
 
-#archive-modal h3 {
+#archive-modal h3,
+.archive-confirm-dialog h3 {
   margin-top: 0;
   font-size: 1.25rem;
   font-weight: 700;
+  margin-bottom: 0.5rem;
 }
 
-#archive-modal p {
+#archive-modal p,
+.archive-confirm-dialog p {
   color: var(--rf-text-muted);
   margin-bottom: 1.5rem;
 }
 
-#archive-modal fieldset {
+#archive-modal fieldset,
+.archive-confirm-dialog fieldset {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
@@ -742,28 +890,49 @@ button.add-card-submit:hover {
   padding: 0;
 }
 
-#archive-modal button {
+#archive-modal fieldset.grid,
+.archive-confirm-dialog fieldset.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+#archive-modal button,
+.archive-confirm-dialog button {
   margin: 0;
   border-radius: var(--rf-button-radius);
   padding: 0.5rem 1.25rem;
   font-weight: 700;
 }
 
-#archive-modal .btn-cancel {
+#archive-modal .btn-cancel,
+.archive-confirm-dialog .btn-cancel,
+#archive-modal .btn-secondary,
+.archive-confirm-dialog .btn-secondary {
   background-color: transparent;
   border-color: var(--rf-text-muted);
   color: var(--rf-text-muted);
 }
 
-#archive-modal .btn-archive {
+#archive-modal .btn-archive,
+.archive-confirm-dialog .btn-archive,
+#archive-modal .btn-primary,
+.archive-confirm-dialog .btn-primary {
   background-color: var(--rf-green);
   border-color: var(--rf-green);
   color: #fff;
 }
 
-/* Account menu dropdown (visual) */
+/* Account menu dropdown */
 .account-menu {
   position: relative;
+}
+
+.account-menu > button {
+  background-color: var(--rf-blue);
+  border-color: var(--rf-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 0.875rem;
 }
 
 .account-menu-list {
@@ -778,7 +947,6 @@ button.add-card-submit:hover {
   min-width: 160px;
   list-style: none;
   text-align: left;
-  padding-left: 0;
   z-index: 100;
 }
 
@@ -797,17 +965,14 @@ button.add-card-submit:hover {
   background-color: rgba(0, 0, 0, 0.04);
 }
 
-/* Demo banner */
-.demo-banner {
-  background-color: var(--rf-red);
-  color: #fff;
-  padding: 1rem;
-  text-align: center;
-  font-weight: 500;
+.account-menu-list a {
+  display: block;
+  color: var(--rf-blue);
+  font-weight: 700;
 }
 
-.demo-banner strong {
-  font-weight: 700;
+.account-menu-list a:hover {
+  text-decoration: none;
 }
 
 .archive-menu-form {
@@ -834,64 +999,26 @@ button.add-card-submit:hover {
 
 .archive-menu-link:hover {
   background: transparent;
+  text-decoration: underline;
 }
 
-.archive-confirm-dialog {
-  border: none;
-  background: transparent;
-  max-width: 420px;
+/* Error page */
+.error-page {
+  text-align: center;
+  margin: 5rem 0;
 }
 
-.archive-confirm-dialog::backdrop {
-  background-color: rgba(0, 0, 0, 0.45);
-}
-
-.archive-confirm-dialog article {
-  background-color: #fff;
-  border-radius: var(--rf-card-radius);
-  padding: 1.5rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  text-align: left;
-}
-
-.archive-confirm-dialog h3 {
-  margin-top: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-}
-
-.archive-confirm-dialog p {
-  color: var(--rf-text-muted);
-  margin-bottom: 1.5rem;
-}
-
-.archive-confirm-dialog fieldset {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  border: none;
+.error-page h1 {
+  font-size: 8rem;
   margin: 0;
-  padding: 0;
 }
 
-.archive-confirm-dialog button {
-  flex: 1 1 0;
-  min-width: 0;
-  margin: 0;
-  border-radius: var(--rf-button-radius);
-  padding: 0.5rem 1.25rem;
-  font-weight: 700;
-  white-space: nowrap;
+.error-page a {
+  display: inline-block;
+  margin-top: 2rem;
 }
 
-.archive-confirm-dialog .btn-cancel {
-  background-color: transparent;
-  border-color: var(--rf-text-muted);
-  color: var(--rf-text-muted);
-}
-
-.archive-confirm-dialog .btn-archive {
-  background-color: var(--rf-green);
-  border-color: var(--rf-green);
-  color: #fff;
+/* Utility */
+.text-center {
+  text-align: center;
 }

@@ -13,7 +13,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="grid">
+<div class="board">
   {{ macros::retro_column(category=Category::Good, placeholder="I'm glad that…", items=good_items, retro_id=retro.id) }}
   {{ macros::retro_column(category=Category::Watch, placeholder="I'm wondering about…", items=watch_items, retro_id=retro.id) }}
   {{ macros::retro_column(category=Category::Bad, placeholder="It wasn't so great that…", items=bad_items, retro_id=retro.id) }}

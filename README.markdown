@@ -71,6 +71,8 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 - Archive display, grouped by the day the items were created
 - Action Items
+- Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs
+- Command-Enter submits the retro item
 - Sync across all clients with SSE when
   * A new card appears
   * A card changes status
