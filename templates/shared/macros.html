@@ -7,19 +7,20 @@
   {% endif %}
 {% endmacro %}
 
-{% macro account_menu(retro_id=0, show_archive=false) %}
+{% macro account_menu(retro, show_archive=false) %}
   {% if let Some(user) = user %}
     <div class="account-menu">
       <button type="button">{{ user.username }}</button>
       <ul class="account-menu-list">
         <li><a href="/retros">Dashboard</a></li>
+        <li><a href="/retro/{{ retro.slug }}/archives">Show Archive</a></li>
         {% if show_archive %}
           <li>
-            <dialog id="archive-confirm-{{ retro_id }}" class="archive-confirm-dialog">
+            <dialog id="archive-confirm-{{ retro.id }}" class="archive-confirm-dialog">
               <article>
                 <h3>Archive this retro?</h3>
-                <p id="archive-confirm-message-{{ retro_id }}">Are you sure you want to archive all cards?</p>
-                <form method="POST" action="/retro/{{ retro_id }}/archive">
+                <p id="archive-confirm-message-{{ retro.id }}">Are you sure you want to archive all cards?</p>
+                <form method="POST" action="/retro/{{ retro.id }}/archive">
                   <fieldset class="grid">
                     <button type="button" class="btn-cancel secondary" onclick="this.closest('dialog').close()">Cancel</button>
                     <button type="submit" class="btn-archive primary">Archive</button>
@@ -27,14 +28,33 @@
                 </form>
               </article>
             </dialog>
-            <form id="archive-direct-form-{{ retro_id }}" method="POST" action="/retro/{{ retro_id }}/archive" class="archive-menu-form" hidden></form>
-            <a href="#" class="archive-menu-link" onclick="openArchiveMenuDialog(event, {{ retro_id }}); return false;">Archive</a>
+            <form id="archive-direct-form-{{ retro.id }}" method="POST" action="/retro/{{ retro.id }}/archive" class="archive-menu-form" hidden></form>
+            <a href="#" class="archive-menu-link" onclick="openArchiveMenuDialog(event, {{ retro.id }}); return false;">Archive this retro</a>
           </li>
         {% endif %}
         <li><a href="/auth/logout">Sign out</a></li>
       </ul>
     </div>
     <script>
+      (function() {
+        const menu = document.currentScript.previousElementSibling;
+        if (!menu) return;
+        const button = menu.querySelector('button');
+        if (!button) return;
+
+        menu.addEventListener('click', function(e) {
+          e.stopPropagation();
+        });
+
+        button.addEventListener('click', function() {
+          menu.classList.toggle('is-open');
+        });
+
+        document.addEventListener('click', function() {
+          menu.classList.remove('is-open');
+        });
+      })();
+
       function openArchiveMenuDialog(event, retroId) {
         event.preventDefault();
         const unaddressed = document.querySelectorAll('article.card:not(.completed)');

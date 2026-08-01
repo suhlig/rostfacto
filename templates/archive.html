@@ -8,8 +8,7 @@
   <h1>{{ retro.title }}</h1>
   <p>Archived {{ archive.created_at.format("%Y-%m-%d %H:%M") }}</p>
   <div class="retro-header-actions">
-    <a href="/retro/{{ retro.slug }}/archives">Archives</a>
-    {{ macros::account_menu(retro.id, false) }}
+    {{ macros::account_menu(retro, false) }}
   </div>
 </header>
 {% endblock %}

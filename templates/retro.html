@@ -7,8 +7,7 @@
 <header class="retro-header">
   <h1>{{ retro.title }}</h1>
   <div class="retro-header-actions">
-    <a href="/retro/{{ retro.slug }}/archives">Archives</a>
-    {{ macros::account_menu(retro.id, true) }}
+    {{ macros::account_menu(retro, true) }}
   </div>
 </header>
 {% endblock %}
@@ -62,24 +61,6 @@
 </dialog>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const menu = document.querySelector('.account-menu');
-    if (!menu) return;
-    const button = menu.querySelector('button');
-
-    menu.addEventListener('click', function(e) {
-      e.stopPropagation();
-    });
-
-    button.addEventListener('click', function() {
-      menu.classList.toggle('is-open');
-    });
-
-    document.addEventListener('click', function() {
-      menu.classList.remove('is-open');
-    });
-  });
-
   (function() {
     const cardTimers = new Map(); // item id -> end timestamp
     const intervals = new Map();   // badge element -> interval id
