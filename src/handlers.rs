@@ -1,8 +1,8 @@
 use crate::auth::{AuthUser, MaybeAuthUser};
 use crate::models::{apply_author_initials, Archive, Category, Item, Retrospective, Status};
 use crate::templates::{
-    ArchiveModalTemplate, ArchiveTemplate, ArchivesTemplate, ErrorTemplate, GitHubTeam,
-    HomeTemplate, ItemCardTemplate, ItemEditTemplate, NewRetroTemplate, RetroTemplate,
+    ArchiveListEntry, ArchiveModalTemplate, ArchiveTemplate, ArchivesTemplate, ErrorTemplate,
+    GitHubTeam, HomeTemplate, ItemCardTemplate, ItemEditTemplate, NewRetroTemplate, RetroTemplate,
     RetrosTemplate,
 };
 use crate::AppState;
@@ -1028,6 +1028,26 @@ pub async fn list_archives(
         database_error_response()
     })?;
 
+    let mut archive_entries = Vec::with_capacity(archives.len());
+    for archive in archives {
+        let items_count = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM items WHERE archive_id = $1",
+            archive.id
+        )
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|error| {
+            log_database_error("list_archives_items_count", &error);
+            database_error_response()
+        })?
+        .unwrap_or(0);
+
+        archive_entries.push(ArchiveListEntry {
+            archive,
+            items_count,
+        });
+    }
+
     let can_archive = sqlx::query_scalar!(
         "SELECT EXISTS(SELECT 1 FROM items WHERE retro_id = $1 AND archive_id IS NULL)",
         retro.id
@@ -1043,7 +1063,7 @@ pub async fn list_archives(
     Ok(Html(
         ArchivesTemplate {
             retro,
-            archives,
+            archives: archive_entries,
             is_admin: user.is_admin,
             user: Some(user),
             demo_mode: state.config.demo_mode(),

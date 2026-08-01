@@ -18,15 +18,30 @@
   {% if archives.is_empty() %}
     <p>No archives yet.</p>
   {% else %}
-    <ul class="archive-list">
-      {% for archive in archives %}
-        <li>
-          <a href="/retro/{{ retro.slug }}/archives/{{ archive.id }}">
-            {{ archive.created_at.format("%Y-%m-%d %H:%M") }}
-          </a>
-        </li>
-      {% endfor %}
-    </ul>
+    <table role="grid" class="retro-table">
+      <thead>
+        <tr>
+          <th scope="col">Date</th>
+          <th scope="col">Cards</th>
+          <th scope="col" class="actions-col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in archives %}
+        <tr>
+          <td>
+            <a href="/retro/{{ retro.slug }}/archives/{{ entry.archive.id }}">
+              {{ entry.archive.created_at.format("%Y-%m-%d %H:%M") }}
+            </a>
+          </td>
+          <td>{{ entry.items_count }}</td>
+          <td>
+            <a href="/retro/{{ retro.slug }}/archives/{{ entry.archive.id }}" role="button">View</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   {% endif %}
 </div>
 {% endblock %}

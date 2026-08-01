@@ -74,11 +74,16 @@ pub struct RetroTemplate {
 #[template(path = "archives.html")]
 pub struct ArchivesTemplate {
     pub retro: Retrospective,
-    pub archives: Vec<Archive>,
+    pub archives: Vec<ArchiveListEntry>,
     pub is_admin: bool,
     pub user: Option<AuthUser>,
     pub demo_mode: bool,
     pub can_archive: bool,
+}
+
+pub struct ArchiveListEntry {
+    pub archive: Archive,
+    pub items_count: i64,
 }
 
 #[derive(Template)]

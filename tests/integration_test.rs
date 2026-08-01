@@ -982,17 +982,21 @@ async fn test_archive_snapshot_is_created_and_viewable() -> WebDriverResult<()> 
     retro_page.archive().await?;
 
     retro_page.navigate_to_archives().await?;
-    let archive_links = retro_page
+    let archive_rows = retro_page
         .driver
-        .find_all(By::Css(".archive-list a"))
+        .find_all(By::Css(".retro-table tbody tr"))
         .await?;
     assert_eq!(
-        archive_links.len(),
+        archive_rows.len(),
         1,
         "One archive snapshot should be listed"
     );
 
-    archive_links[0].click().await?;
+    let view_link = retro_page
+        .driver
+        .find(By::Css(".retro-table tbody td:last-child a"))
+        .await?;
+    view_link.click().await?;
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
     let archived_cards = retro_page
@@ -1065,12 +1069,12 @@ async fn test_archive_empty_retro_creates_no_snapshot() -> WebDriverResult<()> {
     );
 
     retro_page.navigate_to_archives().await?;
-    let archive_links = retro_page
+    let archive_rows = retro_page
         .driver
-        .find_all(By::Css(".archive-list a"))
+        .find_all(By::Css(".retro-table tbody tr"))
         .await?;
     assert_eq!(
-        archive_links.len(),
+        archive_rows.len(),
         0,
         "No archive snapshot should be created for an empty retro"
     );
