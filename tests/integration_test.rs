@@ -740,6 +740,15 @@ async fn test_delete_retro() -> WebDriverResult<()> {
 
     retro_page.delete().await?;
 
+    let open_delete_dialogs = browser
+        .driver
+        .find_all(By::Css(".delete-confirm-dialog[open]"))
+        .await?;
+    assert!(
+        open_delete_dialogs.is_empty(),
+        "Delete confirmation dialog should close after deleting the retro"
+    );
+
     // Verify the retro is gone
     browser
         .driver
