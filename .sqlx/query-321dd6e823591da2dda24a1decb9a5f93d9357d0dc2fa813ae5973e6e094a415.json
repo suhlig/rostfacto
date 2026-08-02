@@ -1,12 +1,12 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT EXISTS(SELECT 1 FROM items WHERE retro_id = $1 AND archive_id IS NULL)",
+  "query": "SELECT COUNT(*) FROM action_items WHERE archive_id = $1",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "exists",
-        "type_info": "Bool",
+        "name": "count",
+        "type_info": "Int8",
         "origin": "Expression"
       }
     ],
@@ -19,5 +19,5 @@
       null
     ]
   },
-  "hash": "4f07d9918f2623cc6d4822159db8d5e5ec62ca755f471e1afbdb5f7f800001e6"
+  "hash": "321dd6e823591da2dda24a1decb9a5f93d9357d0dc2fa813ae5973e6e094a415"
 }

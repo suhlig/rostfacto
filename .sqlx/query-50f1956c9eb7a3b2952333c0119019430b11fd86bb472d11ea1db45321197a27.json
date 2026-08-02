@@ -1,0 +1,101 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO action_items (retro_id, text)\n           VALUES ($1, $2)\n           RETURNING id as \"id!\", retro_id as \"retro_id!\", text as \"text!\", created_at as \"created_at!\",\n                     completed_at as \"completed_at: _\", archive_id as \"archive_id: _\", archived_at as \"archived_at: _\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "action_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "retro_id!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "action_items",
+            "name": "retro_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "text!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "action_items",
+            "name": "text"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "action_items",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "completed_at: _",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "action_items",
+            "name": "completed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "archive_id: _",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "action_items",
+            "name": "archive_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "archived_at: _",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "action_items",
+            "name": "archived_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "50f1956c9eb7a3b2952333c0119019430b11fd86bb472d11ea1db45321197a27"
+}

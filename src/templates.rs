@@ -1,5 +1,5 @@
 use crate::auth::AuthUser;
-use crate::models::{Archive, Category, Item, Retrospective, Status};
+use crate::models::{ActionItem, Archive, Category, Item, Retrospective, Status};
 use askama::Template;
 
 #[derive(Template)]
@@ -13,6 +13,18 @@ pub struct ItemCardTemplate {
 #[template(path = "item_edit.html")]
 pub struct ItemEditTemplate {
     pub item: Item,
+}
+
+#[derive(Template)]
+#[template(path = "action_item.html")]
+pub struct ActionItemTemplate {
+    pub action_item: ActionItem,
+}
+
+#[derive(Template)]
+#[template(path = "action_item_edit.html")]
+pub struct ActionItemEditTemplate {
+    pub action_item: ActionItem,
 }
 
 #[derive(Template)]
@@ -62,6 +74,7 @@ pub struct RetroTemplate {
     pub good_items: Vec<Item>,
     pub bad_items: Vec<Item>,
     pub watch_items: Vec<Item>,
+    pub action_items: Vec<ActionItem>,
     pub show_archive_modal: bool,
     pub is_admin: bool,
     pub user: Option<AuthUser>,
@@ -84,6 +97,7 @@ pub struct ArchivesTemplate {
 pub struct ArchiveListEntry {
     pub archive: Archive,
     pub items_count: i64,
+    pub action_items_count: i64,
 }
 
 #[derive(Template)]
@@ -94,6 +108,7 @@ pub struct ArchiveTemplate {
     pub good_items: Vec<Item>,
     pub bad_items: Vec<Item>,
     pub watch_items: Vec<Item>,
+    pub action_items: Vec<ActionItem>,
     pub is_admin: bool,
     pub user: Option<AuthUser>,
     pub demo_mode: bool,

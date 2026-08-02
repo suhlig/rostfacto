@@ -1,9 +1,11 @@
 use crate::auth::{AuthUser, MaybeAuthUser};
-use crate::models::{apply_author_initials, Archive, Category, Item, Retrospective, Status};
+use crate::models::{
+    apply_author_initials, ActionItem, Archive, Category, Item, Retrospective, Status,
+};
 use crate::templates::{
-    ArchiveListEntry, ArchiveModalTemplate, ArchiveTemplate, ArchivesTemplate, ErrorTemplate,
-    GitHubTeam, HomeTemplate, ItemCardTemplate, ItemEditTemplate, NewRetroTemplate, RetroTemplate,
-    RetrosTemplate,
+    ActionItemEditTemplate, ActionItemTemplate, ArchiveListEntry, ArchiveModalTemplate,
+    ArchiveTemplate, ArchivesTemplate, ErrorTemplate, GitHubTeam, HomeTemplate, ItemCardTemplate,
+    ItemEditTemplate, NewRetroTemplate, RetroTemplate, RetrosTemplate,
 };
 use crate::AppState;
 use askama::Template;
@@ -60,6 +62,18 @@ async fn load_item_with_initials(
         .into_iter()
         .find(|item| item.id == item_id)
         .ok_or(sqlx::Error::RowNotFound)
+}
+
+async fn load_action_item(pool: &PgPool, action_item_id: i32) -> Result<ActionItem, sqlx::Error> {
+    sqlx::query_as!(
+        ActionItem,
+        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", created_at as "created_at!",
+                  completed_at as "completed_at: _", archive_id as "archive_id: _", archived_at as "archived_at: _"
+           FROM action_items WHERE id = $1"#,
+        action_item_id
+    )
+    .fetch_one(pool)
+    .await
 }
 
 fn forbidden(state: &AppState, message: &str) -> Response {
@@ -395,6 +409,22 @@ pub async fn show_retro(
         database_error_response()
     })?;
 
+    let action_items = sqlx::query_as!(
+        ActionItem,
+        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", created_at as "created_at!",
+                  completed_at as "completed_at: _", archive_id as "archive_id: _", archived_at as "archived_at: _"
+           FROM action_items
+           WHERE retro_id = $1 AND archive_id IS NULL
+           ORDER BY created_at ASC"#,
+        retro.id
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("show_retro_action_items", &error);
+        database_error_response()
+    })?;
+
     apply_author_initials(&mut [&mut good_items, &mut bad_items, &mut watch_items]);
 
     let all_completed = sqlx::query_scalar!(
@@ -421,13 +451,17 @@ pub async fn show_retro(
     })?
     .unwrap_or(false);
 
-    let can_archive = !good_items.is_empty() || !bad_items.is_empty() || !watch_items.is_empty();
+    let can_archive = !good_items.is_empty()
+        || !bad_items.is_empty()
+        || !watch_items.is_empty()
+        || !action_items.is_empty();
 
     let template = RetroTemplate {
         retro,
         good_items,
         bad_items,
         watch_items,
+        action_items,
         show_archive_modal: all_completed,
         is_admin: user.is_admin,
         user: Some(user),
@@ -899,6 +933,168 @@ pub async fn like_item(
     ))
 }
 
+pub async fn add_action_item(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(retro_id): Path<i32>,
+    Form(form): Form<NewActionItem>,
+) -> Result<Html<String>, Response> {
+    match require_retro_access_by_id(&state, &user, retro_id).await? {
+        Some(_) => {}
+        None => return Err(not_found_response(&state, "")),
+    }
+
+    let text = form.text.trim();
+    if text.is_empty() {
+        return Err(bad_request(&state, "Action item text is required"));
+    }
+
+    let action_item = sqlx::query_as!(
+        ActionItem,
+        r#"INSERT INTO action_items (retro_id, text)
+           VALUES ($1, $2)
+           RETURNING id as "id!", retro_id as "retro_id!", text as "text!", created_at as "created_at!",
+                     completed_at as "completed_at: _", archive_id as "archive_id: _", archived_at as "archived_at: _""#,
+        retro_id,
+        text
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("add_action_item", &error);
+        database_error_response()
+    })?;
+
+    Ok(Html(ActionItemTemplate { action_item }.render().unwrap()))
+}
+
+pub async fn show_action_item(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(action_item_id): Path<i32>,
+) -> Result<Html<String>, Response> {
+    let action_item = load_action_item(&state.pool, action_item_id)
+        .await
+        .map_err(|error| match error {
+            sqlx::Error::RowNotFound => not_found_page(&state),
+            _ => database_error_response(),
+        })?;
+    require_retro_access_by_id(&state, &user, action_item.retro_id)
+        .await?
+        .ok_or_else(|| not_found_page(&state))?;
+    Ok(Html(ActionItemTemplate { action_item }.render().unwrap()))
+}
+
+pub async fn edit_action_item(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(action_item_id): Path<i32>,
+) -> Result<Html<String>, Response> {
+    let action_item = load_action_item(&state.pool, action_item_id)
+        .await
+        .map_err(|error| match error {
+            sqlx::Error::RowNotFound => not_found_page(&state),
+            _ => database_error_response(),
+        })?;
+    require_retro_access_by_id(&state, &user, action_item.retro_id)
+        .await?
+        .ok_or_else(|| not_found_page(&state))?;
+    Ok(Html(
+        ActionItemEditTemplate { action_item }.render().unwrap(),
+    ))
+}
+
+pub async fn update_action_item(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(action_item_id): Path<i32>,
+    Form(form): Form<NewActionItem>,
+) -> Result<Html<String>, Response> {
+    let existing = load_action_item(&state.pool, action_item_id)
+        .await
+        .map_err(|error| match error {
+            sqlx::Error::RowNotFound => not_found_page(&state),
+            _ => database_error_response(),
+        })?;
+    require_retro_access_by_id(&state, &user, existing.retro_id)
+        .await?
+        .ok_or_else(|| not_found_page(&state))?;
+
+    let text = form.text.trim();
+    if text.is_empty() {
+        return Err(bad_request(&state, "Action item text is required"));
+    }
+    sqlx::query!(
+        "UPDATE action_items SET text = $1 WHERE id = $2",
+        text,
+        action_item_id
+    )
+    .execute(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("update_action_item", &error);
+        database_error_response()
+    })?;
+    let action_item = load_action_item(&state.pool, action_item_id)
+        .await
+        .map_err(|_| database_error_response())?;
+    Ok(Html(ActionItemTemplate { action_item }.render().unwrap()))
+}
+
+pub async fn complete_action_item(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(action_item_id): Path<i32>,
+) -> Result<Html<String>, Response> {
+    let existing = load_action_item(&state.pool, action_item_id)
+        .await
+        .map_err(|error| match error {
+            sqlx::Error::RowNotFound => not_found_page(&state),
+            _ => database_error_response(),
+        })?;
+    require_retro_access_by_id(&state, &user, existing.retro_id)
+        .await?
+        .ok_or_else(|| not_found_page(&state))?;
+    sqlx::query!(
+        "UPDATE action_items SET completed_at = COALESCE(completed_at, NOW()) WHERE id = $1",
+        action_item_id
+    )
+    .execute(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("complete_action_item", &error);
+        database_error_response()
+    })?;
+    let action_item = load_action_item(&state.pool, action_item_id)
+        .await
+        .map_err(|_| database_error_response())?;
+    Ok(Html(ActionItemTemplate { action_item }.render().unwrap()))
+}
+
+pub async fn delete_action_item(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(action_item_id): Path<i32>,
+) -> Result<StatusCode, Response> {
+    let existing = load_action_item(&state.pool, action_item_id)
+        .await
+        .map_err(|error| match error {
+            sqlx::Error::RowNotFound => not_found_page(&state),
+            _ => database_error_response(),
+        })?;
+    require_retro_access_by_id(&state, &user, existing.retro_id)
+        .await?
+        .ok_or_else(|| not_found_page(&state))?;
+    sqlx::query!("DELETE FROM action_items WHERE id = $1", action_item_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|error| {
+            log_database_error("delete_action_item", &error);
+            database_error_response()
+        })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub async fn archive_retro(
     State(state): State<AppState>,
     user: AuthUser,
@@ -922,35 +1118,67 @@ pub async fn archive_retro(
         database_error_response()
     })?
     .unwrap_or(0);
+    let active_action_items_count = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM action_items WHERE retro_id = $1 AND archive_id IS NULL",
+        retro_id
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("archive_retro_count_action_items", &error);
+        database_error_response()
+    })?
+    .unwrap_or(0);
 
-    if active_items_count > 0 {
-        let archived_item_ids = sqlx::query_scalar!(
-            r#"
-            WITH new_archive AS (
-                INSERT INTO archives (retro_id) VALUES ($1) RETURNING id
-            )
-            UPDATE items
-            SET status = 'ARCHIVED'::status,
-                archive_id = new_archive.id,
-                archived_at = NOW()
-            FROM new_archive
-            WHERE items.retro_id = $1
-              AND items.archive_id IS NULL
-            RETURNING items.id
-            "#,
+    if active_items_count > 0 || active_action_items_count > 0 {
+        let mut tx = state.pool.begin().await.map_err(|error| {
+            log_database_error("archive_retro_begin_transaction", &error);
+            database_error_response()
+        })?;
+        let archive_id = sqlx::query_scalar!(
+            "INSERT INTO archives (retro_id) VALUES ($1) RETURNING id",
             retro_id
         )
-        .fetch_all(&state.pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|error| {
-            log_database_error("archive_retro", &error);
+            log_database_error("archive_retro_create_snapshot", &error);
+            database_error_response()
+        })?;
+        sqlx::query!(
+            "UPDATE items SET status = 'ARCHIVED'::status, archive_id = $1, archived_at = NOW()
+             WHERE retro_id = $2 AND archive_id IS NULL",
+            archive_id,
+            retro_id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| {
+            log_database_error("archive_retro_items", &error);
+            database_error_response()
+        })?;
+        sqlx::query!(
+            "UPDATE action_items SET archive_id = $1, archived_at = NOW()
+             WHERE retro_id = $2 AND archive_id IS NULL",
+            archive_id,
+            retro_id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| {
+            log_database_error("archive_retro_action_items", &error);
+            database_error_response()
+        })?;
+        tx.commit().await.map_err(|error| {
+            log_database_error("archive_retro_commit_transaction", &error);
             database_error_response()
         })?;
 
         tracing::info!(
             retro_id,
             user_id = user.user_id,
-            archived_items = archived_item_ids.len(),
+            archived_items = active_items_count,
+            archived_action_items = active_action_items_count,
             "retrospective archived"
         );
     } else {
@@ -1042,14 +1270,28 @@ pub async fn list_archives(
         })?
         .unwrap_or(0);
 
+        let action_items_count = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM action_items WHERE archive_id = $1",
+            archive.id
+        )
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|error| {
+            log_database_error("list_archives_action_items_count", &error);
+            database_error_response()
+        })?
+        .unwrap_or(0);
+
         archive_entries.push(ArchiveListEntry {
             archive,
             items_count,
+            action_items_count,
         });
     }
 
     let can_archive = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM items WHERE retro_id = $1 AND archive_id IS NULL)",
+        "SELECT EXISTS(SELECT 1 FROM items WHERE retro_id = $1 AND archive_id IS NULL)
+         OR EXISTS(SELECT 1 FROM action_items WHERE retro_id = $1 AND archive_id IS NULL)",
         retro.id
     )
     .fetch_one(&state.pool)
@@ -1174,8 +1416,23 @@ pub async fn show_archive(
 
     apply_author_initials(&mut [&mut good_items, &mut bad_items, &mut watch_items]);
 
+    let action_items = sqlx::query_as!(
+        ActionItem,
+        r#"SELECT id as "id!", retro_id as "retro_id!", text as "text!", created_at as "created_at!",
+                  completed_at as "completed_at: _", archive_id as "archive_id: _", archived_at as "archived_at: _"
+           FROM action_items WHERE archive_id = $1 ORDER BY created_at ASC"#,
+        archive.id
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("show_archive_action_items", &error);
+        database_error_response()
+    })?;
+
     let can_archive = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM items WHERE retro_id = $1 AND archive_id IS NULL)",
+        "SELECT EXISTS(SELECT 1 FROM items WHERE retro_id = $1 AND archive_id IS NULL)
+         OR EXISTS(SELECT 1 FROM action_items WHERE retro_id = $1 AND archive_id IS NULL)",
         retro.id
     )
     .fetch_one(&state.pool)
@@ -1193,6 +1450,7 @@ pub async fn show_archive(
             good_items,
             bad_items,
             watch_items,
+            action_items,
             is_admin: user.is_admin,
             user: Some(user),
             demo_mode: state.config.demo_mode(),
@@ -1217,5 +1475,10 @@ pub struct NewRetro {
 
 #[derive(Deserialize)]
 pub struct NewItem {
+    text: String,
+}
+
+#[derive(Deserialize)]
+pub struct NewActionItem {
     text: String,
 }

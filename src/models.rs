@@ -22,6 +22,17 @@ pub struct Archive {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct ActionItem {
+    pub id: i32,
+    pub retro_id: i32,
+    pub text: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub archive_id: Option<i32>,
+    pub archived_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Item {
     pub id: i32,
     pub retro_id: i32,
