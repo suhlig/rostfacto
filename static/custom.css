@@ -793,7 +793,7 @@ button.add-card-submit:hover {
   position: relative;
 }
 
-.action-items-input {
+section.action-items form.action-items-form input.action-items-input {
   width: 100%;
   height: 60px;
   margin: 0;
@@ -806,11 +806,11 @@ button.add-card-submit:hover {
   background-color: var(--rf-beige);
 }
 
-.action-items-input::placeholder {
+section.action-items form.action-items-form input.action-items-input::placeholder {
   color: rgba(255, 255, 255, 0.9);
 }
 
-.action-items-submit {
+section.action-items form.action-items-form button.action-items-submit {
   position: absolute;
   top: 0;
   right: 0;
@@ -823,7 +823,7 @@ button.add-card-submit:hover {
   font-weight: 700;
 }
 
-.action-items-submit:hover {
+section.action-items form.action-items-form button.action-items-submit:hover {
   background: transparent;
   color: var(--rf-text-dark);
 }
@@ -852,9 +852,11 @@ button.add-card-submit:hover {
   display: none;
 }
 
-.action-item {
+section.action-items .action-item {
   display: flex;
   align-items: center;
+  width: 420px;
+  max-width: 100%;
   gap: 2rem;
   min-height: 74px;
   padding: 13px;
@@ -862,7 +864,7 @@ button.add-card-submit:hover {
   background: #fff;
 }
 
-.action-item-checkbox {
+section.action-items .action-item-checkbox {
   width: 48px;
   height: 48px;
   border: 7px solid var(--rf-cream);
@@ -877,7 +879,7 @@ button.add-card-submit:hover {
   line-height: 1;
 }
 
-.action-item-text {
+section.action-items .action-item-text {
   flex: 1;
   font-size: 1.25rem;
   font-weight: 700;
@@ -889,8 +891,8 @@ button.add-card-submit:hover {
   opacity: 0.45;
 }
 
-.action-item-edit,
-.action-item-delete {
+section.action-items .action-item-edit,
+section.action-items .action-item-delete {
   background: transparent;
   color: var(--rf-text-muted);
   border: 0;
@@ -901,12 +903,12 @@ button.add-card-submit:hover {
   line-height: 1;
 }
 
-.action-item-delete {
+section.action-items .action-item-delete {
   display: none;
 }
 
-.action-item:hover .action-item-delete,
-.action-item:focus-within .action-item-delete {
+section.action-items .action-item:hover .action-item-delete,
+section.action-items .action-item:focus-within .action-item-delete {
   display: inline-flex;
 }
 
