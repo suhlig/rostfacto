@@ -904,7 +904,17 @@ section.action-items .action-item-text {
 }
 
 .action-item.completed {
-  opacity: 0.45;
+  color: var(--rf-text-muted);
+}
+
+section.action-items .action-item-checkbox.checked {
+  color: var(--rf-green-dark);
+  border-color: var(--rf-green);
+  font-weight: 700;
+}
+
+section.action-items .action-item.completed .action-item-text {
+  color: var(--rf-text-muted);
 }
 
 section.action-items .action-item-edit,
