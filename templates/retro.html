@@ -242,6 +242,7 @@
       const now = new Date();
       const todayKey = localDateKey(now);
       const items = Array.from(pool.querySelectorAll('.action-item'));
+      if (items.length === 0) return;
       const priorDates = items
         .map(item => new Date(item.dataset.createdAt))
         .filter(date => localDateKey(date) !== todayKey)
@@ -259,7 +260,11 @@
     }
 
     document.addEventListener('DOMContentLoaded', groupActionItems);
-    document.body.addEventListener('htmx:afterSettle', groupActionItems);
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+      if (event.detail && event.detail.target === pool) {
+        groupActionItems();
+      }
+    });
   })();
 </script>
 {% endblock %}

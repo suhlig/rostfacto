@@ -250,6 +250,96 @@ async fn test_create_cards() -> WebDriverResult<()> {
 }
 
 #[tokio::test]
+async fn test_action_item_survives_edit_and_completion() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page
+        .create_retro("Action Item Lifecycle Test")
+        .await?;
+
+    let retro_id = retro_page.retro_id().await?;
+    let add_script = format!(
+        "return fetch('/retro/{retro_id}/action-items', {{ method: 'POST', headers: {{ 'Content-Type': 'application/x-www-form-urlencoded' }}, body: 'text=Original%20action%20item' }}).then(r => r.status);"
+    );
+    let add_status = retro_page.driver.execute(&add_script, vec![]).await?;
+    assert_eq!(add_status.json().as_u64(), Some(200));
+    retro_page.driver.refresh().await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+    let item = retro_page
+        .driver
+        .find(By::Css(".action-column .action-item"))
+        .await?;
+
+    assert_eq!(
+        item.find(By::Css(".action-item-text"))
+            .await?
+            .text()
+            .await?,
+        "Original action item"
+    );
+
+    item.find(By::Css(".action-item-edit"))
+        .await?
+        .click()
+        .await?;
+
+    let edit_form = retro_page
+        .driver
+        .find(By::Css(".action-item.editing form"))
+        .await?;
+    let edit_input = edit_form.find(By::Css("input[name='text']")).await?;
+    edit_input.clear().await?;
+    edit_input.send_keys("Edited action item").await?;
+
+    edit_form
+        .find(By::Css("button[type='submit']"))
+        .await?
+        .click()
+        .await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    let edited_item = retro_page
+        .driver
+        .find(By::Css(".action-column .action-item"))
+        .await?;
+
+    assert_eq!(
+        edited_item
+            .find(By::Css(".action-item-text"))
+            .await?
+            .text()
+            .await?,
+        "Edited action item"
+    );
+
+    edited_item
+        .find(By::Css(".action-item-checkbox"))
+        .await?
+        .click()
+        .await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    let completed_item = retro_page
+        .driver
+        .find(By::Css(".action-column .action-item.completed"))
+        .await?;
+    assert_eq!(
+        completed_item
+            .find(By::Css(".action-item-text"))
+            .await?
+            .text()
+            .await?,
+        "Edited action item"
+    );
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_command_enter_submits_new_card() -> WebDriverResult<()> {
     let db = TestDb::new().await;
     let server = TestServer::start(&db.database_url).await;
