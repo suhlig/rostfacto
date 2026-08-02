@@ -162,12 +162,13 @@ impl TestServer {
 
         let base_url = format!("http://127.0.0.1:{}", port);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        let readiness_url = format!("{}/retros", base_url);
         loop {
             if std::time::Instant::now() >= deadline {
                 let _ = child.kill();
                 panic!("Test server failed to start on {}", base_url);
             }
-            match reqwest::get(&base_url).await {
+            match reqwest::get(&readiness_url).await {
                 Ok(response) if response.status().is_success() => break,
                 _ => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
             }
@@ -322,7 +323,7 @@ impl<'a> RetrosPage<'a> {
         let slug_input = self.driver.find(By::Css("input[name='slug']")).await?;
         slug_input.send_keys(slug).await?;
         self.driver
-            .find(By::Css("input[type='submit']"))
+            .find(By::Css("button[type='submit']"))
             .await?
             .click()
             .await?;
