@@ -7,7 +7,7 @@
 <header class="retro-header" data-retro-id="{{ retro.id }}">
   <h1>{{ retro.title }}</h1>
   <div class="retro-header-actions">
-    {{ macros::account_menu(retro, true, can_archive) }}
+    {{ macros::account_menu(retro, true, can_archive, false, true) }}
   </div>
 </header>
 {% endblock %}

@@ -7,15 +7,19 @@
   {% endif %}
 {% endmacro %}
 
-{% macro account_menu(retro, show_archive=false, can_archive=false) %}
+{% macro account_menu(retro, show_archive_action=false, can_archive=false, show_board_link=false, show_archive_link=false) %}
   {% if let Some(user) = user %}
     <div class="account-menu">
       <button type="button">{{ user.username }}</button>
       <ul class="account-menu-list">
         <li><a href="/retros">Dashboard</a></li>
-        <li><a href="/retro/{{ retro.slug }}">Board</a></li>
-        <li><a href="/retro/{{ retro.slug }}/archives">Show Archive</a></li>
-        {% if show_archive %}
+        {% if show_board_link %}
+          <li><a href="/retro/{{ retro.slug }}">Board</a></li>
+        {% endif %}
+        {% if show_archive_link %}
+          <li><a href="/retro/{{ retro.slug }}/archives">Show Archive</a></li>
+        {% endif %}
+        {% if show_archive_action %}
           <li>
             <dialog id="archive-confirm-{{ retro.id }}" class="archive-confirm-dialog">
               <article>
