@@ -587,11 +587,13 @@ impl<'a> RetroPage<'a> {
         for row in rows {
             if let Ok(link) = row.find(By::Tag("a")).await {
                 if link.text().await? == self.title {
-                    self.driver
-                        .execute("window.confirm = () => true", vec![])
-                        .await?;
-                    let delete_button = row.find(By::Tag("button")).await?;
+                    let delete_button = row.find(By::Css(".delete-btn")).await?;
                     delete_button.click().await?;
+                    let confirm_button = self
+                        .driver
+                        .find(By::Css(".delete-confirm-dialog[open] .btn-primary"))
+                        .await?;
+                    confirm_button.click().await?;
                     clicked = true;
                     break;
                 }

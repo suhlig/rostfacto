@@ -858,6 +858,7 @@ button.add-card-submit:hover {
 
 /* Archive modal */
 #archive-modal,
+.confirm-dialog,
 .archive-confirm-dialog,
 .keyboard-help-dialog {
   position: fixed;
@@ -872,12 +873,14 @@ button.add-card-submit:hover {
 }
 
 #archive-modal::backdrop,
+.confirm-dialog::backdrop,
 .archive-confirm-dialog::backdrop,
 .keyboard-help-dialog::backdrop {
   background-color: rgba(0, 0, 0, 0.45);
 }
 
 #archive-modal article,
+.confirm-dialog article,
 .archive-confirm-dialog article,
 .keyboard-help-dialog article {
   background-color: #fff;
@@ -888,6 +891,7 @@ button.add-card-submit:hover {
 }
 
 #archive-modal h3,
+.confirm-dialog h3,
 .archive-confirm-dialog h3,
 .keyboard-help-dialog h3 {
   margin-top: 0;
@@ -897,12 +901,14 @@ button.add-card-submit:hover {
 }
 
 #archive-modal p,
+.confirm-dialog p,
 .archive-confirm-dialog p {
   color: var(--rf-text-muted);
   margin-bottom: 1.5rem;
 }
 
 #archive-modal fieldset,
+.confirm-dialog fieldset,
 .archive-confirm-dialog fieldset {
   display: flex;
   justify-content: flex-end;
@@ -913,12 +919,14 @@ button.add-card-submit:hover {
 }
 
 #archive-modal fieldset.grid,
+.confirm-dialog fieldset.grid,
 .archive-confirm-dialog fieldset.grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
 }
 
 #archive-modal button,
+.confirm-dialog button,
 .archive-confirm-dialog button,
 .keyboard-help-dialog button {
   margin: 0;
@@ -928,8 +936,10 @@ button.add-card-submit:hover {
 }
 
 #archive-modal .btn-cancel,
+.confirm-dialog .btn-cancel,
 .archive-confirm-dialog .btn-cancel,
 #archive-modal .btn-secondary,
+.confirm-dialog .btn-secondary,
 .archive-confirm-dialog .btn-secondary,
 .keyboard-help-dialog .secondary {
   background-color: transparent;
@@ -938,8 +948,10 @@ button.add-card-submit:hover {
 }
 
 #archive-modal .btn-archive,
+.confirm-dialog .btn-archive,
 .archive-confirm-dialog .btn-archive,
 #archive-modal .btn-primary,
+.confirm-dialog .btn-primary,
 .archive-confirm-dialog .btn-primary,
 .keyboard-help-dialog .primary {
   background-color: var(--rf-green);
