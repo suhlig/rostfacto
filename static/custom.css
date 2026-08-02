@@ -794,38 +794,51 @@ button.add-card-submit:hover {
 }
 
 section.action-items form.action-items-form input.action-items-input {
-  width: 100%;
-  height: 60px;
-  margin: 0;
-  padding: 0 4rem 0 15px;
-  border: none;
-  border-radius: 3px;
-  font-size: 1.125rem;
-  font-weight: 400;
-  color: #fff;
-  background-color: var(--rf-beige);
+  width: 100% !important;
+  height: 60px !important;
+  margin: 0 !important;
+  padding: 0 4rem 0 15px !important;
+  border: none !important;
+  border-radius: 3px !important;
+  box-shadow: none !important;
+  font-size: 1.125rem !important;
+  font-weight: 400 !important;
+  color: #fff !important;
+  background-color: var(--rf-beige) !important;
 }
 
 section.action-items form.action-items-form input.action-items-input::placeholder {
   color: rgba(255, 255, 255, 0.9);
 }
 
-section.action-items form.action-items-form button.action-items-submit {
-  position: absolute;
-  top: 0;
-  right: 0;
-  height: 100%;
-  padding: 0 1rem;
-  border: 0;
-  background: transparent;
-  color: #fff;
-  font-size: 0.875rem;
-  font-weight: 700;
+section.action-items form.action-items-form input.action-items-input:focus {
+  border: none !important;
+  box-shadow: none !important;
+  outline: 2px solid var(--rf-blue);
+  outline-offset: 2px;
 }
 
-section.action-items form.action-items-form button.action-items-submit:hover {
-  background: transparent;
-  color: var(--rf-text-dark);
+section.action-items form.action-items-form button.action-items-submit {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  height: 60px !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 1rem !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #fff !important;
+  font-size: 0.875rem !important;
+  font-weight: 700 !important;
+}
+
+section.action-items form.action-items-form button.action-items-submit:hover,
+section.action-items form.action-items-form button.action-items-submit:focus {
+  background: transparent !important;
+  color: var(--rf-text-dark) !important;
+  box-shadow: none !important;
 }
 
 .action-columns {
@@ -859,6 +872,7 @@ section.action-items .action-item {
   max-width: 100%;
   gap: 2rem;
   min-height: 74px;
+  box-sizing: border-box;
   padding: 13px;
   margin-bottom: 0.75rem;
   background: #fff;
@@ -870,9 +884,11 @@ section.action-items .action-item-checkbox {
   border: 7px solid var(--rf-cream);
   border-radius: 0;
   flex: 0 0 48px;
+  min-width: 48px;
+  min-height: 48px;
   margin: 0;
   padding: 0;
-  background-color: #fff;
+  background-color: #fff !important;
   box-sizing: border-box;
   color: var(--rf-text-muted);
   font-size: 1rem;
@@ -931,6 +947,11 @@ section.action-items .action-item:focus-within .action-item-delete {
 .action-item.editing input {
   flex: 1;
   min-width: 0;
+}
+
+.action-item-list {
+  width: 420px;
+  max-width: 100%;
 }
 
 .action-item-list:empty {
