@@ -908,9 +908,20 @@ section.action-items .action-item-text {
 }
 
 section.action-items .action-item-checkbox.checked {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--rf-green-dark);
   border-color: var(--rf-green);
+  font-size: 0;
   font-weight: 700;
+  line-height: 1;
+}
+
+section.action-items .action-item-checkbox.checked::before {
+  content: "✓";
+  font-size: 2rem;
+  line-height: 1;
 }
 
 section.action-items .action-item.completed .action-item-text {
