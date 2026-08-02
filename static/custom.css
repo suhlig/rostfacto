@@ -941,12 +941,12 @@ section.action-items .action-item-delete {
 }
 
 section.action-items .action-item-delete {
-  display: none;
+  visibility: hidden;
 }
 
 section.action-items .action-item:hover .action-item-delete,
 section.action-items .action-item:focus-within .action-item-delete {
-  display: inline-flex;
+  visibility: visible;
 }
 
 .action-item-edit:hover,
