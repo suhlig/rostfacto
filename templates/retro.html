@@ -19,22 +19,33 @@
   {{ macros::retro_column(category=Category::Bad, placeholder="It wasn't so great that…", items=bad_items, retro_id=retro.id) }}
 </div>
 
-<section class="action-items" style="visibility: hidden;">
+<section class="action-items">
   <h3 class="action-items-title">Action Items</h3>
-  <input type="text" class="action-items-input" placeholder="Add an action item" disabled>
+  <form class="action-items-form"
+        hx-post="/retro/{{ retro.id }}/action-items"
+        hx-target="#action-items-pool"
+        hx-swap="afterbegin"
+        hx-on::after-request="if(event.detail.successful) this.reset()">
+    <input type="text" name="text" class="action-items-input" placeholder="Add an action item" required>
+    <button type="submit" class="action-items-submit">Add</button>
+  </form>
+  <div id="action-items-pool" class="action-items-pool" aria-hidden="true">
+    {% for action_item in action_items %}
+      {% include "action_item.html" %}
+    {% endfor %}
+  </div>
   <div class="action-columns">
     <div class="action-column">
-      <h4>Today (May 25)</h4>
-      <div class="action-item">
-        <div class="action-item-checkbox"></div>
-        <div class="action-item-text">You can also edit action items! (RetroBot)</div>
-      </div>
+      <h4 data-action-group="today"></h4>
+      <div class="action-item-list" data-action-items="today"></div>
     </div>
     <div class="action-column">
-      <h4>May 18</h4>
+      <h4 data-action-group="recent"></h4>
+      <div class="action-item-list" data-action-items="recent"></div>
     </div>
     <div class="action-column">
-      <h4>Older</h4>
+      <h4 data-action-group="older">Older</h4>
+      <div class="action-item-list" data-action-items="older"></div>
     </div>
   </div>
 </section>
@@ -206,6 +217,49 @@
         return;
       }
     });
+  })();
+
+  (function() {
+    const section = document.querySelector('.action-items');
+    if (!section) return;
+    const pool = section.querySelector('#action-items-pool');
+    const columns = {
+      today: section.querySelector('[data-action-items="today"]'),
+      recent: section.querySelector('[data-action-items="recent"]'),
+      older: section.querySelector('[data-action-items="older"]')
+    };
+    const recentHeading = section.querySelector('[data-action-group="recent"]');
+
+    function localDateKey(date) {
+      return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+    }
+
+    function displayDate(date) {
+      return date.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+    }
+
+    function groupActionItems() {
+      const now = new Date();
+      const todayKey = localDateKey(now);
+      const items = Array.from(pool.querySelectorAll('.action-item'));
+      const priorDates = items
+        .map(item => new Date(item.dataset.createdAt))
+        .filter(date => localDateKey(date) !== todayKey)
+        .sort((a, b) => b - a);
+      const recentKey = priorDates.length ? localDateKey(priorDates[0]) : null;
+      section.querySelector('[data-action-group="today"]').textContent = 'Today (' + displayDate(now) + ')';
+      recentHeading.textContent = recentKey ? displayDate(priorDates[0]) : '';
+
+      Object.values(columns).forEach(column => { column.replaceChildren(); });
+      items.forEach(item => {
+        const dateKey = localDateKey(new Date(item.dataset.createdAt));
+        const group = dateKey === todayKey ? 'today' : (dateKey === recentKey ? 'recent' : 'older');
+        columns[group].appendChild(item);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', groupActionItems);
+    document.body.addEventListener('htmx:afterSettle', groupActionItems);
   })();
 </script>
 {% endblock %}

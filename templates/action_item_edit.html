@@ -1,0 +1,19 @@
+<div class="action-item editing"
+     data-action-item-id="{{ action_item.id }}"
+     data-created-at="{{ action_item.created_at.to_rfc3339() }}">
+  <form hx-post="/action-items/{{ action_item.id }}"
+        hx-target="closest .action-item"
+        hx-swap="outerHTML">
+    <input type="text"
+           name="text"
+           value="{{ action_item.text }}"
+           aria-label="Action item text"
+           required
+           autofocus>
+    <button type="submit" class="primary">Save</button>
+    <button type="button" class="secondary"
+            hx-get="/action-items/{{ action_item.id }}"
+            hx-target="closest .action-item"
+            hx-swap="outerHTML">Cancel</button>
+  </form>
+</div>

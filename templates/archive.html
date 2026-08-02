@@ -43,4 +43,16 @@
     </section>
   </div>
 </div>
+
+<section class="action-items archive-action-items">
+  <h3 class="action-items-title">Action Items</h3>
+  <div class="action-columns">
+    <div class="action-column">
+      <h4>Archived</h4>
+      {% for action_item in action_items %}
+        {% include "action_item.html" %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
 {% endblock %}

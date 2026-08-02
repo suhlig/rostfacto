@@ -784,11 +784,17 @@ button.add-card-submit:hover {
   color: var(--rf-text-dark);
 }
 
-.action-items-input {
+.action-items-form {
   width: 100%;
   max-width: 480px;
   margin: 0 auto 2rem;
-  display: block;
+  position: relative;
+}
+
+.action-items-input {
+  width: 100%;
+  margin: 0;
+  padding-right: 3.5rem;
   border: none;
   border-radius: var(--rf-card-radius);
   padding: 0.9rem 1rem;
@@ -800,6 +806,23 @@ button.add-card-submit:hover {
 
 .action-items-input::placeholder {
   color: rgba(255, 255, 255, 0.9);
+}
+
+.action-items-submit {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  padding: 0 1rem;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-weight: 700;
+}
+
+.action-items-submit:hover {
+  background: transparent;
+  color: var(--rf-text-dark);
 }
 
 .action-columns {
@@ -817,6 +840,10 @@ button.add-card-submit:hover {
   color: var(--rf-text-dark);
 }
 
+.action-items-pool {
+  display: none;
+}
+
 .action-item {
   display: flex;
   align-items: flex-start;
@@ -831,15 +858,61 @@ button.add-card-submit:hover {
   border-radius: 4px;
   flex-shrink: 0;
   margin-top: 2px;
+  padding: 0;
   background-color: #F7F5F0;
   box-sizing: border-box;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  color: var(--rf-text-muted);
+  font-size: 0.8rem;
 }
 
 .action-item-text {
   font-size: 0.95rem;
   font-weight: 500;
   line-height: 1.3;
+  flex: 1;
+}
+
+.action-item.completed {
+  opacity: 0.45;
+}
+
+.action-item-edit,
+.action-item-delete {
+  background: transparent;
+  color: var(--rf-text-muted);
+  border: 0;
+  padding: 0 0.15rem;
+  min-height: auto;
+  font-size: 0.9rem;
+}
+
+.action-item-edit:hover,
+.action-item-delete:hover {
+  background: transparent;
+  color: var(--rf-text-dark);
+}
+
+.action-item.editing form {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.action-item.editing input {
+  flex: 1;
+  min-width: 0;
+}
+
+.action-item-list:empty {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .action-columns {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
 }
 
 /* Footer */

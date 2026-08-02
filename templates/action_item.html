@@ -1,0 +1,32 @@
+<div class="action-item{% if action_item.completed_at.is_some() %} completed{% endif %}"
+     data-action-item-id="{{ action_item.id }}"
+     data-created-at="{{ action_item.created_at.to_rfc3339() }}">
+  {% if action_item.completed_at.is_some() %}
+    <span class="action-item-checkbox" aria-hidden="true">✓</span>
+  {% else if action_item.archive_id.is_some() %}
+    <span class="action-item-checkbox" aria-hidden="true"></span>
+  {% else %}
+    <button type="button"
+            class="action-item-checkbox"
+            aria-label="Complete action item"
+            hx-post="/action-items/{{ action_item.id }}/complete"
+            hx-target="closest .action-item"
+            hx-swap="outerHTML"></button>
+  {% endif %}
+  <span class="action-item-text">{{ action_item.text }}</span>
+  {% if action_item.archive_id.is_none() %}
+  <button type="button"
+          class="action-item-edit"
+          aria-label="Edit action item"
+          hx-get="/action-items/{{ action_item.id }}/edit"
+          hx-target="closest .action-item"
+          hx-swap="outerHTML">✎</button>
+  <button type="button"
+          class="action-item-delete"
+          aria-label="Delete action item"
+          hx-delete="/action-items/{{ action_item.id }}"
+          hx-target="closest .action-item"
+          hx-swap="outerHTML"
+          hx-confirm="Delete this action item?">×</button>
+  {% endif %}
+</div>

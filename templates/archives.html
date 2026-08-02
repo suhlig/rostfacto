@@ -23,6 +23,7 @@
         <tr>
           <th scope="col">Date</th>
           <th scope="col">Cards</th>
+          <th scope="col">Action</th> items</th>
           <th scope="col" class="actions-col">Actions</th>
         </tr>
       </thead>
@@ -35,6 +36,7 @@
             </a>
           </td>
           <td>{{ entry.items_count }}</td>
+          <td>{{ entry.action_items_count }}</td>
           <td>
             <a href="/retro/{{ retro.slug }}/archives/{{ entry.archive.id }}">View</a>
           </td>
