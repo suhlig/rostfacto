@@ -82,6 +82,9 @@ SHOW_BROWSER=1 cargo test --test integration_test
 - Allow multiple `GITHUB_USER_ORG`s
 - Allow adding a card anonymously
 - Publish a container image on every release and tag it with the release version
+- Rework home page to be a landing page with
+  - screenshots of individual actions like adding a card, shown as a carousel (instead of the animated GIF we currently have)
+  - what's different to Postfacto
 - Release 2.0
 
 # License
