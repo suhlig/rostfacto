@@ -69,14 +69,6 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
-- Sync across all clients with SSE when
-  * A new card appears
-  * A card changes status
-  * A card was liked
-  * A card's timer was (re-)started (incl. duration), elpsed, or was cancelled
-  * Retro was completed (all cards disappear and all timers stop)
-
-  Do not introduce a new infrastructure component. Use Postgres as hub, as much as sensible.
 - Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs
 - Allow multiple `GITHUB_USER_ORG`s
 - Allow adding a card anonymously
