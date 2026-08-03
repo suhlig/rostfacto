@@ -1092,7 +1092,7 @@ pub async fn delete_action_item(
             log_database_error("delete_action_item", &error);
             database_error_response()
         })?;
-    Ok(StatusCode::NO_CONTENT)
+    Ok(StatusCode::OK)
 }
 
 pub async fn archive_retro(

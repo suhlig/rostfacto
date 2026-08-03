@@ -24,9 +24,22 @@
   <button type="button"
           class="action-item-delete"
           aria-label="Delete action item"
-          hx-delete="/action-items/{{ action_item.id }}"
-          hx-target="closest .action-item"
-          hx-swap="outerHTML"
-          hx-confirm="Delete this action item?">×</button>
+          onclick="document.getElementById('action-item-delete-confirm-{{ action_item.id }}').showModal()">×</button>
+  <dialog id="action-item-delete-confirm-{{ action_item.id }}" class="archive-confirm-dialog action-item-delete-dialog">
+    <article>
+      <h3>Delete this action item?</h3>
+      <p>Are you sure you want to delete this action item?</p>
+      <form hx-delete="/action-items/{{ action_item.id }}"
+            hx-target="closest .action-item"
+            hx-swap="outerHTML"
+            hx-on::after-request="if (event.detail.successful) this.closest('dialog').close()">
+        <fieldset class="grid">
+          <legend class="visually-hidden">Delete actions</legend>
+          <button type="button" class="btn-cancel secondary" onclick="this.closest('dialog').close()">Cancel</button>
+          <button type="submit" class="btn-primary primary">Delete</button>
+        </fieldset>
+      </form>
+    </article>
+  </dialog>
   {% endif %}
 </div>
