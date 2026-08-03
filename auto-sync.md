@@ -48,6 +48,8 @@ CREATE TABLE events (
 CREATE INDEX events_retro_id_id_idx ON events(retro_id, id);
 ```
 
+> **Retention (out of scope):** the `events` table grows unboundedly. It is the replay source for reconnecting clients, so this plan adds no cleanup; note retention/archival as future work.
+
 **Payloads** (JSONB) — designed so the client can apply lightweight changes directly (like counts, timers, text) and knows which item to re-fetch for full card re-renders:
 
 | Event | payload |
@@ -69,6 +71,8 @@ CREATE INDEX events_retro_id_id_idx ON events(retro_id, id);
 - `AFTER INSERT ON archives` → `RETRO_ARCHIVED` — fires exactly once per archive operation (the handler only creates an `archives` row when there is something to archive)
 
 The `items` UPDATE trigger uses a `WHEN (OLD.archive_id IS NOT DISTINCT FROM NEW.archive_id)` clause so bulk archive updates don't spam per-item events. The trigger functions build the JSONB payload and `INSERT INTO events`, then `PERFORM pg_notify('rostfacto_events', retro_id::text)`.
+
+> **Trigger precedence (decide in Step 4):** a single `UPDATE` can change both `status` and timer columns at once (e.g. cancel = status back to `CREATED` while clearing timer columns). The trigger must emit exactly one event — suggestion: `ITEM_STATUS_CHANGED` wins, and timer events fire only when timer columns change without a status change. Also decide whether `TIMER_CANCELLED` is ever emitted, or whether cancellation is always observed as `ITEM_STATUS_CHANGED`.
 
 > **Note on timers:** The timer is currently 100% client-side. To sync it, the timer must become **server-authoritative**. This is the biggest behavioral change and is covered in §6.
 
@@ -178,23 +182,23 @@ Two distinct triggers in the story:
 
 ## 8. Files to change (summary)
 
-| File | Change |
-|------|--------|
-| `migrations/021_sse_events.sql` | New `events` table, `event_type` enum, triggers, `pg_notify` |
-| `migrations/022_item_timers.sql` | Timer columns on `items` (`timer_started_at`, `timer_duration_seconds`, virtual generated `timer_ends_at`, `timer_elapsed_at`) |
-| `src/events.rs` (new) | `Event` model, `EventHub`, notifier loop, SSE handler |
-| `src/main.rs` | Spawn notifier, add `events` to `AppState`, register `/retro/{slug}/events` route |
-| `src/handlers.rs` | New timer endpoints; minor changes to return event ids for dedup |
-| `src/models.rs` | Add timer fields to `Item` (and update all `Item` SELECTs in `handlers.rs`/`show_archive`) |
-| `src/templates.rs` | New template structs if timer/event fragments are server-rendered |
-| `templates/retro.html` | `EventSource` client, event dispatcher, rewrite timer JS to server-authoritative |
-| `templates/item_card.html` | Render timer from server data |
-| `templates/shared/macros.html` | Timer buttons post to new endpoints |
-| `tests/integration_test.rs` | New tests: two clients, one adds a card → other sees it; like syncs; timer syncs; archive clears both |
-| `tests/test_helpers.rs` | Helper to open a second `RetroPage`/SSE client |
-| `.sqlx/` | Regenerate offline query cache (`scripts/sqlx-prepare.sh`) after schema/query changes |
-| `README.markdown` | Remove the completed TODO item; document SSE + timer behavior |
-| `CHANGELOG.md` | New entry |
+| File | Change | Step |
+|------|--------|------|
+| `migrations/021_sse_events.sql` | New `events` table, `event_type` enum, triggers, `pg_notify` | 1 |
+| `migrations/022_item_timers.sql` | Timer columns on `items` (`timer_started_at`, `timer_duration_seconds`, virtual generated `timer_ends_at`, `timer_elapsed_at`) | 4 |
+| `src/events.rs` (new) | `Event` model, `EventHub`, notifier loop, SSE handler | 2 |
+| `src/main.rs` | Spawn notifier, add `events` to `AppState`, register `/retro/{slug}/events` route, spawn sweep task | 2, 4 |
+| `src/handlers.rs` | Minor changes to return event ids for dedup; new timer endpoints | 2, 4 |
+| `src/models.rs` | Add timer fields to `Item` (and update all `Item` SELECTs in `handlers.rs`/`show_archive`) | 4 |
+| `src/templates.rs` | New template structs if timer/event fragments are server-rendered | 5 |
+| `templates/retro.html` | `EventSource` client, event dispatcher, rewrite timer JS to server-authoritative | 3, 5, 6 |
+| `templates/item_card.html` | Render timer from server data | 5 |
+| `templates/shared/macros.html` | Timer buttons post to new endpoints | 5 |
+| `tests/integration_test.rs` | New tests: two clients, one adds a card → other sees it; like syncs; timer syncs; archive clears both | 2–6 |
+| `tests/test_helpers.rs` | Helper to open a second `RetroPage`/SSE client | 3 |
+| `.sqlx/` | Regenerate offline query cache (`scripts/sqlx-prepare.sh`) after schema/query changes | 2, 4, 7 |
+| `README.markdown` | Remove the completed TODO item; document SSE + timer behavior | 7 |
+| `CHANGELOG.md` | New entry | 7 |
 
 ---
 
@@ -205,16 +209,92 @@ Two distinct triggers in the story:
 - `cargo test --bins` (unit tests).
 - `cargo test --test integration_test` — add a multi-client test: open two `BrowserSession`s on the same retro, add a card in one and assert it appears in the other; like in one and assert the count updates in the other; start/extend/cancel a timer in one and assert the other's badge matches; archive in one and assert the other's board empties.
 
+Each step of the implementation plan in §10 ends green — its new tests plus the full existing suite, `fmt`, and `clippy` — before the next step starts.
+
 ---
 
-## 10. Confirmed decisions
+## 10. Implementation plan (TDD, step by step)
+
+Work the plan top to bottom. Each step starts **red** (write the test first, watch it fail), ends **green** (test passes and the full existing suite still passes), and is independently shippable. DoD for every step: new tests pass, existing suite passes, `cargo fmt --all --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+
+- [ ] Step 1 — DB: `events` table + triggers (migration 021)
+- [ ] Step 2 — Server: SSE endpoint + `X-Event-Id` headers
+- [ ] Step 3 — Frontend: `EventSource` client + dispatcher (item events)
+- [ ] Step 4 — Timer: server-authoritative (migration 022 + endpoints + sweep)
+- [ ] Step 5 — Timer: client rendering + buttons
+- [ ] Step 6 — Retro-level events (archived + all-done modal)
+- [ ] Step 7 — Closeout (`.sqlx`, README, CHANGELOG)
+
+**Ground rules**
+
+- Migrations are immutable once merged: iterate freely on `021`/`022` inside their own branch, but any later schema change ships as a new migration.
+- Server-side steps are tested with raw HTTP — reqwest is already a dependency and thirtyfour cannot read SSE streams. Client-side steps use two `BrowserSession`s on the same retro.
+- Run `scripts/sqlx-prepare.sh` after every step that adds or changes queries.
+
+### Step 1 — DB: `events` table + triggers (migration 021)
+
+No app code changes.
+- **Red:** migration test (existing `tests/migration_test.rs` pattern): inserting an item produces an `ITEM_CREATED` row with the right payload; text update → `ITEM_UPDATED`; status change → `ITEM_STATUS_CHANGED`; like/unlike → `ITEM_LIKED`/`ITEM_UNLIKED` with recomputed count; archive → exactly one `RETRO_ARCHIVED`; bulk archive emits no per-item events; `pg_notify` fires on a `LISTEN`ing connection.
+- **Green:** migration applied; the existing integration suite still passes — that's the guard that triggers don't break current flows.
+- **Files:** `migrations/021_sse_events.sql`, `tests/migration_test.rs`.
+
+### Step 2 — Server: SSE endpoint + `X-Event-Id` headers
+
+- **Red (raw HTTP):** open `GET /retro/{slug}/events` and mutate via HTTP → assert one SSE frame with the right type/payload; every mutating response carries `X-Event-Id` matching the latest `events` row for that item/type; non-members get 403; connecting with `Last-Event-ID` replays only newer events.
+- **Green:** `src/events.rs` (`Event`, `EventHub`, notifier loop, replay), `AppState.events`, route registration, notifier spawn, header emission in handlers.
+- **Files:** `src/events.rs` (new), `src/handlers.rs`, `src/main.rs`, `.sqlx/`.
+- Optional finer split: SSE endpoint first, `X-Event-Id` headers second — both are small and HTTP-testable.
+
+### Step 3 — Frontend: `EventSource` client + dispatcher (item events)
+
+- **Red (two browsers):** A adds a card → B sees it, and **A shows exactly one card** (dedup works); likes, text edits, and status changes sync both ways; a client's own mutations never re-apply.
+- **Green:** `EventSource('/retro/{slug}/events')` + dispatcher in `retro.html`; bounded "already applied" id set fed by `X-Event-Id`.
+- **Files:** `templates/retro.html`, `tests/test_helpers.rs` (second-session helper).
+- Recommended finer split: 3a = `ITEM_CREATED` + dedup only (the double-render risk), 3b = remaining event types.
+
+### Step 4 — Timer: server-authoritative (migration 022 + endpoints + sweep)
+
+- **Red:** migration test for the virtual generated `timer_ends_at`; HTTP tests: start/extend/cancel update the DB and emit `TIMER_STARTED`/`TIMER_EXTENDED`/`TIMER_CANCELLED`; the sweep marks a short (e.g. 2 s) timer elapsed exactly once and is idempotent when run twice.
+- **Green:** migration `022`; timer fields on `Item` plus all SELECTs; `POST /items/{id}/timer/{start,extend,cancel}`; 1 s sweep task in `main()`.
+- **Resolve here:** trigger precedence when one `UPDATE` changes both `status` and timer columns, and whether `TIMER_CANCELLED` is ever emitted (§3).
+- **Files:** `migrations/022_item_timers.sql`, `src/models.rs`, `src/handlers.rs`, `src/main.rs`, `.sqlx/`.
+
+### Step 5 — Timer: client rendering + buttons
+
+- **Red (two browsers):** start in A → B shows the identical end time; extend and cancel sync; elapsed shows `0:00` + `+2 min` on both (use a short duration).
+- **Green:** timer JS rewritten to render from server data (`timer_ends_at`); timer buttons POST to the new endpoints; `item_card.html`/`macros.html` render the timer from server fields.
+- **Files:** `templates/retro.html`, `templates/item_card.html`, `templates/shared/macros.html`, `src/templates.rs` (if needed).
+
+### Step 6 — Retro-level events (archived + all-done modal)
+
+- **Red (two browsers):** archive in A → B's board empties and all timers stop; completing the last active card in A → **B** sees the all-done archive modal.
+- **Green:** `RETRO_ARCHIVED` dispatcher case; all-done modal driven by `ITEM_STATUS_CHANGED` + a client-side check (or a dedicated event).
+- **Files:** `templates/retro.html` (+ `src/handlers.rs` if a dedicated event is chosen).
+
+### Step 7 — Closeout
+
+- `scripts/sqlx-prepare.sh`; full `cargo test`; `fmt`/`clippy` as CI runs them.
+- `README.markdown`: remove the completed TODO item, document SSE + timer behavior.
+- `CHANGELOG.md`: new entry.
+
+### Why this order
+
+1. **DB first, no app code:** triggers are the foundation and are fully verifiable via migration tests; the existing suite guards against regressions before any new behavior layers on top.
+2. **Server before frontend:** the whole protocol (stream, replay, headers, auth) is verifiable with plain HTTP tests, so a failing two-browser test later is a JS bug, not a wire-format bug.
+3. **Dedup headers before dispatcher:** without `X-Event-Id`, the first two-browser test double-renders — a client receives its own `ITEM_CREATED` over SSE.
+4. **Timer last, split server/client:** the most invasive slice (schema, `Item` + every SELECT, endpoints, sweep, JS rewrite) is isolated so its churn can't complicate earlier steps.
+5. **Retro-level events last:** they reuse the dispatcher and need Step 4 for "timers stop" to be observable.
+
+---
+
+## 11. Confirmed decisions
 
 1. **Event payloads:** structured JSON in the `events` table; the client fetches `GET /items/{id}` for full card re-renders. Keeps Askama the single rendering source and the triggers pure SQL.
 2. **Timer elapsed detection:** a periodic sweep task (every ~1 s) marks elapsed timers via an idempotent `UPDATE ... WHERE timer_elapsed_at IS NULL`, and the items trigger emits `TIMER_ELAPSED`.
 3. **Dedup:** every mutating handler returns the event id of its own event in an `X-Event-Id` header; the client ignores SSE events with those ids (bounded "already applied" set, not a cursor).
 4. **Multi-instance:** single instance is the target today, but the Postgres-hub design (durable `events` table + per-process `LISTEN` notifier + idempotent sweep) is already multi-instance-ready; nothing in the implementation should rely on in-process-only state as the source of truth.
 
-## 11. PostgreSQL features used (release notes review)
+## 12. PostgreSQL features used (release notes review)
 
 The app already runs on PostgreSQL 18 (`postgres:18` in Docker Compose and CI; `display_name` virtual generated column; `OLD`/`NEW` in `RETURNING`), so PG 18 features are fair game. From the release notes:
 
