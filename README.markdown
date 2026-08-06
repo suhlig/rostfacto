@@ -79,14 +79,18 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
-- Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs
 - Allow multiple `GITHUB_USER_ORG`s
-- Allow adding a card anonymously
 - Publish a container image on every release and tag it with the release version
+- Release 2.0
+- Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs
+- Allow adding a card anonymously
 - Rework home page to be a landing page with
   - screenshots of individual actions like adding a card, shown as a carousel (instead of the animated GIF we currently have)
   - what's different to Postfacto
-- Release 2.0
+- Mobile version
+- Limit growth of the `events` table
+- Clean archived retros after e.g. a year
+- Periodic cleanup of sessions
 
 # License
 
