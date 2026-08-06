@@ -46,6 +46,10 @@ pub struct Item {
     pub likes_count: i64,
     pub archive_id: Option<i32>,
     pub archived_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub timer_started_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub timer_duration_seconds: Option<i32>,
+    pub timer_ends_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub timer_elapsed_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 pub fn apply_author_initials(items: &mut [&mut Vec<Item>]) {

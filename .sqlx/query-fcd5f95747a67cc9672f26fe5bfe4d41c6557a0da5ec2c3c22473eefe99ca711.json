@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE items SET timer_started_at = NOW(), timer_duration_seconds = 300 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fcd5f95747a67cc9672f26fe5bfe4d41c6557a0da5ec2c3c22473eefe99ca711"
+}

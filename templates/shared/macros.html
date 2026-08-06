@@ -167,8 +167,8 @@
 </article>
 {% endmacro %}
 
-{% macro archive_dialog(retro_id) %}
-  <dialog id="archive-modal" open>
+{% macro archive_dialog(retro_id, is_open) %}
+  <dialog id="archive-modal" {% if is_open %}open{% endif %}>
     <article>
       <h3>You're about to archive this retro.</h3>
       <p>Are you sure?</p>

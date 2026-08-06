@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                  i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                  i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                  ''::text as \"author_initials!\",\n                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as \"likes_count!\",\n                  i.archive_id as \"archive_id: _\", i.archived_at as \"archived_at: _\"\n           FROM items i\n           JOIN users u ON u.id = i.created_by\n           WHERE i.archive_id = $1\n           AND i.category = 'GOOD'\n           ORDER BY i.created_at ASC",
+  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                  i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                  i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                  ''::text as \"author_initials!\",\n                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as \"likes_count!\",\n                  i.archive_id as \"archive_id: _\", i.archived_at as \"archived_at: _\",\n                  i.timer_started_at as \"timer_started_at: _\", i.timer_duration_seconds as \"timer_duration_seconds: _\",\n                  i.timer_ends_at as \"timer_ends_at: _\", i.timer_elapsed_at as \"timer_elapsed_at: _\"\n           FROM items i\n           JOIN users u ON u.id = i.created_by\n           WHERE i.retro_id = $1\n           AND i.category = 'WATCH'\n           AND i.archive_id IS NULL\n           ORDER BY i.created_at ASC",
   "describe": {
     "columns": [
       {
@@ -147,6 +147,50 @@
             "name": "archived_at"
           }
         }
+      },
+      {
+        "ordinal": 12,
+        "name": "timer_started_at: _",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "timer_started_at"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "timer_duration_seconds: _",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "timer_duration_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "timer_ends_at: _",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "timer_ends_at"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "timer_elapsed_at: _",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "timer_elapsed_at"
+          }
+        }
       }
     ],
     "parameters": {
@@ -166,8 +210,12 @@
       null,
       null,
       true,
+      true,
+      true,
+      true,
+      true,
       true
     ]
   },
-  "hash": "c63cf6cf6316ed7b85f68262158fdbbb9d711412e1ef1e2304068206793b3fbb"
+  "hash": "c3965a4f2fac3f4088b7facc6c9b12af73faea2d5e2aaefa75ac2a850e7410a4"
 }

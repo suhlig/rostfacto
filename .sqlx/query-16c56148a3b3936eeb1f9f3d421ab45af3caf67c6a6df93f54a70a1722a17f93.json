@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE items SET status = 'COMPLETED'::status WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "16c56148a3b3936eeb1f9f3d421ab45af3caf67c6a6df93f54a70a1722a17f93"
+}

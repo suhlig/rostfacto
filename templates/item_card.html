@@ -4,8 +4,18 @@
   {% when Status::Highlighted %}
     <article class="card highlighted" tabindex="0" data-item-id="{{ item.id }}">
       <div class="timer-wrap">
-        <div class="timer-badge" data-initial-seconds="300">5:00</div>
-        <button type="button" class="timer-extend" hidden data-extend-seconds="120">+2 min</button>
+        {% if item.timer_elapsed_at.is_some() %}
+          <div class="timer-badge timer-over" data-elapsed>0:00</div>
+          <button type="button" class="timer-extend" data-extend-seconds="120">+2 min</button>
+        {% else %}
+          {% if let Some(ends_at) = item.timer_ends_at %}
+            <div class="timer-badge" data-end-at="{{ ends_at.timestamp_millis() }}"></div>
+            <button type="button" class="timer-extend" hidden data-extend-seconds="120">+2 min</button>
+          {% else %}
+            <div class="timer-badge" data-initial-seconds="300">5:00</div>
+            <button type="button" class="timer-extend" hidden data-extend-seconds="120">+2 min</button>
+          {% endif %}
+        {% endif %}
       </div>
       {{ macros::like_button(item) }}
       <div class="card-content">

@@ -39,6 +39,16 @@ When you create the OAuth App, set the callback URL to:
 <PUBLIC_URL>/auth/callback
 ```
 
+# Real-time sync
+
+Multiple clients on the same retro stay in sync via server-sent events (SSE):
+
+- The board subscribes to `GET /retro/{slug}/events`; every mutation (card added, status changed, liked, edited, timer changed, retro archived) is pushed to all connected clients immediately.
+- Postgres is the hub: database triggers write every event to an `events` table and `NOTIFY` a channel that a background task fans out to the connected browsers. The event log is durable, so a client that reconnects catches up on everything it missed (`Last-Event-ID` replay).
+- A client's own mutations are deduplicated, so the HTMX response and the SSE event for the same change are applied exactly once.
+- The highlight timer is **server-authoritative**: highlighting a card starts a five-minute countdown in the database, the +2 min button extends it, and a background sweep marks it elapsed so every client sees `0:00` at the same time. The countdown ticks locally, but the deadline always comes from the server.
+- Archiving a retro (or completing the last card, via the all-done modal) clears the board and stops all timers on every connected client.
+
 # Test
 
 The integration tests live in `tests/integration_test.rs` and use `thirtyfour` to drive Firefox via geckodriver. They start their own instance of the app on a random port, so you can keep your dev server running on port 3000.

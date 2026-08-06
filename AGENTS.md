@@ -87,6 +87,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 | `/retros/new` | GET | Form to create a retro (admin only) |
 | `/retros` | POST | Create a retro (title, slug, team_slug) — admin only |
 | `/retro/{slug}` | GET | Show a retro board |
+| `/retro/{slug}/events` | GET | SSE stream of events for the retro (replays `Last-Event-ID` catch-up, then live events) |
 | `/retro/{slug}/delete` | DELETE | Delete a retro and its items (admin only) |
 | `/retro/{retro_id}/archive` | POST | Archive all items in the retro |
 | `/items/{category}/{retro_id}` | POST | Add a new item card |
@@ -95,6 +96,8 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 | `/items/{id}/edit` | GET | Show inline edit form for an item |
 | `/items/{id}/status` | POST | Change item status (highlight/complete/cancel) |
 | `/items/{id}/like` | POST | Toggle a like on the item |
+| `/items/{id}/timer/start` | POST | Start the highlight timer (form field `duration`, default 300 s) |
+| `/items/{id}/timer/extend` | POST | Extend the running timer by 2 minutes |
 | `/auth/login` | GET | Start GitHub OAuth login |
 | `/auth/callback` | GET | GitHub OAuth callback |
 | `/auth/logout` | GET | Sign out and clear session |
@@ -103,10 +106,11 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 ## Database schema
 
 - `retrospectives(id, title, slug, created_at, updated_at, team_slug, created_by)` — unique slug is the public URL key; `team_slug` controls access.
-- `items(id, retro_id, text, category, created_at, updated_at, status, created_by, author_id, author_name, author_initials, likes_count)` — FK to `retrospectives` with `ON DELETE CASCADE`, FK to `users` with `ON DELETE RESTRICT`.
+- `items(id, retro_id, text, category, created_at, updated_at, status, created_by, author_id, author_name, author_initials, likes_count, timer_started_at, timer_duration_seconds, timer_ends_at, timer_elapsed_at)` — FK to `retrospectives` with `ON DELETE CASCADE`, FK to `users` with `ON DELETE RESTRICT`. The timer columns are the server-authoritative highlight timer; `timer_ends_at` is a PG 18 virtual generated column (`timer_started_at + timer_duration_seconds`).
 - `users(id, github_id, username, full_name, display_name, avatar_url, created_at, updated_at)` — GitHub users who have logged in. `display_name` is a virtual column (`COALESCE(full_name, username)`).
 - `sessions(id, user_id, expires_at, created_at, updated_at, is_admin, teams)` — server-side sessions. `id` is a UUIDv7 text token; `teams` is a JSONB cache of team slugs/names.
 - `likes(item_id, user_id)` — toggled likes on items.
+- `events(id, retro_id, event_type, item_id, payload, created_at)` — durable event log written by DB triggers on `items`/`likes`/`archives`; the notifier task and SSE replay read from it. `event_type` is an enum (`ITEM_CREATED`, `ITEM_UPDATED`, `ITEM_STATUS_CHANGED`, `ITEM_LIKED`, `ITEM_UNLIKED`, `TIMER_STARTED`, `TIMER_EXTENDED`, `TIMER_CANCELLED` — reserved, never emitted, `TIMER_ELAPSED`, `RETRO_ARCHIVED`).
 - Enums:
   - `category` = `GOOD`, `BAD`, `WATCH`
   - `status` = `CREATED`, `HIGHLIGHTED`, `COMPLETED`, `ARCHIVED`
@@ -121,11 +125,11 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - **Card lifecycle**: `CREATED` → `HIGHLIGHTED` → `COMPLETED`. `ARCHIVED` is a terminal state used for all items at once. Completed cards cannot be re-highlighted.
 - **Highlighting**: clicking a created card marks it highlighted. Because of the DB index, only one item per retro can be highlighted; an attempt to highlight a second card renders an error on that card.
 - **Completing**: a highlighted card shows "Done" and "Cancel" buttons. Completing sets it to `COMPLETED`. Cancel returns it to `CREATED`.
-- **Timer**: highlighted cards show a 5-minute countdown timer with a +2 minute extend button. The timer is client-side only (no server state).
+- **Timer**: highlighted cards show a 5-minute countdown timer with a +2 minute extend button. The timer is **server-authoritative**: the client that highlights a card starts it via `POST /items/{id}/timer/start`, the deadline is computed by the DB (`timer_ends_at`), a 1 s background sweep marks elapsed timers (`timer_elapsed_at`), and `TIMER_*` events keep every client's countdown in sync. Completing or cancelling a highlight resets the timer columns in the same UPDATE (observed as `ITEM_STATUS_CHANGED`, never `TIMER_CANCELLED`).
 - **Likes**: any card can be liked; likes are per-user and toggle on/off.
 - **Editing**: item text can be edited inline.
 - **All-done prompt**: when the last active item is completed, the server returns a modal asking whether to archive all cards. Declining keeps them visible as completed.
-- **Archived items** are hidden from the retro board view.
+- **Cross-client sync**: every mutation writes an `events` row via DB triggers and `NOTIFY`s the `rostfacto_events` channel; a per-process notifier task (`events::notifier_loop`) fans events out to SSE subscribers (`GET /retro/{slug}/events`). Mutating handlers return their event id in an `X-Event-Id` header so clients can ignore the matching SSE event (dedup).
 - **Slug rules**: lowercase letters, numbers, dashes only, max 255 chars, unique.
 
 ## How the frontend works
@@ -135,10 +139,12 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
   - Adding cards swaps the result into `#good-items`, `#bad-items`, or `#watch-items`.
   - Status changes, likes, and text edits replace the nearest `.card`.
   - Delete buttons target the closest table row.
+- The retro page opens an `EventSource('/retro/{slug}/events')` and applies events to the DOM: full card re-renders via `GET /items/{id}`, in-place updates for likes/text/timers, board clear on `RETRO_ARCHIVED`. Mutations deduplicate their own SSE events via the `X-Event-Id` response header; cards inserted or replaced outside an HTMX swap are handed to `htmx.process()` because htmx 2.0 binds trigger handlers directly on elements.
 - Small inline JS snippets are still present:
   - Account menu open/close on the retro page.
   - Archive confirmation dialog from the account menu.
-  - Card countdown timers and timer extension.
+  - Server-authoritative card countdown timers (deadline from the DB), auto-start after highlighting, and the +2 min extension.
+- Two-browser sync tests must take a `two_browser_permit()` (serializes against the Firefox session limit).
 
 ## Testing
 
@@ -146,6 +152,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - Migration tests are in `tests/migration_test.rs`.
 - `tests/test_helpers.rs` starts a geckodriver instance and provides page objects (`HomePage`, `RetrosPage`, `RetroPage`).
 - Each integration test starts its own app instance on a random port with a fresh PostgreSQL database copied from a migrated template; you do not need to start a server beforehand and it will not conflict with a dev server on port 3000.
+- Test databases are dropped when a test finishes (or panics), but a killed test process (Ctrl+C, timeout) cannot clean up after itself. Each test run therefore starts by dropping leftover `rostfacto_test_*` databases that have no active connections.
 - The template database (`rostfacto_test_template`) is created automatically on the first test run, so `rostfacto-dev` is no longer polluted by test data.
 - The tests rely on **demo mode** (no `GITHUB_ADMIN_ORG` set) so they run without real GitHub credentials.
 - You need Firefox and geckodriver installed. On macOS:
@@ -170,3 +177,6 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - `models.rs` implements `Display` for `Category` so that `to_string()` returns uppercase (`GOOD`/`BAD`/`WATCH`) to match the DB enum. The same file also defines `url_segment()`, `display_label()`, `column_class()`, `icon()`, and `items_container_id()` helpers.
 - The `AuthUser` extractor reads cached admin/team data from the session; it does **not** call the GitHub API on every request. Live API calls happen only during the OAuth callback.
 - OAuth callbacks use `PUBLIC_URL` to build the redirect URI, so it must match the GitHub OAuth app settings.
+- `main()` spawns two background tasks: `events::notifier_loop` (`LISTEN` on `rostfacto_events`, fans events out to SSE subscribers) and `handlers::timer_sweep_loop` (marks elapsed highlight timers every second). Both are idempotent/multi-instance-safe; the durable `events` table is the source of truth for replay.
+- Timer events: `TIMER_CANCELLED` is never emitted — cancelling a highlight is always observed as `ITEM_STATUS_CHANGED` (the trigger's status branch wins over timer changes).
+- The dev database must stay consistent with the recorded migrations: `sqlx migrate run` only applies *new* migrations, so manually dropping triggers/functions on an already-migrated DB leaves it broken while `_sqlx_migrations` still claims everything is applied. When iterating on unmerged migrations, drop the `_sqlx_migrations` rows for them and re-apply, or recreate the dev DB.

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE items SET status = 'ARCHIVED'::status, archive_id = $1, archived_at = NOW() WHERE retro_id = $2 AND archive_id IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "92f1851e4af3fb9b0c14d30c5ac341f75fc67c63e663e36a6699b57bdc0cb283"
+}

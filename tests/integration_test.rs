@@ -1282,3 +1282,176 @@ async fn test_archive_empty_retro_creates_no_snapshot() -> WebDriverResult<()> {
     browser.close().await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn test_sse_syncs_cards_between_clients() -> WebDriverResult<()> {
+    let _two_browsers = two_browser_permit().await;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser_a = BrowserSession::new(&server.base_url()).await?;
+    let browser_b = BrowserSession::new(&server.base_url()).await?;
+
+    let retros_page = browser_a.retros_page().await?;
+    let retro_a = retros_page.create_retro("SSE Sync Cards").await?;
+    let slug = retro_a.slug.clone();
+    let retro_b = RetroPage::new(&browser_b.driver, &server.base_url(), &slug).await?;
+
+    // A adds a card: B sees it via SSE, and A shows exactly one (dedup).
+    retro_a.add_card("Good", "Card from A").await?;
+    retro_b
+        .wait_for_card_with_text("Good", "Card from A")
+        .await?;
+    retro_a.wait_for_card_count("Good", 1).await?;
+    retro_b.wait_for_card_count("Good", 1).await?;
+
+    // B adds a card: A sees it via SSE, and B shows exactly one (dedup).
+    retro_b.add_card("Watch", "Card from B").await?;
+    retro_a
+        .wait_for_card_with_text("Watch", "Card from B")
+        .await?;
+    retro_a.wait_for_card_count("Watch", 1).await?;
+    retro_b.wait_for_card_count("Watch", 1).await?;
+
+    browser_a.close().await?;
+    browser_b.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_sse_syncs_likes_text_and_status_between_clients() -> WebDriverResult<()> {
+    let _two_browsers = two_browser_permit().await;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser_a = BrowserSession::new(&server.base_url()).await?;
+    let browser_b = BrowserSession::new(&server.base_url()).await?;
+
+    let retros_page = browser_a.retros_page().await?;
+    let retro_a = retros_page.create_retro("SSE Sync Mutations").await?;
+    let slug = retro_a.slug.clone();
+    let retro_b = RetroPage::new(&browser_b.driver, &server.base_url(), &slug).await?;
+
+    let item_id = retro_a.add_card("Good", "Shared card").await?;
+    retro_b
+        .wait_for_card_with_text("Good", "Shared card")
+        .await?;
+
+    // B likes: both clients' counts update (B via HTMX, A via SSE).
+    retro_b.like_card(item_id).await?;
+    retro_b.wait_for_like_count(item_id, "1").await?;
+    retro_a.wait_for_like_count(item_id, "1").await?;
+
+    // A edits the text: B's card updates in place.
+    retro_a.edit_card(item_id, "Edited text").await?;
+    retro_b.wait_for_card_text(item_id, "Edited text").await?;
+
+    // B highlights: A's card becomes highlighted.
+    retro_b.click_card(item_id).await?;
+    retro_a
+        .verify_card_state(item_id, "card highlighted")
+        .await?;
+
+    // A completes: B's card becomes completed.
+    retro_a.complete_card().await?;
+    retro_b.verify_card_state(item_id, "card completed").await?;
+
+    browser_a.close().await?;
+    browser_b.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_sse_syncs_timers_between_clients() -> WebDriverResult<()> {
+    let _two_browsers = two_browser_permit().await;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser_a = BrowserSession::new(&server.base_url()).await?;
+    let browser_b = BrowserSession::new(&server.base_url()).await?;
+
+    let retros_page = browser_a.retros_page().await?;
+    let retro_a = retros_page.create_retro("SSE Sync Timers").await?;
+    let slug = retro_a.slug.clone();
+    let retro_b = RetroPage::new(&browser_b.driver, &server.base_url(), &slug).await?;
+
+    let item_id = retro_a.add_card("Good", "Timed card").await?;
+    retro_b
+        .wait_for_card_with_text("Good", "Timed card")
+        .await?;
+
+    // Use a short auto-start duration so the timer elapses quickly.
+    let script = "document.body.dataset.timerDefaultSeconds = '2'";
+    retro_a.driver.execute(script, vec![]).await?;
+
+    // A highlights the card: A's client starts the timer, and B must show the
+    // identical server-rendered deadline.
+    retro_a.click_card(item_id).await?;
+    retro_b
+        .verify_card_state(item_id, "card highlighted")
+        .await?;
+    let end_a = retro_a.wait_for_timer_end_at(item_id).await?;
+    let end_b = retro_b.wait_for_timer_end_at(item_id).await?;
+    assert_eq!(
+        end_a, end_b,
+        "both clients should show the same timer deadline"
+    );
+
+    // Both count down to 0:00 and reveal the +2 min button.
+    retro_a.wait_for_timer_text(item_id, "0:00").await?;
+    retro_b.wait_for_timer_text(item_id, "0:00").await?;
+    retro_a.wait_for_extend_button_visible(item_id).await?;
+    retro_b.wait_for_extend_button_visible(item_id).await?;
+
+    // A extends the timer: both clients show the same new deadline.
+    retro_a.click_extend(item_id).await?;
+    let end_a = retro_a.wait_for_timer_end_at(item_id).await?;
+    let end_b = retro_b.wait_for_timer_end_at(item_id).await?;
+    assert_eq!(
+        end_a, end_b,
+        "both clients should show the extended deadline"
+    );
+    retro_a.wait_for_timer_text(item_id, "2:00").await?;
+    retro_b.wait_for_timer_text(item_id, "2:00").await?;
+
+    // A cancels the highlight: both clients lose the timer badge.
+    retro_a.cancel_card().await?;
+    retro_a.verify_card_state(item_id, "card").await?;
+    retro_b.verify_card_state(item_id, "card").await?;
+
+    browser_a.close().await?;
+    browser_b.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_sse_syncs_archive_and_all_done_modal_between_clients() -> WebDriverResult<()> {
+    let _two_browsers = two_browser_permit().await;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser_a = BrowserSession::new(&server.base_url()).await?;
+    let browser_b = BrowserSession::new(&server.base_url()).await?;
+
+    let retros_page = browser_a.retros_page().await?;
+    let retro_a = retros_page.create_retro("SSE Sync Archive").await?;
+    let slug = retro_a.slug.clone();
+    let retro_b = RetroPage::new(&browser_b.driver, &server.base_url(), &slug).await?;
+
+    let item_id = retro_a.add_card("Good", "Last card").await?;
+    retro_b.wait_for_card_with_text("Good", "Last card").await?;
+
+    // A completes the last card: B must see the all-done archive modal too.
+    retro_a.click_card(item_id).await?;
+    retro_b
+        .verify_card_state(item_id, "card highlighted")
+        .await?;
+    retro_a.complete_card().await?;
+    retro_b.verify_card_state(item_id, "card completed").await?;
+    retro_a.wait_for_archive_modal().await?;
+    retro_b.wait_for_archive_modal().await?;
+
+    // A archives from the modal: B's board empties.
+    retro_a.archive().await?;
+    retro_b.wait_for_card_count("Good", 0).await?;
+
+    browser_a.close().await?;
+    browser_b.close().await?;
+    Ok(())
+}

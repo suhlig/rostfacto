@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT datname\n        FROM pg_database\n        WHERE datname LIKE 'rostfacto_test\\_%'\n          AND datname <> 'rostfacto_test_template'\n          AND NOT EXISTS (\n              SELECT 1 FROM pg_stat_activity\n              WHERE pg_stat_activity.datname = pg_database.datname\n          )\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "datname",
+        "type_info": "Name",
+        "origin": {
+          "Table": {
+            "table": "pg_database",
+            "name": "datname"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7c3f807ccc3d85e3e70183cf0ef9e789f4350721e41b3d1c4a210576340ac757"
+}

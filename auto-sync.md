@@ -217,12 +217,13 @@ Each step of the implementation plan in §10 ends green — its new tests plus t
 
 Work the plan top to bottom. Each step starts **red** (write the test first, watch it fail), ends **green** (test passes and the full existing suite still passes), and is independently shippable. DoD for every step: new tests pass, existing suite passes, `cargo fmt --all --check` and `cargo clippy --all-targets -- -D warnings` are clean.
 
-- [ ] Step 1 — DB: `events` table + triggers (migration 021)
-- [ ] Step 2 — Server: SSE endpoint + `X-Event-Id` headers
-- [ ] Step 3 — Frontend: `EventSource` client + dispatcher (item events)
-- [ ] Step 4 — Timer: server-authoritative (migration 022 + endpoints + sweep)
-- [ ] Step 5 — Timer: client rendering + buttons
-- [ ] Step 6 — Retro-level events (archived + all-done modal)
+- [x] Step 1 — DB: `events` table + triggers (migration 021)
+- [x] Step 2 — Server: SSE endpoint + `X-Event-Id` headers
+- [x] Step 3 — Frontend: `EventSource` client + dispatcher (item events)
+- [x] Step 4 — Timer: server-authoritative (migration 022 + endpoints + sweep)
+- [x] Step 5 — Timer: client rendering + buttons
+- [x] Step 6 — Retro-level events (archived + all-done modal)
+- [x] Step 7 — Closeout (`.sqlx`, README, CHANGELOG)
 - [ ] Step 7 — Closeout (`.sqlx`, README, CHANGELOG)
 
 **Ground rules**

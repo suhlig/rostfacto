@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE items\n           SET timer_duration_seconds = timer_duration_seconds + 120,\n               timer_elapsed_at = NULL\n           WHERE id = $1 AND timer_started_at IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4c977ffd099add4628e0ea04245dfb5bfe37b8b0e4ccc3d94885a1ee7a81e85e"
+}

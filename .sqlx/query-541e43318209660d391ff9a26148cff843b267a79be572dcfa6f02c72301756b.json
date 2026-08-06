@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE items SET status = 'CREATED'::status, timer_started_at = NULL, timer_duration_seconds = NULL, timer_elapsed_at = NULL WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "541e43318209660d391ff9a26148cff843b267a79be572dcfa6f02c72301756b"
+}

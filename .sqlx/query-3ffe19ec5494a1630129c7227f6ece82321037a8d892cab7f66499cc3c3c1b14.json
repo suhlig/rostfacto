@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE items\n        SET status = CASE\n            WHEN status = 'COMPLETED'::status THEN 'COMPLETED'::status\n            WHEN status = 'CREATED'::status AND $2 = 'highlight' THEN 'HIGHLIGHTED'::status\n            WHEN status = 'HIGHLIGHTED'::status AND $2 = 'complete' THEN 'COMPLETED'::status\n            WHEN status = 'HIGHLIGHTED'::status AND $2 = 'cancel' THEN 'CREATED'::status\n            ELSE status\n        END,\n        -- Completing or cancelling a highlight ends its timer: reset the timer\n        -- columns in the same UPDATE (the trigger emits ITEM_STATUS_CHANGED,\n        -- never TIMER_CANCELLED). The condition on the old status keeps a\n        -- no-op status change from touching the timer.\n        timer_started_at = CASE\n            WHEN $2 IN ('cancel', 'complete') AND status = 'HIGHLIGHTED'::status THEN NULL\n            ELSE timer_started_at\n        END,\n        timer_duration_seconds = CASE\n            WHEN $2 IN ('cancel', 'complete') AND status = 'HIGHLIGHTED'::status THEN NULL\n            ELSE timer_duration_seconds\n        END,\n        timer_elapsed_at = CASE\n            WHEN $2 IN ('cancel', 'complete') AND status = 'HIGHLIGHTED'::status THEN NULL\n            ELSE timer_elapsed_at\n        END\n        WHERE id = $1\n        RETURNING id, old.status as \"old_status: _\", new.status as \"new_status: _\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "old_status: _",
+        "type_info": {
+          "Custom": {
+            "name": "status",
+            "kind": {
+              "Enum": [
+                "CREATED",
+                "HIGHLIGHTED",
+                "COMPLETED",
+                "ARCHIVED"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "new_status: _",
+        "type_info": {
+          "Custom": {
+            "name": "status",
+            "kind": {
+              "Enum": [
+                "CREATED",
+                "HIGHLIGHTED",
+                "COMPLETED",
+                "ARCHIVED"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3ffe19ec5494a1630129c7227f6ece82321037a8d892cab7f66499cc3c3c1b14"
+}

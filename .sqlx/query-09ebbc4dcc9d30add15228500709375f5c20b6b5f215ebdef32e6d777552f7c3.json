@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT timer_started_at, timer_duration_seconds, timer_elapsed_at FROM items WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "timer_started_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "timer_started_at"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "timer_duration_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "timer_duration_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "timer_elapsed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "timer_elapsed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "09ebbc4dcc9d30add15228500709375f5c20b6b5f215ebdef32e6d777552f7c3"
+}

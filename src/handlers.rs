@@ -1,4 +1,5 @@
 use crate::auth::{AuthUser, MaybeAuthUser};
+use crate::events::EventType;
 use crate::models::{
     apply_author_initials, ActionItem, Archive, Category, Item, Retrospective, Status,
 };
@@ -19,7 +20,7 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use std::collections::HashMap;
 
-fn log_database_error(operation: &'static str, error: &sqlx::Error) {
+pub(crate) fn log_database_error(operation: &'static str, error: &sqlx::Error) {
     if let Some(database_error) = error.as_database_error() {
         tracing::error!(
             operation,
@@ -33,7 +34,7 @@ fn log_database_error(operation: &'static str, error: &sqlx::Error) {
     tracing::debug!(operation, error = %error, "database operation failure details");
 }
 
-fn database_error_response() -> Response {
+pub(crate) fn database_error_response() -> Response {
     (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response()
 }
 
@@ -48,7 +49,9 @@ async fn load_item_with_initials(
                   i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!",
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
-                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
+                  i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = (SELECT retro_id FROM items WHERE id = $1)"#,
@@ -85,7 +88,7 @@ fn forbidden(state: &AppState, message: &str) -> Response {
     (StatusCode::FORBIDDEN, Html(template.render().unwrap())).into_response()
 }
 
-fn not_found_response(state: &AppState, slug: &str) -> Response {
+pub(crate) fn not_found_response(state: &AppState, slug: &str) -> Response {
     let template = ErrorTemplate {
         code: "404",
         message: format!("No retrospective with slug '{}' found", slug),
@@ -122,7 +125,19 @@ async fn load_retro(pool: &PgPool, slug: &str) -> Result<Option<Retrospective>, 
     .await
 }
 
-async fn require_retro_access(
+/// Attach the id of the event a mutation produced (if any) to its response,
+/// so the client can ignore the matching SSE event and avoid double-applying
+/// its own change. Callers pass `None` when the mutation emitted no event
+/// (e.g. a no-op status change).
+fn attach_event_id_header(response: &mut Response, event_id: Option<i64>) {
+    if let Some(id) = event_id {
+        if let Ok(value) = HeaderValue::from_str(&id.to_string()) {
+            response.headers_mut().insert("x-event-id", value);
+        }
+    }
+}
+
+pub(crate) async fn require_retro_access(
     state: &AppState,
     user: &AuthUser,
     slug: &str,
@@ -347,7 +362,9 @@ pub async fn show_retro(
                   i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!",
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
-                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
+                  i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = $1
@@ -370,7 +387,9 @@ pub async fn show_retro(
                   i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!",
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
-                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
+                  i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = $1
@@ -393,7 +412,9 @@ pub async fn show_retro(
                   i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!",
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
-                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
+                  i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = $1
@@ -507,6 +528,20 @@ pub async fn add_item(
         database_error_response()
     })?;
 
+    // The item is brand new, so the only ITEM_CREATED event for it is the one
+    // this statement's trigger wrote inside the same transaction.
+    let event_id = sqlx::query_scalar!(
+        "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
+        item_id,
+        EventType::ItemCreated as EventType
+    )
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|error| {
+        log_database_error("add_item_event_id", &error);
+        database_error_response()
+    })?;
+
     let item = load_item_with_initials(&mut tx, item_id)
         .await
         .map_err(|error| {
@@ -533,18 +568,20 @@ pub async fn add_item(
     };
     let html = Html(template.render().unwrap());
 
-    if needs_initials_refresh {
-        Ok((
+    let mut response = if needs_initials_refresh {
+        (
             [(
                 HeaderName::from_static("hx-refresh"),
                 HeaderValue::from_static("true"),
             )],
             html,
         )
-            .into_response())
+            .into_response()
     } else {
-        Ok(html.into_response())
-    }
+        html.into_response()
+    };
+    attach_event_id_header(&mut response, event_id);
+    Ok(response)
 }
 
 pub async fn change_item_status(
@@ -552,7 +589,7 @@ pub async fn change_item_status(
     user: AuthUser,
     Path(item_id): Path<i32>,
     Query(params): Query<HashMap<String, String>>,
-) -> Result<Html<String>, Response> {
+) -> Result<Response, Response> {
     // Verify the item exists and the user has access to its retro before mutating.
     let retro_id = match sqlx::query_scalar!("SELECT retro_id FROM items WHERE id = $1", item_id)
         .fetch_optional(&state.pool)
@@ -584,6 +621,13 @@ pub async fn change_item_status(
     }
 
     let action = params.get("action").map(|s| s.as_str());
+    // Wrap the UPDATE and the events lookup in one transaction so the header
+    // reflects the event this mutation produced (or nothing for a no-op
+    // status change).
+    let mut tx = state.pool.begin().await.map_err(|error| {
+        log_database_error("change_item_status_begin_transaction", &error);
+        database_error_response()
+    })?;
     let status_change = match sqlx::query_as!(
         StatusChange,
         r#"
@@ -594,6 +638,22 @@ pub async fn change_item_status(
             WHEN status = 'HIGHLIGHTED'::status AND $2 = 'complete' THEN 'COMPLETED'::status
             WHEN status = 'HIGHLIGHTED'::status AND $2 = 'cancel' THEN 'CREATED'::status
             ELSE status
+        END,
+        -- Completing or cancelling a highlight ends its timer: reset the timer
+        -- columns in the same UPDATE (the trigger emits ITEM_STATUS_CHANGED,
+        -- never TIMER_CANCELLED). The condition on the old status keeps a
+        -- no-op status change from touching the timer.
+        timer_started_at = CASE
+            WHEN $2 IN ('cancel', 'complete') AND status = 'HIGHLIGHTED'::status THEN NULL
+            ELSE timer_started_at
+        END,
+        timer_duration_seconds = CASE
+            WHEN $2 IN ('cancel', 'complete') AND status = 'HIGHLIGHTED'::status THEN NULL
+            ELSE timer_duration_seconds
+        END,
+        timer_elapsed_at = CASE
+            WHEN $2 IN ('cancel', 'complete') AND status = 'HIGHLIGHTED'::status THEN NULL
+            ELSE timer_elapsed_at
         END
         WHERE id = $1
         RETURNING id, old.status as "old_status: _", new.status as "new_status: _"
@@ -601,7 +661,7 @@ pub async fn change_item_status(
         item_id,
         action
     )
-    .fetch_one(&state.pool)
+    .fetch_one(&mut *tx)
     .await
     {
         Ok(row) => row,
@@ -611,6 +671,7 @@ pub async fn change_item_status(
                 .is_some_and(|c| c.contains("single_highlighted_item_per_retro"))
             {
                 // Fetch the original item so we can re-render it with the error message
+                drop(tx);
                 let mut conn = state.pool.acquire().await.map_err(|error| {
                     log_database_error("reload_item_after_highlight_conflict_acquire", &error);
                     database_error_response()
@@ -632,12 +693,30 @@ pub async fn change_item_status(
                     }
                     .render()
                     .unwrap(),
-                ));
+                )
+                .into_response());
             }
             log_database_error("change_item_status", &e);
             return Err(database_error_response());
         }
     };
+
+    let event_id = sqlx::query_scalar!(
+        "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
+        status_change.id,
+        EventType::ItemStatusChanged as EventType
+    )
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|error| {
+        log_database_error("change_item_status_event_id", &error);
+        database_error_response()
+    })?;
+
+    tx.commit().await.map_err(|error| {
+        log_database_error("change_item_status_commit_transaction", &error);
+        database_error_response()
+    })?;
 
     let mut conn = state.pool.acquire().await.map_err(|error| {
         log_database_error("load_updated_item_acquire", &error);
@@ -701,7 +780,14 @@ pub async fn change_item_status(
         .unwrap()
     };
 
-    Ok(Html(template))
+    let mut response = Html(template).into_response();
+    // A no-op status change emits no event; attaching the previous event's id
+    // would wrongly suppress a future SSE update.
+    let event_id = (status_change.old_status != status_change.new_status)
+        .then_some(event_id)
+        .flatten();
+    attach_event_id_header(&mut response, event_id);
+    Ok(response)
 }
 
 pub async fn show_item(
@@ -770,7 +856,7 @@ pub async fn update_item(
     user: AuthUser,
     Path(item_id): Path<i32>,
     Form(form): Form<NewItem>,
-) -> Result<Html<String>, Response> {
+) -> Result<Response, Response> {
     let mut conn = state.pool.acquire().await.map_err(|error| {
         log_database_error("load_item_for_update_acquire", &error);
         database_error_response()
@@ -794,6 +880,7 @@ pub async fn update_item(
     if text.is_empty() {
         return Err(bad_request(&state, "Card text is required"));
     }
+    let old_text = item.text.clone();
 
     let mut tx = state.pool.begin().await.map_err(|error| {
         log_database_error("update_item_begin_transaction", &error);
@@ -807,6 +894,18 @@ pub async fn update_item(
             log_database_error("update_item", &error);
             database_error_response()
         })?;
+
+    let event_id = sqlx::query_scalar!(
+        "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
+        item_id,
+        EventType::ItemUpdated as EventType
+    )
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|error| {
+        log_database_error("update_item_event_id", &error);
+        database_error_response()
+    })?;
 
     let item = load_item_with_initials(&mut tx, item_id)
         .await
@@ -822,21 +921,27 @@ pub async fn update_item(
 
     tracing::debug!(item_id, user_id = user.user_id, "item text updated");
 
-    Ok(Html(
+    let mut response = Html(
         ItemCardTemplate {
             item,
             error_message: None,
         }
         .render()
         .unwrap(),
-    ))
+    )
+    .into_response();
+    // The trigger only emits ITEM_UPDATED when the text actually changes; the
+    // header must mirror that.
+    let event_id = if old_text != text { event_id } else { None };
+    attach_event_id_header(&mut response, event_id);
+    Ok(response)
 }
 
 pub async fn like_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(item_id): Path<i32>,
-) -> Result<Html<String>, Response> {
+) -> Result<Response, Response> {
     let retro_id = match sqlx::query_scalar!("SELECT retro_id FROM items WHERE id = $1", item_id)
         .fetch_optional(&state.pool)
         .await
@@ -877,6 +982,10 @@ pub async fn like_item(
     })?
     .unwrap_or(false);
 
+    // The lookup runs in the same transaction as the mutation, so the returned
+    // id is the event this mutation's trigger wrote (unless a concurrent
+    // client's event for the same item committed in between, which the client
+    // side dedup tolerates).
     if already_liked {
         sqlx::query!(
             r#"DELETE FROM likes WHERE item_id = $1 AND user_id = $2"#,
@@ -903,6 +1012,32 @@ pub async fn like_item(
         })?;
     }
 
+    let event_id = if already_liked {
+        sqlx::query_scalar!(
+            "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
+            item_id,
+            EventType::ItemUnliked as EventType
+        )
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|error| {
+            log_database_error("delete_like_event_id", &error);
+            database_error_response()
+        })?
+    } else {
+        sqlx::query_scalar!(
+            "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
+            item_id,
+            EventType::ItemLiked as EventType
+        )
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|error| {
+            log_database_error("insert_like_event_id", &error);
+            database_error_response()
+        })?
+    };
+
     let item = load_item_with_initials(&mut tx, item_id)
         .await
         .map_err(|error| {
@@ -923,14 +1058,227 @@ pub async fn like_item(
         "item like toggled"
     );
 
-    Ok(Html(
+    let mut response = Html(
         ItemCardTemplate {
             item,
             error_message: None,
         }
         .render()
         .unwrap(),
-    ))
+    )
+    .into_response();
+    attach_event_id_header(&mut response, event_id);
+    Ok(response)
+}
+
+#[derive(Deserialize)]
+pub struct TimerStartForm {
+    pub duration: Option<i32>,
+}
+
+/// Verify the item exists and the user has access to its retro.
+async fn require_timer_access(
+    state: &AppState,
+    user: &AuthUser,
+    item_id: i32,
+) -> Result<(), Response> {
+    let retro_id = match sqlx::query_scalar!("SELECT retro_id FROM items WHERE id = $1", item_id)
+        .fetch_optional(&state.pool)
+        .await
+    {
+        Ok(Some(id)) => id,
+        Ok(None) => return Err(not_found_response(state, "")),
+        Err(error) => {
+            log_database_error("load_item_retro_id_for_timer", &error);
+            return Err(database_error_response());
+        }
+    };
+
+    match require_retro_access_by_id(state, user, retro_id).await? {
+        Some(_) => Ok(()),
+        None => Err(forbidden(
+            state,
+            "You do not have access to this retrospective",
+        )),
+    }
+}
+
+/// Start the highlight timer for an item. The deadline is computed by the DB
+/// (`timer_ends_at`), so every client shows the same countdown.
+pub async fn start_item_timer(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(item_id): Path<i32>,
+    Form(form): Form<TimerStartForm>,
+) -> Result<Response, Response> {
+    require_timer_access(&state, &user, item_id).await?;
+
+    let duration = form.duration.unwrap_or(300).clamp(1, 3600);
+
+    let mut tx = state.pool.begin().await.map_err(|error| {
+        log_database_error("start_timer_begin_transaction", &error);
+        database_error_response()
+    })?;
+
+    let result = sqlx::query!(
+        r#"UPDATE items
+           SET timer_started_at = NOW(),
+               timer_duration_seconds = $2,
+               timer_elapsed_at = NULL
+           WHERE id = $1 AND status = 'HIGHLIGHTED'::status"#,
+        item_id,
+        duration
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|error| {
+        log_database_error("start_item_timer", &error);
+        database_error_response()
+    })?;
+
+    let event_id = if result.rows_affected() > 0 {
+        sqlx::query_scalar!(
+            "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
+            item_id,
+            EventType::TimerStarted as EventType
+        )
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|error| {
+            log_database_error("start_timer_event_id", &error);
+            database_error_response()
+        })?
+    } else {
+        None
+    };
+
+    let item = load_item_with_initials(&mut tx, item_id)
+        .await
+        .map_err(|error| {
+            log_database_error("load_item_after_timer_start", &error);
+            database_error_response()
+        })?;
+
+    tx.commit().await.map_err(|error| {
+        log_database_error("start_timer_commit_transaction", &error);
+        database_error_response()
+    })?;
+
+    tracing::debug!(item_id, duration, user_id = user.user_id, "timer started");
+
+    let mut response = Html(
+        ItemCardTemplate {
+            item,
+            error_message: None,
+        }
+        .render()
+        .unwrap(),
+    )
+    .into_response();
+    attach_event_id_header(&mut response, event_id);
+    Ok(response)
+}
+
+/// Extend a running timer by two minutes (restarting it if it already
+/// elapsed).
+pub async fn extend_item_timer(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(item_id): Path<i32>,
+) -> Result<Response, Response> {
+    require_timer_access(&state, &user, item_id).await?;
+
+    let mut tx = state.pool.begin().await.map_err(|error| {
+        log_database_error("extend_timer_begin_transaction", &error);
+        database_error_response()
+    })?;
+
+    let result = sqlx::query!(
+        r#"UPDATE items
+           SET timer_duration_seconds = timer_duration_seconds + 120,
+               timer_elapsed_at = NULL
+           WHERE id = $1 AND timer_started_at IS NOT NULL"#,
+        item_id
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|error| {
+        log_database_error("extend_item_timer", &error);
+        database_error_response()
+    })?;
+
+    let event_id = if result.rows_affected() > 0 {
+        sqlx::query_scalar!(
+            "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
+            item_id,
+            EventType::TimerExtended as EventType
+        )
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|error| {
+            log_database_error("extend_timer_event_id", &error);
+            database_error_response()
+        })?
+    } else {
+        None
+    };
+
+    let item = load_item_with_initials(&mut tx, item_id)
+        .await
+        .map_err(|error| {
+            log_database_error("load_item_after_timer_extend", &error);
+            database_error_response()
+        })?;
+
+    tx.commit().await.map_err(|error| {
+        log_database_error("extend_timer_commit_transaction", &error);
+        database_error_response()
+    })?;
+
+    tracing::debug!(item_id, user_id = user.user_id, "timer extended");
+
+    let mut response = Html(
+        ItemCardTemplate {
+            item,
+            error_message: None,
+        }
+        .render()
+        .unwrap(),
+    )
+    .into_response();
+    attach_event_id_header(&mut response, event_id);
+    Ok(response)
+}
+
+/// Background task: marks highlight timers as elapsed once their deadline
+/// passes, so all clients see 0:00 and the +2 min button at the same time.
+/// Runs every second; the idempotent UPDATE makes concurrent sweeps (e.g.
+/// multiple app instances) safe.
+pub async fn timer_sweep_loop(pool: PgPool) {
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+    loop {
+        interval.tick().await;
+        let result = sqlx::query!(
+            r#"UPDATE items
+               SET timer_elapsed_at = NOW()
+               WHERE status = 'HIGHLIGHTED'::status
+                 AND timer_ends_at <= NOW()
+                 AND timer_elapsed_at IS NULL"#
+        )
+        .execute(&pool)
+        .await;
+        match result {
+            Ok(result) => {
+                if result.rows_affected() > 0 {
+                    tracing::debug!(
+                        count = result.rows_affected(),
+                        "highlight timers marked elapsed"
+                    );
+                }
+            }
+            Err(error) => log_database_error("timer_sweep", &error),
+        }
+    }
 }
 
 pub async fn add_action_item(
@@ -1355,7 +1703,9 @@ pub async fn show_archive(
                   i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!",
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
-                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
+                  i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.archive_id = $1
@@ -1377,7 +1727,9 @@ pub async fn show_archive(
                   i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!",
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
-                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
+                  i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.archive_id = $1
@@ -1399,7 +1751,9 @@ pub async fn show_archive(
                   i.created_by as "author_id!", u.display_name as "author_name!",
                   ''::text as "author_initials!",
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
-                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _"
+                  i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
+                  i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.archive_id = $1

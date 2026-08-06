@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE items\n           SET timer_started_at = NOW(),\n               timer_duration_seconds = $2,\n               timer_elapsed_at = NULL\n           WHERE id = $1 AND status = 'HIGHLIGHTED'::status",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "96167a4ecfb0a824895fb2c7b1565f85130801e3dd091631a4a3e78d0144ecda"
+}

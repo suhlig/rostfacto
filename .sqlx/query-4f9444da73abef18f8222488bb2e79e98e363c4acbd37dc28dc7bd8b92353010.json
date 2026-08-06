@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT attgenerated::text FROM pg_attribute WHERE attrelid = 'items'::regclass AND attname = 'timer_ends_at'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "attgenerated",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "4f9444da73abef18f8222488bb2e79e98e363c4acbd37dc28dc7bd8b92353010"
+}

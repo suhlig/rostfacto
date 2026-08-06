@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE items SET status = 'HIGHLIGHTED'::status WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "601be08a57924ec714d051262f1f360569048516e1ff36263ed5cb3b09b51564"
+}

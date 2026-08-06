@@ -1,3 +1,5 @@
+#![allow(dead_code)] // items are shared across test crates that use different subsets
+
 use portpicker::pick_unused_port;
 use std::process::{Child, Command};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -10,9 +12,58 @@ use url::Url;
 // harness.
 static FIREFOX_LOCK: Semaphore = Semaphore::const_new(2);
 
+// Tests that open two BrowserSessions must be serialized: with two concurrent
+// two-browser tests, each would hold one of the two FIREFOX_LOCK permits and
+// then wait forever for its second session. Acquire this permit (plus the
+// browser permits) for the whole test body.
+static TWO_BROWSER_LOCK: Semaphore = Semaphore::const_new(1);
+
+/// Permit that serializes tests opening two `BrowserSession`s.
+pub async fn two_browser_permit() -> SemaphorePermit<'static> {
+    TWO_BROWSER_LOCK.acquire().await.unwrap()
+}
+
 const TEMPLATE_DB_NAME: &str = "rostfacto_test_template";
 static TEMPLATE_READY: AtomicBool = AtomicBool::new(false);
 static TEMPLATE_LOCK: Mutex<()> = Mutex::const_new(());
+
+/// Drop leftover test databases from previous, interrupted runs. Kept apart
+/// from `TestDb::new` so it runs exactly once per test process, under the
+/// template lock.
+async fn clean_up_stale_test_databases(admin_pool: &sqlx::PgPool) {
+    let stale = sqlx::query_scalar!(
+        r#"
+        SELECT datname
+        FROM pg_database
+        WHERE datname LIKE 'rostfacto_test\_%'
+          AND datname <> 'rostfacto_test_template'
+          AND NOT EXISTS (
+              SELECT 1 FROM pg_stat_activity
+              WHERE pg_stat_activity.datname = pg_database.datname
+          )
+        "#
+    )
+    .fetch_all(admin_pool)
+    .await;
+
+    let Ok(stale) = stale else { return };
+    let mut dropped = 0;
+    for name in &stale {
+        let result = sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "DROP DATABASE IF EXISTS \"{}\" WITH (FORCE)",
+            name
+        )))
+        .execute(admin_pool)
+        .await;
+        match result {
+            Ok(_) => dropped += 1,
+            Err(error) => eprintln!("failed to drop stale test database {}: {}", name, error),
+        }
+    }
+    if dropped > 0 {
+        eprintln!("dropped {} stale test database(s)", dropped);
+    }
+}
 
 /// A fresh PostgreSQL database created from a migrated template.
 pub struct TestDb {
@@ -62,6 +113,12 @@ impl TestDb {
         let pool = sqlx::PgPool::connect(admin_url)
             .await
             .expect("Failed to connect to Postgres for template setup");
+
+        // Reclaim test databases left behind by interrupted runs (killed test
+        // processes never run their Drop cleanup). Only databases without
+        // active connections are dropped, so a concurrently running test
+        // process is never disturbed.
+        clean_up_stale_test_databases(&pool).await;
 
         let create_result = sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
             "CREATE DATABASE \"{}\"",
@@ -492,6 +549,122 @@ impl<'a> RetroPage<'a> {
             .await
     }
 
+    /// Wait until the category contains a card with the given text (SSE
+    /// delivery is asynchronous).
+    pub async fn wait_for_card_with_text(&self, category: &str, text: &str) -> WebDriverResult<()> {
+        let target = match category {
+            "Good" => "#good-items",
+            "Bad" => "#bad-items",
+            "Watch" => "#watch-items",
+            _ => panic!("Invalid category"),
+        };
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            let cards = self
+                .driver
+                .find_all(By::Css(format!("{} article.card", target)))
+                .await?;
+            let mut found = false;
+            for card in cards {
+                if let Ok(text_span) = card.find(By::Css(".card-text")).await {
+                    if text_span.text().await? == text {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            if found {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for card '{}' in {}", text, category);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Wait until the category contains exactly `expected` cards.
+    pub async fn wait_for_card_count(
+        &self,
+        category: &str,
+        expected: usize,
+    ) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            let cards = self.get_cards_in_category(category).await?;
+            if cards.len() == expected {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!(
+                    "Timed out waiting for {} cards in {}, got {}",
+                    expected,
+                    category,
+                    cards.len()
+                );
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Wait until the card's text matches (SSE delivery is asynchronous).
+    pub async fn wait_for_card_text(&self, id: i32, expected: &str) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            let card = self.get_card(id).await?;
+            let text = card.find(By::Css(".card-text")).await?.text().await?;
+            if text == expected {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!(
+                    "Timed out waiting for card {} text '{}', got '{}'",
+                    id, expected, text
+                );
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Wait until the card's like count matches (SSE delivery is asynchronous).
+    pub async fn wait_for_like_count(&self, id: i32, expected: &str) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            let card = self.get_card(id).await?;
+            let count = card.find(By::Css(".like-count")).await?.text().await?;
+            if count == expected {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!(
+                    "Timed out waiting for card {} like count '{}', got '{}'",
+                    id, expected, count
+                );
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Wait until the all-done archive modal is open (SSE delivery is
+    /// asynchronous).
+    pub async fn wait_for_archive_modal(&self) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            if self
+                .driver
+                .find(By::Css("#archive-modal[open]"))
+                .await
+                .is_ok()
+            {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for the all-done archive modal");
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
     pub async fn click_card(&self, id: i32) -> WebDriverResult<()> {
         let card = self.get_card(id).await?;
         // Use a JavaScript click on the article element so that the click event
@@ -523,12 +696,116 @@ impl<'a> RetroPage<'a> {
         badge.text().await
     }
 
-    pub async fn complete_card(&self) -> WebDriverResult<()> {
+    /// Wait until the badge carries a server-rendered deadline, returning it
+    /// as epoch milliseconds (identical on every client).
+    pub async fn wait_for_timer_end_at(&self, id: i32) -> WebDriverResult<i64> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            let badge = self
+                .driver
+                .find(By::Css(format!(
+                    "article[data-item-id='{}'] .timer-badge",
+                    id
+                )))
+                .await?;
+            if let Some(end_at) = badge.attr("data-end-at").await? {
+                if let Ok(end_at) = end_at.parse::<i64>() {
+                    return Ok(end_at);
+                }
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!(
+                    "Timed out waiting for a server-rendered timer deadline on card {}",
+                    id
+                );
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Wait until the timer badge shows the given text (SSE delivery is
+    /// asynchronous).
+    pub async fn wait_for_timer_text(&self, id: i32, expected: &str) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            let text = self.timer_text(id).await?;
+            if text == expected {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!(
+                    "Timed out waiting for card {} timer text '{}', got '{}'",
+                    id, expected, text
+                );
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Wait until the +2 min button is visible (timer running or elapsed).
+    pub async fn wait_for_extend_button_visible(&self, id: i32) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            let button = self
+                .driver
+                .find(By::Css(format!(
+                    "article[data-item-id='{}'] .timer-extend",
+                    id
+                )))
+                .await?;
+            if button.is_displayed().await? {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for the +2 min button on card {}", id);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Click the +2 min timer button on a card.
+    pub async fn click_extend(&self, id: i32) -> WebDriverResult<()> {
+        let button = self
+            .driver
+            .find(By::Css(format!(
+                "article[data-item-id='{}'] .timer-extend",
+                id
+            )))
+            .await?;
+        button.click().await?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        Ok(())
+    }
+
+    /// Click the Cancel button on the highlighted card.
+    pub async fn cancel_card(&self) -> WebDriverResult<()> {
         self.driver
-            .find(By::Css(".card-actions .btn-primary"))
+            .find(By::Css(".card-actions .btn-secondary"))
             .await?
             .click()
             .await?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        Ok(())
+    }
+
+    pub async fn complete_card(&self) -> WebDriverResult<()> {
+        // The highlight response may still be settling; wait for the Done
+        // button instead of assuming it is already there.
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let button = loop {
+            if let Ok(button) = self
+                .driver
+                .find(By::Css(".card-actions .btn-primary"))
+                .await
+            {
+                break button;
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for the Done button");
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        };
+        button.click().await?;
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         Ok(())
     }

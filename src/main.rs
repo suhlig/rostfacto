@@ -4,6 +4,7 @@ use axum::{
 };
 use clap::Parser;
 use config::Config;
+use events::EventHub;
 use sqlx::PgPool;
 use tower::Layer;
 use tower_http::{
@@ -25,10 +26,12 @@ pub struct AppState {
     pub pool: PgPool,
     pub config: Config,
     pub demo_user_id: Option<i32>,
+    pub events: EventHub,
 }
 
 mod auth;
 mod config;
+mod events;
 mod github;
 mod handlers;
 mod models;
@@ -76,10 +79,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
+    // Listen for DB events and fan them out to SSE subscribers. Started
+    // before the HTTP server so no mutation can race the subscription.
+    let events = EventHub::new();
+    tokio::spawn(events::notifier_loop(pool.clone(), events.clone()));
+    // Mark elapsed highlight timers so every client sees them expire together.
+    tokio::spawn(handlers::timer_sweep_loop(pool.clone()));
+
     let state = AppState {
         pool,
         config,
         demo_user_id,
+        events,
     };
 
     let app: Router = Router::new()
@@ -88,6 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/retros/new", get(handlers::new_retro))
         .route("/retros", post(handlers::create_retro))
         .route("/retro/{slug}", get(handlers::show_retro))
+        .route("/retro/{slug}/events", get(events::retro_events))
         .route("/retro/{slug}/archives", get(handlers::list_archives))
         .route("/retro/{slug}/archives/{id}", get(handlers::show_archive))
         .route("/items/{category}/{retro_id}", post(handlers::add_item))
@@ -98,6 +110,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/items/{id}/edit", get(handlers::edit_item))
         .route("/items/{id}/status", post(handlers::change_item_status))
         .route("/items/{id}/like", post(handlers::like_item))
+        .route("/items/{id}/timer/start", post(handlers::start_item_timer))
+        .route(
+            "/items/{id}/timer/extend",
+            post(handlers::extend_item_timer),
+        )
         .route(
             "/retro/{retro_id}/action-items",
             post(handlers::add_action_item),

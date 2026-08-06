@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "events",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        {
+          "Custom": {
+            "name": "event_type",
+            "kind": {
+              "Enum": [
+                "ITEM_CREATED",
+                "ITEM_UPDATED",
+                "ITEM_STATUS_CHANGED",
+                "ITEM_LIKED",
+                "ITEM_UNLIKED",
+                "TIMER_STARTED",
+                "TIMER_EXTENDED",
+                "TIMER_CANCELLED",
+                "TIMER_ELAPSED",
+                "RETRO_ARCHIVED"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c50607f1bffc1630ebaef33c6c69033f8506bd12317b9b62c6cf6d66e263a129"
+}
