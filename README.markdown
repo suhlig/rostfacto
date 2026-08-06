@@ -30,7 +30,7 @@ By default the app runs in **demo mode** (no authentication) if `GITHUB_ADMIN_OR
 | `GITHUB_CLIENT_SECRET` | Same OAuth App page as above. |
 | `GITHUB_ADMIN_ORG` | The GitHub organization that contains your admin team. You can see your orgs at <https://github.com/settings/organizations>. |
 | `GITHUB_ADMIN_TEAM_SLUG` | Inside that org, open the team page and take the slug from the URL, e.g. `https://github.com/orgs/ORG/teams/TEAM_SLUG`. |
-| `GITHUB_USER_ORG` | The organization whose teams can be assigned to retros. Usually the same as `GITHUB_ADMIN_ORG`. |
+| `GITHUB_USER_ORG` | Colon-separated list of organizations whose teams can be assigned to retros, e.g. `org-a:org-b`. Usually includes `GITHUB_ADMIN_ORG`. |
 | `GITHUB_ENTERPRISE_URL` | Base URL of your GitHub Enterprise Server, e.g. `https://github.example.com`. Leave unset for github.com. |
 
 When you create the OAuth App, set the callback URL to:
@@ -79,7 +79,6 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
-- Allow multiple `GITHUB_USER_ORG`s
 - Publish a container image on every release and tag it with the release version
 - Release 2.0
 - Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs

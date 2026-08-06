@@ -75,7 +75,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret |
 | `GITHUB_ADMIN_ORG` | GitHub organization containing the admin team |
 | `GITHUB_ADMIN_TEAM_SLUG` | Team slug of the admin team |
-| `GITHUB_USER_ORG` | Organization whose teams can be assigned to retros |
+| `GITHUB_USER_ORG` | Colon-separated list of organizations whose teams can be assigned to retros, e.g. `org-a:org-b` (optional) |
 | `GITHUB_ENTERPRISE_URL` | Base URL of a GitHub Enterprise Server instance (optional) |
 
 ## Key routes

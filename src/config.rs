@@ -10,7 +10,7 @@ pub struct Config {
     pub github_enterprise_url: Option<String>,
     pub github_admin_org: Option<String>,
     pub github_admin_team_slug: Option<String>,
-    pub github_user_org: Option<String>,
+    pub github_user_orgs: Vec<String>,
     pub session_secret: String,
 }
 
@@ -23,7 +23,17 @@ impl Config {
         let github_enterprise_url = env::var("GITHUB_ENTERPRISE_URL").ok();
         let github_admin_org = env::var("GITHUB_ADMIN_ORG").ok();
         let github_admin_team_slug = env::var("GITHUB_ADMIN_TEAM_SLUG").ok();
-        let github_user_org = env::var("GITHUB_USER_ORG").ok();
+        // GITHUB_USER_ORG may list multiple organizations, separated by colons.
+        let github_user_orgs = env::var("GITHUB_USER_ORG")
+            .map(|value| {
+                value
+                    .split(':')
+                    .map(str::trim)
+                    .filter(|org| !org.is_empty())
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
         let public_url = env::var("PUBLIC_URL").unwrap_or_else(|_| {
             tracing::warn!("PUBLIC_URL not set; using http://localhost:3000 for OAuth redirects");
             "http://localhost:3000".to_string()
@@ -42,7 +52,7 @@ impl Config {
             github_enterprise_url,
             github_admin_org,
             github_admin_team_slug,
-            github_user_org,
+            github_user_orgs,
             session_secret,
         }
     }

@@ -497,24 +497,24 @@ pub async fn callback(
         true
     };
 
-    let teams: Vec<CachedTeam> = if let Some(org) = state.config.github_user_org.as_deref() {
+    // Collect the teams the user belongs to across all configured user orgs.
+    // Team membership is resolved once at login and cached in the session.
+    let mut teams: Vec<CachedTeam> = Vec::new();
+    for org in &state.config.github_user_orgs {
         match list_org_teams(org, &token.access_token, &state.config).await {
-            Ok(teams) => teams
-                .into_iter()
-                .map(|t| CachedTeam {
-                    slug: t.slug,
-                    name: t.name,
-                })
-                .collect(),
+            Ok(org_teams) => teams.extend(org_teams.into_iter().map(|t| CachedTeam {
+                slug: t.slug,
+                name: t.name,
+            })),
             Err(e) => {
                 tracing::warn!(org, "failed to list teams for authenticated user");
                 tracing::debug!(username = %user.username, error = %e, "team listing failure details");
-                Vec::new()
             }
         }
-    } else {
-        Vec::new()
-    };
+    }
+    // Team slugs may collide across organizations; keep the first occurrence.
+    let mut seen_slugs = std::collections::HashSet::new();
+    teams.retain(|team| seen_slugs.insert(team.slug.clone()));
 
     tracing::info!(
         user_id = user.id,
