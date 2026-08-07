@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            u.id as user_id,\n            u.github_id,\n            u.username,\n            u.full_name,\n            s.is_admin,\n            s.teams as \"teams: _\"\n        FROM users u\n        JOIN sessions s ON s.user_id = u.id\n        WHERE s.id = $1 AND s.expires_at > NOW()\n        ",
+  "query": "\n        SELECT\n            u.id as user_id,\n            u.github_id,\n            u.username,\n            u.full_name,\n            s.is_admin,\n            s.teams as \"teams: _\",\n            s.team_listing_errors as \"team_listing_errors: _\"\n        FROM users u\n        JOIN sessions s ON s.user_id = u.id\n        WHERE s.id = $1 AND s.expires_at > NOW()\n        ",
   "describe": {
     "columns": [
       {
@@ -68,6 +68,17 @@
             "name": "teams"
           }
         }
+      },
+      {
+        "ordinal": 6,
+        "name": "team_listing_errors: _",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "team_listing_errors"
+          }
+        }
       }
     ],
     "parameters": {
@@ -81,8 +92,9 @@
       false,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "02b26d23eee2b6b89c34aabaaf3e2aabbb2d7835a6cc8c6e545eb3b44a34f91e"
+  "hash": "afe30c7958eda67ec72ea57c144f3464399e3da27850b0e81926c35b0225b87e"
 }

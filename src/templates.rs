@@ -39,6 +39,14 @@ pub struct ArchiveModalTemplate {
 pub struct NewRetroTemplate {
     pub is_admin: bool,
     pub teams: Vec<GitHubTeam>,
+    /// Configured user orgs whose teams could not be listed at login (e.g.
+    /// SAML SSO authorization missing).
+    pub team_listing_errors: Vec<String>,
+    /// URL where users can authorize OAuth apps for SAML SSO orgs.
+    pub applications_url: String,
+    /// Optional contact person shown when org team listings fail (empty when
+    /// GITHUB_APP_OWNER is not configured).
+    pub app_owner: String,
     pub demo_mode: bool,
     pub user: Option<AuthUser>,
 }

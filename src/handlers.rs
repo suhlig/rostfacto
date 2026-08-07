@@ -261,6 +261,9 @@ pub async fn new_retro(
     let template = NewRetroTemplate {
         is_admin: user.is_admin,
         teams,
+        team_listing_errors: user.team_listing_errors.clone(),
+        applications_url: state.config.applications_url(),
+        app_owner: state.config.github_app_owner.clone().unwrap_or_default(),
         demo_mode: state.config.demo_mode(),
         user: Some(user),
     };

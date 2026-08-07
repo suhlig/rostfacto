@@ -11,6 +11,9 @@ pub struct Config {
     pub github_admin_org: Option<String>,
     pub github_admin_team_slug: Option<String>,
     pub github_user_orgs: Vec<String>,
+    /// Display name or email of the person to contact when an org's teams
+    /// cannot be listed (e.g. SAML SSO authorization missing).
+    pub github_app_owner: Option<String>,
     pub session_secret: String,
 }
 
@@ -34,6 +37,7 @@ impl Config {
                     .collect()
             })
             .unwrap_or_default();
+        let github_app_owner = env::var("GITHUB_APP_OWNER").ok();
         let public_url = env::var("PUBLIC_URL").unwrap_or_else(|_| {
             tracing::warn!("PUBLIC_URL not set; using http://localhost:3000 for OAuth redirects");
             "http://localhost:3000".to_string()
@@ -53,6 +57,7 @@ impl Config {
             github_admin_org,
             github_admin_team_slug,
             github_user_orgs,
+            github_app_owner,
             session_secret,
         }
     }
@@ -74,5 +79,14 @@ impl Config {
             (Some(org), Some(team)) => Some((org, team)),
             _ => None,
         }
+    }
+
+    /// URL of the page where users can authorize OAuth apps for SAML SSO
+    /// organizations; the GitHub Enterprise equivalent when configured.
+    pub fn applications_url(&self) -> String {
+        self.github_enterprise_url
+            .as_deref()
+            .map(|url| format!("{}/settings/applications", url.trim_end_matches('/')))
+            .unwrap_or_else(|| "https://github.com/settings/applications".to_string())
     }
 }

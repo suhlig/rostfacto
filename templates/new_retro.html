@@ -38,6 +38,20 @@
     {% if demo_mode %}
       <input type="hidden" name="team_slug" value="demo">
     {% else %}
+      {% if !team_listing_errors.is_empty() %}
+      <div class="team-listing-warning" role="alert">
+        <strong>Could not load teams for: {{ team_listing_errors | join(", ") }}.</strong>
+        The app has no API access to this organization, so none of its teams
+        are listed. To fix this, open
+        <a href="{{ applications_url }}">GitHub → Settings → Applications</a>
+        and authorize this app for the organization (SAML SSO). If the
+        organization restricts OAuth app access, an organization owner must
+        approve this app first.
+        {% if !app_owner.is_empty() %}
+        If you cannot resolve this yourself, contact {{ app_owner }}.
+        {% endif %}
+      </div>
+      {% endif %}
       <label for="team_slug">Team</label>
       <select id="team_slug" name="team_slug" required>
         <option value="">Select a team</option>
@@ -46,6 +60,13 @@
         {% endfor %}
       </select>
       <small>Only members of this team will be able to view or change this retrospective.</small>
+      <small class="team-troubleshooting">
+        Missing teams? The app can only list teams it is authorized to see.
+        Open <a href="{{ applications_url }}">GitHub → Settings → Applications</a>
+        and authorize this app for the organization (SAML SSO). If the
+        organization restricts OAuth app access, an organization owner must
+        approve this app.
+      </small>
     {% endif %}
 
     <button type="submit" class="btn-primary">Create Retrospective</button>

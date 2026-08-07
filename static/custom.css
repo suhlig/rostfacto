@@ -325,6 +325,15 @@ label {
   margin-top: 0.5rem;
 }
 
+/* Warning shown when an org's teams could not be listed at login. */
+.team-listing-warning {
+  background-color: var(--rf-yellow);
+  color: var(--rf-text-dark);
+  border-radius: var(--rf-card-radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
 /* Header bar on retro page */
 .retro-header {
   display: flex;

@@ -33,6 +33,9 @@ pub struct AuthUser {
     pub is_admin: bool,
     pub team_slugs: Vec<String>,
     pub teams: Vec<CachedTeam>,
+    /// Configured user orgs whose teams could not be listed at login (e.g.
+    /// SAML SSO authorization missing); surfaced on the retro creation form.
+    pub team_listing_errors: Vec<String>,
 }
 
 impl AuthUser {
@@ -67,6 +70,7 @@ pub(crate) struct SessionRow {
     full_name: Option<String>,
     is_admin: bool,
     teams: sqlx::types::Json<Vec<CachedTeam>>,
+    team_listing_errors: sqlx::types::Json<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -123,7 +127,8 @@ pub(crate) async fn load_session(
             u.username,
             u.full_name,
             s.is_admin,
-            s.teams as "teams: _"
+            s.teams as "teams: _",
+            s.team_listing_errors as "team_listing_errors: _"
         FROM users u
         JOIN sessions s ON s.user_id = u.id
         WHERE s.id = $1 AND s.expires_at > NOW()
@@ -160,15 +165,18 @@ pub(crate) async fn create_session(
     user_id: i32,
     is_admin: bool,
     teams: &[CachedTeam],
+    team_listing_errors: &[String],
 ) -> Result<String, sqlx::Error> {
     let expires_at = Utc::now() + chrono::Duration::try_seconds(SESSION_MAX_AGE_SECONDS).unwrap();
     let teams_json = serde_json::to_value(teams).unwrap();
+    let errors_json = serde_json::to_value(team_listing_errors).unwrap();
     let session_id = sqlx::query_scalar!(
-        "INSERT INTO sessions (user_id, expires_at, is_admin, teams) VALUES ($1, $2, $3, $4) RETURNING id",
+        "INSERT INTO sessions (user_id, expires_at, is_admin, teams, team_listing_errors) VALUES ($1, $2, $3, $4, $5) RETURNING id",
         user_id,
         expires_at,
         is_admin,
-        teams_json
+        teams_json,
+        errors_json
     )
     .fetch_one(pool)
     .await?;
@@ -195,6 +203,7 @@ pub(crate) fn auth_user_from_session(session: SessionRow) -> AuthUser {
         is_admin: session.is_admin,
         team_slugs,
         teams: session.teams.into_inner(),
+        team_listing_errors: session.team_listing_errors.into_inner(),
     }
 }
 
@@ -254,6 +263,7 @@ where
                     slug: "demo".to_string(),
                     name: "Demo Team".to_string(),
                 }],
+                team_listing_errors: Vec::new(),
             });
         }
 
@@ -329,6 +339,7 @@ where
                     slug: "demo".to_string(),
                     name: "Demo Team".to_string(),
                 }],
+                team_listing_errors: Vec::new(),
             })));
         }
 
@@ -516,6 +527,7 @@ pub async fn callback(
     // qualified slug is what gets stored on a retro. Team membership is
     // resolved once at login and cached in the session.
     let mut teams: Vec<CachedTeam> = Vec::new();
+    let mut team_listing_errors: Vec<String> = Vec::new();
     for org in &state.config.github_user_orgs {
         match list_org_teams(org, &token.access_token, &state.config).await {
             Ok(org_teams) => {
@@ -528,6 +540,8 @@ pub async fn callback(
                 }
             }
             Err(e) => {
+                // Remember the org so the UI can point the user at the fix.
+                team_listing_errors.push(org.clone());
                 // GitHub refuses to list teams for accounts that are not
                 // accepted members of the org; SAML-protected orgs also
                 // require the app to be SSO-authorized for the org. Other
@@ -552,18 +566,19 @@ pub async fn callback(
         "user authenticated"
     );
 
-    let session_id = match create_session(&state.pool, user.id, is_admin, &teams).await {
-        Ok(id) => id,
-        Err(error) => {
-            tracing::error!(operation = "create_session", "database operation failed");
-            tracing::debug!(error = %error, "session creation failure details");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to create session",
-            )
-                .into_response();
-        }
-    };
+    let session_id =
+        match create_session(&state.pool, user.id, is_admin, &teams, &team_listing_errors).await {
+            Ok(id) => id,
+            Err(error) => {
+                tracing::error!(operation = "create_session", "database operation failed");
+                tracing::debug!(error = %error, "session creation failure details");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to create session",
+                )
+                    .into_response();
+            }
+        };
 
     tracing::debug!("session created for user '{}'", github_user.login);
 
@@ -644,7 +659,7 @@ mod tests {
             },
         ];
 
-        let session_id = create_session(&pool, user_id, true, &teams)
+        let session_id = create_session(&pool, user_id, true, &teams, &["org-x".to_string()])
             .await
             .expect("Failed to create session");
 
@@ -665,6 +680,11 @@ mod tests {
         assert_eq!(user.teams[0].org, "org-a");
         assert_eq!(user.teams[1].slug, "org-b/team-b");
         assert_eq!(user.teams[1].name, "Team B");
+        assert_eq!(
+            user.team_listing_errors,
+            vec!["org-x".to_string()],
+            "failed org listings should be cached in the session"
+        );
 
         // is_member_of_team short-circuits for admins, so exercise the
         // membership logic with a non-admin user.
@@ -697,7 +717,7 @@ mod tests {
             .await
             .expect("Failed to ensure demo user");
 
-        let expired_id = create_session(&pool, user_id, false, &[])
+        let expired_id = create_session(&pool, user_id, false, &[], &[])
             .await
             .expect("Failed to create expired session");
         sqlx::query!(
@@ -708,7 +728,7 @@ mod tests {
         .await
         .expect("Failed to expire session");
 
-        let valid_id = create_session(&pool, user_id, false, &[])
+        let valid_id = create_session(&pool, user_id, false, &[], &[])
             .await
             .expect("Failed to create valid session");
 

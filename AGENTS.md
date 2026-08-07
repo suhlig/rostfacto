@@ -61,7 +61,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - **GitHub OAuth**: when `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are set, users must sign in via GitHub (or GitHub Enterprise Server if `GITHUB_ENTERPRISE_URL` is configured).
 - **Admins**: users who are members of the configured admin team (`GITHUB_ADMIN_ORG` / `GITHUB_ADMIN_TEAM_SLUG`). Only admins can create or delete retros.
 - **Retro access**: each retro is assigned a team at creation time (`team_slug`), stored org-qualified (`org/team-slug`); the access checks match both qualified and legacy bare slugs. Non-admin users can only view or change retros whose team they belong to (checked against the cached session teams). Admins can see and manage all retros.
-- **Sessions**: stored in Postgres (`sessions` table) and referenced by a `rostfacto_session` cookie. Admin status and team membership are resolved once at login and cached in the session (`is_admin`, `teams` JSONB); subsequent requests read the cache.
+- **Sessions**: stored in Postgres (`sessions` table) and referenced by a `rostfacto_session` cookie. Admin status and team membership are resolved once at login and cached in the session (`is_admin`, `teams` JSONB); subsequent requests read the cache. Orgs whose team list could not be fetched at login are cached in `team_listing_errors` and surfaced as a warning on the retro creation form, which links to the OAuth app authorization page (`GitHub → Settings → Applications`, enterprise-adapted).
 - **403 vs 404**: non-existent retros return 404; existing retros the user is not authorized to access return 403.
 
 ### Required environment variables for production
@@ -76,6 +76,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 | `GITHUB_ADMIN_ORG` | GitHub organization containing the admin team |
 | `GITHUB_ADMIN_TEAM_SLUG` | Team slug of the admin team |
 | `GITHUB_USER_ORG` | Colon-separated list of organizations whose teams can be assigned to retros, e.g. `org-a:org-b` (optional) |
+| `GITHUB_APP_OWNER` | Name or email of the person to contact when an org's teams cannot be listed (e.g. SAML SSO authorization missing); shown on the retro creation form (optional) |
 | `GITHUB_ENTERPRISE_URL` | Base URL of a GitHub Enterprise Server instance (optional) |
 
 ## Key routes
@@ -108,7 +109,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - `retrospectives(id, title, slug, created_at, updated_at, team_slug, created_by)` — unique slug is the public URL key; `team_slug` controls access.
 - `items(id, retro_id, text, category, created_at, updated_at, status, created_by, author_id, author_name, author_initials, likes_count, timer_started_at, timer_duration_seconds, timer_ends_at, timer_elapsed_at)` — FK to `retrospectives` with `ON DELETE CASCADE`, FK to `users` with `ON DELETE RESTRICT`. The timer columns are the server-authoritative highlight timer; `timer_ends_at` is a PG 18 virtual generated column (`timer_started_at + timer_duration_seconds`).
 - `users(id, github_id, username, full_name, display_name, avatar_url, created_at, updated_at)` — GitHub users who have logged in. `display_name` is a virtual column (`COALESCE(full_name, username)`).
-- `sessions(id, user_id, expires_at, created_at, updated_at, is_admin, teams)` — server-side sessions. `id` is a UUIDv7 text token; `teams` is a JSONB cache of team slugs/names.
+- `sessions(id, user_id, expires_at, created_at, updated_at, is_admin, teams, team_listing_errors)` — server-side sessions. `id` is a UUIDv7 text token; `teams` is a JSONB cache of team slugs/names; `team_listing_errors` is a JSONB list of configured user orgs whose teams could not be listed at login.
 - `likes(item_id, user_id)` — toggled likes on items.
 - `events(id, retro_id, event_type, item_id, payload, created_at)` — durable event log written by DB triggers on `items`/`likes`/`archives`; the notifier task and SSE replay read from it. `event_type` is an enum (`ITEM_CREATED`, `ITEM_UPDATED`, `ITEM_STATUS_CHANGED`, `ITEM_LIKED`, `ITEM_UNLIKED`, `TIMER_STARTED`, `TIMER_EXTENDED`, `TIMER_CANCELLED` — reserved, never emitted, `TIMER_ELAPSED`, `RETRO_ARCHIVED`).
 - Enums:
