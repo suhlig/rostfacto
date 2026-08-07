@@ -10,8 +10,8 @@
            aria-label="Action item text"
            required
            autofocus>
-    <button type="submit" class="primary">Save</button>
-    <button type="button" class="secondary"
+    <button type="submit" class="btn-primary primary">Save</button>
+    <button type="button" class="btn-secondary secondary"
             hx-get="/action-items/{{ action_item.id }}"
             hx-target="closest .action-item"
             hx-swap="outerHTML">Cancel</button>

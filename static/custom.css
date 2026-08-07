@@ -970,6 +970,35 @@ section.action-items .action-item:focus-within .action-item-delete {
   min-width: 0;
 }
 
+.action-item.editing form button {
+  margin: 0;
+  border-radius: var(--rf-button-radius);
+  padding: 0.45rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.action-item.editing form .btn-primary {
+  background-color: var(--rf-green);
+  border-color: var(--rf-green);
+  color: #fff;
+}
+
+.action-item.editing form .btn-primary:hover {
+  background-color: var(--rf-green-dark);
+  border-color: var(--rf-green-dark);
+}
+
+.action-item.editing form .btn-secondary {
+  background-color: transparent;
+  border-color: var(--rf-text-muted);
+  color: var(--rf-text-muted);
+}
+
+.action-item.editing form .btn-secondary:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
 .action-item-list {
   width: 420px;
   max-width: 100%;
