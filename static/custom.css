@@ -1294,3 +1294,191 @@ section.action-items .action-item:focus-within .action-item-delete {
 .text-center {
   text-align: center;
 }
+
+/* Landing page (home) */
+.landing-signin {
+  margin-bottom: 1.5rem;
+}
+
+.landing-hero {
+  text-align: center;
+  max-width: 720px;
+  margin: 0 auto 2.5rem;
+}
+
+.landing-hero .landing-lead {
+  font-size: 1.15rem;
+}
+
+.landing-hero p:last-child {
+  margin-bottom: 0;
+}
+
+.landing-cta {
+  margin-top: 1.5rem;
+}
+
+.landing-cta a[role="button"] {
+  padding: 0.75rem 1.75rem;
+  font-size: 1.05rem;
+}
+
+/* Screenshot carousel */
+.landing-carousel {
+  position: relative;
+  max-width: 1080px;
+  margin: 0 auto 3rem;
+}
+
+.carousel-slide {
+  margin: 0;
+  text-align: center;
+}
+
+.carousel-slide[hidden] {
+  display: none;
+}
+
+.carousel-slide.is-active {
+  animation: carousel-fade 0.4s ease;
+}
+
+.carousel-slide img {
+  width: 100%;
+  border-radius: var(--rf-card-radius);
+  border: 1px solid rgba(15, 26, 28, 0.12);
+  box-shadow: 0 8px 24px rgba(15, 26, 28, 0.12);
+  background: #fff;
+}
+
+.carousel-slide figcaption {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  color: var(--rf-text-muted);
+}
+
+.carousel-slide figcaption strong {
+  color: var(--rf-text-dark);
+  font-size: 1.1rem;
+}
+
+.carousel-prev,
+.carousel-next {
+  position: absolute;
+  top: 42%;
+  transform: translateY(-50%);
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  font-size: 1.6rem;
+  line-height: 1;
+  padding: 0;
+  background: var(--rf-green);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(15, 26, 28, 0.25);
+}
+
+.carousel-prev {
+  left: -1.25rem;
+}
+
+.carousel-next {
+  right: -1.25rem;
+}
+
+.carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.carousel-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--rf-beige);
+  border: 1px solid rgba(15, 26, 28, 0.2);
+}
+
+.carousel-dot:hover {
+  background: var(--rf-green-dark);
+}
+
+.carousel-dot.is-active {
+  background: var(--rf-green);
+  border-color: var(--rf-green-dark);
+  cursor: default;
+}
+
+.carousel-dot.is-active:hover {
+  background: var(--rf-green);
+}
+
+@keyframes carousel-fade {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* What's different to Postfacto */
+.landing-differences {
+  max-width: 820px;
+  margin: 0 auto 2rem;
+}
+
+.landing-differences h2 {
+  font-size: 1.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.landing-differences ul {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.landing-differences li {
+  display: list-item;
+  list-style: disc;
+  margin-left: 1.25rem;
+}
+
+@media (max-width: 700px) {
+  .carousel-prev,
+  .carousel-next {
+    top: auto;
+    bottom: -1.5rem;
+    transform: none;
+    width: 2.25rem;
+    height: 2.25rem;
+    font-size: 1.3rem;
+  }
+
+  .carousel-prev {
+    left: 35%;
+  }
+
+  .carousel-next {
+    right: 35%;
+  }
+
+  .carousel-dots {
+    margin-top: 3rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carousel-slide.is-active {
+    animation: none;
+  }
+}

@@ -50,6 +50,16 @@ async fn test_home_page() -> WebDriverResult<()> {
     let browser = BrowserSession::new(&server.base_url()).await?;
     let home_page = browser.home_page().await?;
     home_page.verify_title("Rostfacto").await?;
+    // The landing page shows the screenshot carousel, which must start on
+    // the first slide, and the Postfacto comparison.
+    home_page
+        .driver
+        .find(By::Css(".landing-carousel .carousel-slide.is-active"))
+        .await?;
+    home_page
+        .driver
+        .find(By::Css(".landing-differences"))
+        .await?;
     browser.close().await?;
     Ok(())
 }

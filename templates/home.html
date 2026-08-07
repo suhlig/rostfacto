@@ -27,17 +27,207 @@
 {% block content %}
 <div class="container">
   {% if user.is_none() && !demo_mode %}
-  <article>
+  <article class="landing-signin">
     <p>Welcome to Rostfacto. Please <a href="/auth/login">sign in with GitHub</a> to view and manage retrospectives.</p>
   </article>
   {% endif %}
 
-  <p>Rostfacto is an app for running a retrospective remotely. It was created because the great <a href="https://github.com/vmware-archive/postfacto">Postfacto</a> is no longer maintained. </p>
+  <section class="landing-hero">
+    <p class="landing-lead">
+      Rostfacto is an app for running a retrospective remotely. It was created because the great
+      <a href="https://github.com/vmware-archive/postfacto">Postfacto</a> is no longer maintained.
+    </p>
+    <p>Like all good tools, this is a <a href="https://github.com/TaKO8Ki/awesome-alternatives-in-rust">rewrite in Rust</a>.</p>
+    <p class="landing-cta">
+      {% if user.is_none() && !demo_mode %}
+      <a href="/auth/login" role="button">Sign in with GitHub</a>
+      {% else if let Some(user) = user %}
+      {% if user.is_admin %}
+      <a href="/retros/new" role="button">Create a retro</a>
+      {% else %}
+      <a href="/retros" role="button">View your retros</a>
+      {% endif %}
+      {% else %}
+      <a href="/retros" role="button">View retros</a>
+      {% endif %}
+    </p>
+  </section>
 
-  <p style="text-align: center;">
-    <img src="https://raw.githubusercontent.com/vmware-archive/postfacto/refs/heads/master/media/sample-retro.gif" alt="Animated sample of a retro board with columns and cards"/>
-  </p>
+  <section class="landing-carousel" aria-roledescription="carousel" aria-label="Rostfacto in action">
+    <div class="carousel-slides">
+      <figure class="carousel-slide is-active" role="group" aria-roledescription="slide" aria-label="1 of 6">
+        <img src="/static/screenshots/board.png"
+             alt="The retro board with Good, Watch, and Bad columns of cards"
+             width="1265" height="489">
+        <figcaption>
+          <strong>The whole board at a glance</strong>
+          <span>Collect feedback in the Good, Watch, and Bad columns, with action items below.</span>
+        </figcaption>
+      </figure>
+      <figure class="carousel-slide" role="group" aria-roledescription="slide" aria-label="2 of 6" hidden>
+        <img src="/static/screenshots/add-card.png"
+             alt="Typing a new card into the Good column"
+             width="1265" height="489">
+        <figcaption>
+          <strong>Add a card in seconds</strong>
+          <span>Type into any column and hit Add — no accounts or invitations needed for your team.</span>
+        </figcaption>
+      </figure>
+      <figure class="carousel-slide" role="group" aria-roledescription="slide" aria-label="3 of 6" hidden>
+        <img src="/static/screenshots/highlight.png"
+             alt="A card highlighted for discussion, showing the five-minute timer"
+             width="1265" height="555">
+        <figcaption>
+          <strong>Highlight to discuss</strong>
+          <span>One card at a time, with a server-authoritative five-minute timer everyone can see.</span>
+        </figcaption>
+      </figure>
+      <figure class="carousel-slide" role="group" aria-roledescription="slide" aria-label="4 of 6" hidden>
+        <img src="/static/screenshots/complete.png"
+             alt="A completed card marked with a check mark"
+             width="1265" height="489">
+        <figcaption>
+          <strong>Mark it done</strong>
+          <span>Completed cards stay on the board; when the last card is done, Rostfacto asks if you want to archive.</span>
+        </figcaption>
+      </figure>
+      <figure class="carousel-slide" role="group" aria-roledescription="slide" aria-label="5 of 6" hidden>
+        <img src="/static/screenshots/like.png"
+             alt="A card with a liked heart icon and a like count"
+             width="1265" height="489">
+        <figcaption>
+          <strong>Vote with likes</strong>
+          <span>Anyone can like any card — one like per person, so the crowd's favourites stand out.</span>
+        </figcaption>
+      </figure>
+      <figure class="carousel-slide" role="group" aria-roledescription="slide" aria-label="6 of 6" hidden>
+        <img src="/static/screenshots/edit.png"
+             alt="The inline edit form on a card"
+             width="1265" height="489">
+        <figcaption>
+          <strong>Edit inline</strong>
+          <span>Fix a typo or reword a card without leaving the board; every client sees the update instantly.</span>
+        </figcaption>
+      </figure>
+    </div>
+    <button type="button" class="carousel-prev" aria-label="Previous slide">‹</button>
+    <button type="button" class="carousel-next" aria-label="Next slide">›</button>
+    <div class="carousel-dots">
+      <button type="button" class="carousel-dot is-active" aria-label="Go to slide 1" aria-current="true"></button>
+      <button type="button" class="carousel-dot" aria-label="Go to slide 2"></button>
+      <button type="button" class="carousel-dot" aria-label="Go to slide 3"></button>
+      <button type="button" class="carousel-dot" aria-label="Go to slide 4"></button>
+      <button type="button" class="carousel-dot" aria-label="Go to slide 5"></button>
+      <button type="button" class="carousel-dot" aria-label="Go to slide 6"></button>
+    </div>
+  </section>
 
-  <p>Like all good tools, this is a <a href="https://github.com/TaKO8Ki/awesome-alternatives-in-rust">rewrite in Rust</a>.</p>
+  <section class="landing-differences">
+    <h2>What's different to Postfacto</h2>
+    <p>
+      Rostfacto keeps the retro flow Postfacto made popular — cards, highlighting, timers, action items —
+      and rebuilds it from scratch:
+    </p>
+    <ul>
+      <li>
+        <strong>It's actively maintained.</strong>
+        Postfacto is archived; Rostfacto is developed in the open, released on a regular basis, and
+        covered by an end-to-end test suite.
+      </li>
+      <li>
+        <strong>One binary, one dependency.</strong>
+        Rostfacto is written in Rust and ships as a single static binary — all you need besides it is
+        PostgreSQL. No Ruby on Rails, no Node.js build step, no Redis.
+      </li>
+      <li>
+        <strong>Sign in with GitHub, access via teams.</strong>
+        Instead of per-retro passwords and an admin dashboard, sign-in uses GitHub (or GitHub Enterprise),
+        admins are a GitHub team, and every retro belongs to a team whose members can see and edit it.
+      </li>
+      <li>
+        <strong>Real-time sync you can trust.</strong>
+        Every change lands in a durable event log in Postgres and is pushed to all connected clients over
+        server-sent events; a client that reconnects replays everything it missed.
+      </li>
+      <li>
+        <strong>A timer everyone agrees on.</strong>
+        The five-minute highlight countdown is server-authoritative: the deadline lives in the database, so
+        every participant sees the same time, and it can be extended by two minutes.
+      </li>
+      <li>
+        <strong>No analytics, no tracking.</strong>
+        Rostfacto ships without analytics or tracking scripts — your retrospectives stay on your server.
+      </li>
+    </ul>
+  </section>
 </div>
+
+<script>
+  (function () {
+    // Minimal carousel for the landing page: prev/next, dots, keyboard
+    // arrows, and autoplay that pauses on hover/focus and respects
+    // prefers-reduced-motion.
+    var carousel = document.querySelector('.landing-carousel');
+    if (!carousel) return;
+    var slides = Array.prototype.slice.call(carousel.querySelectorAll('.carousel-slide'));
+    var dots = Array.prototype.slice.call(carousel.querySelectorAll('.carousel-dot'));
+    var prev = carousel.querySelector('.carousel-prev');
+    var next = carousel.querySelector('.carousel-next');
+    var AUTOPLAY_MS = 6000;
+    var index = 0;
+    var timer = null;
+
+    function show(newIndex) {
+      index = (newIndex + slides.length) % slides.length;
+      slides.forEach(function (slide, i) {
+        var active = i === index;
+        slide.classList.toggle('is-active', active);
+        slide.hidden = !active;
+      });
+      dots.forEach(function (dot, i) {
+        var active = i === index;
+        dot.classList.toggle('is-active', active);
+        if (active) {
+          dot.setAttribute('aria-current', 'true');
+        } else {
+          dot.removeAttribute('aria-current');
+        }
+      });
+    }
+
+    function startAutoplay() {
+      stopAutoplay();
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      timer = window.setInterval(function () { show(index + 1); }, AUTOPLAY_MS);
+    }
+
+    function stopAutoplay() {
+      if (timer) window.clearInterval(timer);
+      timer = null;
+    }
+
+    function advance(step) {
+      show(index + step);
+      startAutoplay();
+    }
+
+    prev.addEventListener('click', function () { advance(-1); });
+    next.addEventListener('click', function () { advance(1); });
+    dots.forEach(function (dot, i) {
+      dot.addEventListener('click', function () { advance(i - index); });
+    });
+
+    carousel.addEventListener('mouseenter', stopAutoplay);
+    carousel.addEventListener('mouseleave', startAutoplay);
+    carousel.addEventListener('focusin', stopAutoplay);
+    carousel.addEventListener('focusout', startAutoplay);
+    carousel.addEventListener('keydown', function (event) {
+      if (event.key === 'ArrowLeft') { advance(-1); event.preventDefault(); }
+      if (event.key === 'ArrowRight') { advance(1); event.preventDefault(); }
+    });
+
+    show(0);
+    startAutoplay();
+  })();
+</script>
 {% endblock %}

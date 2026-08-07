@@ -2,6 +2,17 @@
 
 This project aims to revive [Postfacto](https://github.com/vmware-archive/postfacto), but in Rust.
 
+# What's different to Postfacto
+
+Rostfacto keeps the retro flow Postfacto made popular — cards, highlighting, timers, action items — and rebuilds it from scratch:
+
+- **It's actively maintained.** Postfacto is archived; Rostfacto is developed in the open, released on a regular basis, and covered by an end-to-end test suite.
+- **One binary, one dependency.** Rostfacto is written in Rust and ships as a single static binary — all you need besides it is PostgreSQL. No Ruby on Rails, no Node.js build step, no Redis.
+- **Sign in with GitHub, access via teams.** Instead of per-retro passwords and an admin dashboard, sign-in uses GitHub (or GitHub Enterprise), admins are a GitHub team, and every retro belongs to a team whose members can see and edit it.
+- **Real-time sync you can trust.** Every change lands in a durable event log in Postgres and is pushed to all connected clients over server-sent events; a client that reconnects replays everything it missed.
+- **A timer everyone agrees on.** The five-minute highlight countdown is server-authoritative: the deadline lives in the database, so every participant sees the same time, and it can be extended by two minutes.
+- **No analytics, no tracking.** Rostfacto ships without analytics or tracking scripts — your retrospectives stay on your server.
+
 # Run
 
 ```command
@@ -98,12 +109,8 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
-- Release 2.0
 - Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs
 - Allow adding a card anonymously
-- Rework home page to be a landing page with
-  - screenshots of individual actions like adding a card, shown as a carousel (instead of the animated GIF we currently have)
-  - what's different to Postfacto
 - Mobile version
 - Limit growth of the `events` table
 - Clean archived retros after e.g. a year
