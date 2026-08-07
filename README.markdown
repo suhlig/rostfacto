@@ -18,6 +18,24 @@ sqlx migrate run
 cargo watch -x run
 ```
 
+## Docker Compose
+
+Quickest way to run the whole stack (database, migrations, app) — no local build required:
+
+```command
+docker compose up -d
+```
+
+Images are pulled from the GitHub Container Registry: `ghcr.io/suhlig/rostfacto` for the app and `ghcr.io/suhlig/rostfacto-migrator` for the one-shot migration step. Both are tagged `latest` and rebuilt on every push to `main`.
+
+The app is published on port 3000. To run it on a different host port, set `APP_PORT`:
+
+```command
+APP_PORT=8080 docker compose up -d
+```
+
+or put `APP_PORT=8080` in a `.env` file next to `docker-compose.yml`; the default stays 3000, so plain `docker compose up` keeps working. With GitHub authentication enabled, make sure `PUBLIC_URL` matches the chosen port (see the table above).
+
 ## Authentication (GitHub)
 
 By default the app runs in **demo mode** (no authentication) if `GITHUB_ADMIN_ORG` is not set. To enable GitHub or GitHub Enterprise authentication, configure the following environment variables:
