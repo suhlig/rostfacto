@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: rostfacto
       POSTGRES_DB: rostfacto
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U rostfacto -d rostfacto"]
       interval: 5s
