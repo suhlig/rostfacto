@@ -16,6 +16,10 @@ const OAUTH_STATE_MAX_AGE_SECONDS: i64 = 60 * 10; // 10 minutes
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedTeam {
+    /// Org slug the team belongs to. Sessions created before org-qualified
+    /// team slugs lack this field (defaults to "") and carry bare team slugs.
+    #[serde(default)]
+    pub org: String,
     pub slug: String,
     pub name: String,
 }
@@ -32,8 +36,15 @@ pub struct AuthUser {
 }
 
 impl AuthUser {
+    /// True when the user is an admin or a member of the given team. The team
+    /// slug may be org-qualified (`org/team-slug`) or a legacy bare slug; both
+    /// match when the user belongs to the corresponding team.
     pub fn is_member_of_team(&self, team_slug: &str) -> bool {
-        self.is_admin || self.team_slugs.iter().any(|s| s == team_slug)
+        self.is_admin
+            || self
+                .team_slugs
+                .iter()
+                .any(|s| s == team_slug || s.ends_with(&format!("/{team_slug}")))
     }
 }
 
@@ -239,6 +250,7 @@ where
                 is_admin: true,
                 team_slugs: vec!["demo".to_string()],
                 teams: vec![CachedTeam {
+                    org: String::new(),
                     slug: "demo".to_string(),
                     name: "Demo Team".to_string(),
                 }],
@@ -313,6 +325,7 @@ where
                 is_admin: true,
                 team_slugs: vec!["demo".to_string()],
                 teams: vec![CachedTeam {
+                    org: String::new(),
                     slug: "demo".to_string(),
                     name: "Demo Team".to_string(),
                 }],
@@ -497,22 +510,38 @@ pub async fn callback(
         true
     };
 
-    // Collect the teams the user belongs to across all configured user orgs.
-    // Team membership is resolved once at login and cached in the session.
+    // Collect the teams visible to the user across all configured user orgs.
+    // Team slugs are qualified with the org slug (e.g. "acme/engineering") so
+    // that equal team slugs in different orgs stay distinguishable; the
+    // qualified slug is what gets stored on a retro. Team membership is
+    // resolved once at login and cached in the session.
     let mut teams: Vec<CachedTeam> = Vec::new();
     for org in &state.config.github_user_orgs {
         match list_org_teams(org, &token.access_token, &state.config).await {
-            Ok(org_teams) => teams.extend(org_teams.into_iter().map(|t| CachedTeam {
-                slug: t.slug,
-                name: t.name,
-            })),
+            Ok(org_teams) => {
+                for team in org_teams {
+                    teams.push(CachedTeam {
+                        org: org.clone(),
+                        slug: format!("{}/{}", org, team.slug),
+                        name: team.name,
+                    });
+                }
+            }
             Err(e) => {
-                tracing::warn!(org, "failed to list teams for authenticated user");
+                // GitHub refuses to list teams for accounts that are not
+                // accepted members of the org; SAML-protected orgs also
+                // require the app to be SSO-authorized for the org. Other
+                // orgs still contribute their teams.
+                tracing::warn!(
+                    org,
+                    error = %e,
+                    "failed to list teams for authenticated user (must be an accepted member of the org; SAML-protected orgs additionally require SSO authorization of the app)"
+                );
                 tracing::debug!(username = %user.username, error = %e, "team listing failure details");
             }
         }
     }
-    // Team slugs may collide across organizations; keep the first occurrence.
+    // An org listed twice in the configuration would otherwise duplicate its teams.
     let mut seen_slugs = std::collections::HashSet::new();
     teams.retain(|team| seen_slugs.insert(team.slug.clone()));
 
@@ -604,11 +633,13 @@ mod tests {
 
         let teams = vec![
             CachedTeam {
-                slug: "team-a".to_string(),
+                org: "org-a".to_string(),
+                slug: "org-a/team-a".to_string(),
                 name: "Team A".to_string(),
             },
             CachedTeam {
-                slug: "team-b".to_string(),
+                org: "org-b".to_string(),
+                slug: "org-b/team-b".to_string(),
                 name: "Team B".to_string(),
             },
         ];
@@ -627,11 +658,25 @@ mod tests {
         assert!(user.is_admin, "cached admin status should be true");
         assert_eq!(
             user.team_slugs,
-            vec!["team-a".to_string(), "team-b".to_string()]
+            vec!["org-a/team-a".to_string(), "org-b/team-b".to_string()]
         );
         assert_eq!(user.teams.len(), 2);
-        assert_eq!(user.teams[0].slug, "team-a");
+        assert_eq!(user.teams[0].slug, "org-a/team-a");
+        assert_eq!(user.teams[0].org, "org-a");
+        assert_eq!(user.teams[1].slug, "org-b/team-b");
         assert_eq!(user.teams[1].name, "Team B");
+
+        // is_member_of_team short-circuits for admins, so exercise the
+        // membership logic with a non-admin user.
+        let mut member = user;
+        member.is_admin = false;
+        // Qualified slugs match directly; bare slugs still grant access to
+        // legacy retros that store the bare team slug.
+        assert!(member.is_member_of_team("org-a/team-a"));
+        assert!(member.is_member_of_team("org-b/team-b"));
+        assert!(member.is_member_of_team("team-a"));
+        assert!(member.is_member_of_team("team-b"));
+        assert!(!member.is_member_of_team("team-c"));
 
         // Clean up the test session.
         sqlx::query!("DELETE FROM sessions WHERE id = $1", session_id)

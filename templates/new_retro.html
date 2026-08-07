@@ -42,7 +42,7 @@
       <select id="team_slug" name="team_slug" required>
         <option value="">Select a team</option>
         {% for team in teams %}
-        <option value="{{ team.slug }}">{{ team.name }}</option>
+        <option value="{{ team.slug }}">{{ team.slug }}</option>
         {% endfor %}
       </select>
       <small>Only members of this team will be able to view or change this retrospective.</small>

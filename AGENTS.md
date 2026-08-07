@@ -60,7 +60,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - **Demo mode**: when `GITHUB_ADMIN_ORG` is not set, the app runs without authentication. A synthetic `demo` user is created at startup, every request is treated as an admin, and a red banner warns that the instance is unsecured. This mode is used by the integration tests.
 - **GitHub OAuth**: when `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are set, users must sign in via GitHub (or GitHub Enterprise Server if `GITHUB_ENTERPRISE_URL` is configured).
 - **Admins**: users who are members of the configured admin team (`GITHUB_ADMIN_ORG` / `GITHUB_ADMIN_TEAM_SLUG`). Only admins can create or delete retros.
-- **Retro access**: each retro is assigned a team at creation time (`team_slug`). Non-admin users can only view or change retros whose team they belong to (checked live against the GitHub API). Admins can see and manage all retros.
+- **Retro access**: each retro is assigned a team at creation time (`team_slug`), stored org-qualified (`org/team-slug`); the access checks match both qualified and legacy bare slugs. Non-admin users can only view or change retros whose team they belong to (checked against the cached session teams). Admins can see and manage all retros.
 - **Sessions**: stored in Postgres (`sessions` table) and referenced by a `rostfacto_session` cookie. Admin status and team membership are resolved once at login and cached in the session (`is_admin`, `teams` JSONB); subsequent requests read the cache.
 - **403 vs 404**: non-existent retros return 404; existing retros the user is not authorized to access return 403.
 

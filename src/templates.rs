@@ -117,5 +117,4 @@ pub struct ArchiveTemplate {
 
 pub struct GitHubTeam {
     pub slug: String,
-    pub name: String,
 }

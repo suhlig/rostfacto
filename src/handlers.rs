@@ -212,10 +212,18 @@ pub async fn list_retros(
         .fetch_all(&state.pool)
         .await
     } else {
+        // Qualified team slugs ("org/team") also match retros created before
+        // multi-org support, which store the bare team slug.
+        let mut team_slugs = user.team_slugs.clone();
+        team_slugs.extend(
+            user.team_slugs
+                .iter()
+                .filter_map(|s| s.rsplit_once('/').map(|(_, bare)| bare.to_string())),
+        );
         sqlx::query_as!(
             Retrospective,
             "SELECT * FROM retrospectives WHERE team_slug = ANY($1) ORDER BY created_at DESC",
-            &user.team_slugs
+            &team_slugs
         )
         .fetch_all(&state.pool)
         .await
@@ -247,7 +255,6 @@ pub async fn new_retro(
         .iter()
         .map(|t| GitHubTeam {
             slug: t.slug.clone(),
-            name: t.name.clone(),
         })
         .collect();
 
