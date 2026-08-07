@@ -2,9 +2,12 @@ name: Container
 on:
   push:
     branches: [main]
+  release:
+    types: [published]
 env:
   IMAGE: ghcr.io/${{ github.repository }}
   MIGRATOR_IMAGE: ghcr.io/${{ github.repository }}-migrator
+  RELEASE_TAG: ${{ github.event.release.tag_name }}
 jobs:
   build:
     strategy:
@@ -74,10 +77,11 @@ jobs:
           for digest in *; do
             digests="$digests $IMAGE@sha256:$digest"
           done
-          docker buildx imagetools create \
-            -t "$IMAGE:latest" \
-            -t "$IMAGE:sha-${GITHUB_SHA::7}" \
-            $digests
+          tags=(-t "$IMAGE:latest" -t "$IMAGE:sha-${GITHUB_SHA::7}")
+          if [ -n "$RELEASE_TAG" ]; then
+            tags+=(-t "$IMAGE:$RELEASE_TAG")
+          fi
+          docker buildx imagetools create "${tags[@]}" $digests
       - name: Inspect
         run: docker buildx imagetools inspect "$IMAGE:latest"
   build-migrator:
@@ -149,9 +153,10 @@ jobs:
           for digest in *; do
             digests="$digests $MIGRATOR_IMAGE@sha256:$digest"
           done
-          docker buildx imagetools create \
-            -t "$MIGRATOR_IMAGE:latest" \
-            -t "$MIGRATOR_IMAGE:sha-${GITHUB_SHA::7}" \
-            $digests
+          tags=(-t "$MIGRATOR_IMAGE:latest" -t "$MIGRATOR_IMAGE:sha-${GITHUB_SHA::7}")
+          if [ -n "$RELEASE_TAG" ]; then
+            tags+=(-t "$MIGRATOR_IMAGE:$RELEASE_TAG")
+          fi
+          docker buildx imagetools create "${tags[@]}" $digests
       - name: Inspect
         run: docker buildx imagetools inspect "$MIGRATOR_IMAGE:latest"

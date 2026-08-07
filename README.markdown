@@ -26,7 +26,7 @@ Quickest way to run the whole stack (database, migrations, app) — no local bui
 docker compose up -d
 ```
 
-Images are pulled from the GitHub Container Registry: `ghcr.io/suhlig/rostfacto` for the app and `ghcr.io/suhlig/rostfacto-migrator` for the one-shot migration step. Both are tagged `latest` and rebuilt on every push to `main`.
+Images are pulled from the GitHub Container Registry: `ghcr.io/suhlig/rostfacto` for the app and `ghcr.io/suhlig/rostfacto-migrator` for the one-shot migration step. Both are tagged `latest` and `sha-<commit>` on every push to `main`; every GitHub release additionally tags them with the release version, e.g. `ghcr.io/suhlig/rostfacto:v2.0`.
 
 The app is published on port 3000. To run it on a different host port, set `APP_PORT`:
 
@@ -98,7 +98,6 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
-- Publish a container image on every release and tag it with the release version
 - Release 2.0
 - Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs
 - Allow adding a card anonymously
