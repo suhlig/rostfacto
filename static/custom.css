@@ -310,10 +310,19 @@ label {
   margin: 0 auto;
 }
 
-.new-retro-form label,
+/* The 1rem vertical rhythm sits below the field description (<small>), not
+   below the input itself: labels carry the gap to the previous field. */
+.new-retro-form label {
+  margin-top: 1rem;
+}
+
+.new-retro-form label:first-child {
+  margin-top: 0;
+}
+
 .new-retro-form input,
 .new-retro-form select {
-  margin-bottom: 1rem;
+  margin-bottom: 0;
 }
 
 .new-retro-form input[type="text"],
@@ -322,7 +331,7 @@ label {
 }
 
 .new-retro-form button[type="submit"] {
-  margin-top: 0.5rem;
+  margin-top: 1rem;
 }
 
 /* Warning shown when an org's teams could not be listed at login. */
