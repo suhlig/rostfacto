@@ -1,12 +1,20 @@
+# Production-oriented stack: all secrets come from the environment (see
+# .env.example). The app connects to the database as the least-privilege
+# `rostfacto_app` role created by docker/init-app-role.sh on first boot;
+# only the one-shot migrations service uses the superuser.
 services:
   db:
-    image: postgres:18-alpine
+    # Pinned by digest for reproducible deployments.
+    image: postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
     environment:
       POSTGRES_USER: rostfacto
-      POSTGRES_PASSWORD: rostfacto
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your .env}
       POSTGRES_DB: rostfacto
+      # Only used by the init script that creates the app role.
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?Set POSTGRES_APP_PASSWORD in your .env}
     volumes:
       - postgres_data:/var/lib/postgresql
+      - ./docker/init-app-role.sh:/docker-entrypoint-initdb.d/init-app-role.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U rostfacto -d rostfacto"]
       interval: 5s
@@ -15,17 +23,24 @@ services:
     restart: unless-stopped
 
   migrations:
-    image: ghcr.io/suhlig/rostfacto-migrator:latest
+    image: ghcr.io/suhlig/rostfacto-migrator@sha256:54ec9db27b12344cb693704e08319636ada6ef3f472763bfa00ea655fc42de12
     environment:
-      DATABASE_URL: postgres://rostfacto:rostfacto@db/rostfacto
+      DATABASE_URL: postgres://rostfacto:${POSTGRES_PASSWORD}@db/rostfacto
     depends_on:
       db:
         condition: service_healthy
 
   app:
-    image: ghcr.io/suhlig/rostfacto:latest
+    image: ghcr.io/suhlig/rostfacto@sha256:8b7ad1485fee45fa7cc46737c9f7487cd48f3bc4cf2acae2c7f530616660384d
     environment:
-      DATABASE_URL: postgres://rostfacto:rostfacto@db/rostfacto
+      DATABASE_URL: postgres://rostfacto_app:${POSTGRES_APP_PASSWORD}@db/rostfacto
+      PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL in your .env (the public base URL used for OAuth)}
+      GITHUB_ADMIN_ORG: ${GITHUB_ADMIN_ORG:?Set GITHUB_ADMIN_ORG in your .env}
+      GITHUB_ADMIN_TEAM_SLUG: ${GITHUB_ADMIN_TEAM_SLUG:?Set GITHUB_ADMIN_TEAM_SLUG in your .env}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?Set GITHUB_CLIENT_ID in your .env}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?Set GITHUB_CLIENT_SECRET in your .env}
+      GITHUB_USER_ORG: ${GITHUB_USER_ORG:-}
+      GITHUB_APP_OWNER: ${GITHUB_APP_OWNER:-}
     ports:
       - "${APP_PORT:-3000}:3000"
     depends_on:

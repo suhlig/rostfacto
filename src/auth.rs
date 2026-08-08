@@ -11,8 +11,16 @@ use std::fmt::Write;
 
 pub const SESSION_COOKIE: &str = "rostfacto_session";
 const OAUTH_STATE_COOKIE: &str = "rostfacto_oauth_state";
-const SESSION_MAX_AGE_SECONDS: i64 = 60 * 60 * 24 * 7; // 7 days
+/// Sessions expire after this much inactivity (sliding window: each active
+/// request extends the deadline back up to this duration).
+const SESSION_MAX_AGE_SECONDS: i64 = 60 * 60 * 24 * 7; // 7 days idle
+/// Absolute lifetime of a session, regardless of activity. Re-logging in
+/// creates a fresh session and revokes all previous ones.
+const SESSION_ABSOLUTE_MAX_AGE_SECONDS: i64 = 60 * 60 * 24 * 30; // 30 days
 const OAUTH_STATE_MAX_AGE_SECONDS: i64 = 60 * 10; // 10 minutes
+/// Destructive admin actions (e.g. deleting a retro) require a login that is
+/// at most this old, so a long-lived stolen session cannot delete data.
+pub(crate) const ADMIN_REAUTH_MAX_AGE_SECONDS: i64 = 60 * 60 * 24; // 24 hours
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedTeam {
@@ -71,6 +79,8 @@ pub(crate) struct SessionRow {
     is_admin: bool,
     teams: sqlx::types::Json<Vec<CachedTeam>>,
     team_listing_errors: sqlx::types::Json<Vec<String>>,
+    created_at: chrono::DateTime<chrono::Utc>,
+    expires_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Deserialize)]
@@ -87,15 +97,20 @@ fn generate_token() -> String {
     })
 }
 
-fn set_cookie(name: &str, value: &str, max_age_seconds: i64) -> String {
+fn set_cookie(name: &str, value: &str, max_age_seconds: i64, secure: bool) -> String {
+    let secure = if secure { "; Secure" } else { "" };
     format!(
-        "{}={}; Max-Age={}; Path=/; HttpOnly; SameSite=Lax",
-        name, value, max_age_seconds
+        "{}={}; Max-Age={}; Path=/; HttpOnly; SameSite=Lax{}",
+        name, value, max_age_seconds, secure
     )
 }
 
-fn clear_cookie(name: &str) -> String {
-    format!("{}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax", name)
+fn clear_cookie(name: &str, secure: bool) -> String {
+    let secure = if secure { "; Secure" } else { "" };
+    format!(
+        "{}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax{}",
+        name, secure
+    )
 }
 
 pub async fn ensure_demo_user(pool: &PgPool) -> Result<i32, sqlx::Error> {
@@ -118,7 +133,7 @@ pub(crate) async fn load_session(
     pool: &PgPool,
     session_id: &str,
 ) -> Result<Option<SessionRow>, sqlx::Error> {
-    sqlx::query_as!(
+    let session = sqlx::query_as!(
         SessionRow,
         r#"
         SELECT
@@ -128,7 +143,9 @@ pub(crate) async fn load_session(
             u.full_name,
             s.is_admin,
             s.teams as "teams: _",
-            s.team_listing_errors as "team_listing_errors: _"
+            s.team_listing_errors as "team_listing_errors: _",
+            s.created_at,
+            s.expires_at
         FROM users u
         JOIN sessions s ON s.user_id = u.id
         WHERE s.id = $1 AND s.expires_at > NOW()
@@ -136,7 +153,31 @@ pub(crate) async fn load_session(
         session_id
     )
     .fetch_optional(pool)
-    .await
+    .await?;
+
+    // Sliding expiry: when less than half of the idle window remains, extend
+    // the deadline to now + idle, capped at the absolute maximum so abandoned
+    // sessions eventually die. The rare UPDATE keeps per-request overhead low.
+    let mut session = session;
+    if let Some(session) = &mut session {
+        let idle = chrono::Duration::try_seconds(SESSION_MAX_AGE_SECONDS).unwrap();
+        let absolute = chrono::Duration::try_seconds(SESSION_ABSOLUTE_MAX_AGE_SECONDS).unwrap();
+        let now = Utc::now();
+        if session.expires_at - now < idle / 2 {
+            let new_expiry = (session.created_at + absolute).min(now + idle);
+            sqlx::query!(
+                "UPDATE sessions SET expires_at = $2 WHERE id = $1",
+                session_id,
+                new_expiry
+            )
+            .execute(pool)
+            .await?;
+            // Keep the returned row in sync with the database.
+            session.expires_at = new_expiry;
+        }
+    }
+
+    Ok(session)
 }
 
 async fn upsert_user(pool: &PgPool, github_user: &GitHubUser) -> Result<UserRow, sqlx::Error> {
@@ -167,7 +208,12 @@ pub(crate) async fn create_session(
     teams: &[CachedTeam],
     team_listing_errors: &[String],
 ) -> Result<String, sqlx::Error> {
-    let expires_at = Utc::now() + chrono::Duration::try_seconds(SESSION_MAX_AGE_SECONDS).unwrap();
+    // A fresh session starts at the full idle window; the absolute cap only
+    // matters once the session is extended by `load_session`.
+    let now = Utc::now();
+    let idle = chrono::Duration::try_seconds(SESSION_MAX_AGE_SECONDS).unwrap();
+    let absolute = chrono::Duration::try_seconds(SESSION_ABSOLUTE_MAX_AGE_SECONDS).unwrap();
+    let expires_at = (now + idle).min(now + absolute);
     let teams_json = serde_json::to_value(teams).unwrap();
     let errors_json = serde_json::to_value(team_listing_errors).unwrap();
     let session_id = sqlx::query_scalar!(
@@ -207,15 +253,15 @@ pub(crate) fn auth_user_from_session(session: SessionRow) -> AuthUser {
     }
 }
 
-fn session_cookie(session_id: &str) -> String {
-    set_cookie(SESSION_COOKIE, session_id, SESSION_MAX_AGE_SECONDS)
+fn session_cookie(session_id: &str, secure: bool) -> String {
+    set_cookie(SESSION_COOKIE, session_id, SESSION_MAX_AGE_SECONDS, secure)
 }
 
-fn clear_session_cookie() -> String {
-    clear_cookie(SESSION_COOKIE)
+fn clear_session_cookie(secure: bool) -> String {
+    clear_cookie(SESSION_COOKIE, secure)
 }
 
-fn read_cookie(parts: &Parts, name: &str) -> Option<String> {
+pub(crate) fn read_cookie(parts: &Parts, name: &str) -> Option<String> {
     parts
         .headers
         .get_all("cookie")
@@ -288,7 +334,10 @@ where
                     StatusCode::SEE_OTHER,
                     [
                         ("Location", "/auth/login"),
-                        ("Set-Cookie", &clear_session_cookie()),
+                        (
+                            "Set-Cookie",
+                            &clear_session_cookie(state.config.cookies_secure()),
+                        ),
                     ],
                     "Redirecting to login",
                 )
@@ -396,6 +445,7 @@ pub async fn login(State(state): State<crate::AppState>) -> impl IntoResponse {
                     OAUTH_STATE_COOKIE,
                     &state_token,
                     OAUTH_STATE_MAX_AGE_SECONDS,
+                    state.config.cookies_secure(),
                 ),
             ),
         ],
@@ -498,6 +548,24 @@ pub async fn callback(
         }
     };
 
+    // A re-login revokes all previous sessions of this user, so a stolen
+    // session cookie cannot outlive the next login of its owner.
+    if let Err(error) = sqlx::query!("DELETE FROM sessions WHERE user_id = $1", user.id)
+        .execute(&state.pool)
+        .await
+    {
+        tracing::error!(
+            operation = "revoke_old_sessions",
+            "database operation failed"
+        );
+        tracing::debug!(error = %error, "old session revocation failure details");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to revoke old sessions",
+        )
+            .into_response();
+    }
+
     // Resolve team membership once at login and cache it in the session. Subsequent
     // requests read the cached values and do not call the GitHub API.
     let is_admin = if let Some((org, team)) = state.config.admin_team() {
@@ -584,10 +652,17 @@ pub async fn callback(
 
     let mut response = (StatusCode::SEE_OTHER, [("Location", "/")]).into_response();
     let headers = response.headers_mut();
-    headers.append(SET_COOKIE, session_cookie(&session_id).parse().unwrap());
     headers.append(
         SET_COOKIE,
-        clear_cookie(OAUTH_STATE_COOKIE).parse().unwrap(),
+        session_cookie(&session_id, state.config.cookies_secure())
+            .parse()
+            .unwrap(),
+    );
+    headers.append(
+        SET_COOKIE,
+        clear_cookie(OAUTH_STATE_COOKIE, state.config.cookies_secure())
+            .parse()
+            .unwrap(),
     );
     response
 }
@@ -623,7 +698,10 @@ pub async fn logout(
         StatusCode::SEE_OTHER,
         [
             ("Location", "/".to_string()),
-            ("Set-Cookie", clear_session_cookie()),
+            (
+                "Set-Cookie",
+                clear_session_cookie(state.config.cookies_secure()),
+            ),
         ],
     )
         .into_response()
@@ -765,5 +843,73 @@ mod tests {
             .execute(&pool)
             .await
             .expect("Failed to delete valid session");
+    }
+
+    #[tokio::test]
+    async fn load_session_slides_expiry_near_the_deadline_but_caps_it() {
+        let database_url =
+            std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set");
+        let pool = PgPool::connect(&database_url)
+            .await
+            .expect("Failed to connect to database");
+
+        let user_id = ensure_demo_user(&pool)
+            .await
+            .expect("Failed to ensure demo user");
+        let session_id = create_session(&pool, user_id, false, &[], &[])
+            .await
+            .expect("Failed to create session");
+
+        // Less than half of the 7-day idle window remains: loading the session
+        // should extend it back to a full idle window (capped at 30 days).
+        sqlx::query!(
+            "UPDATE sessions SET expires_at = NOW() + interval '1 hour' WHERE id = $1",
+            session_id
+        )
+        .execute(&pool)
+        .await
+        .expect("Failed to shorten session expiry");
+
+        let session = load_session(&pool, &session_id)
+            .await
+            .expect("Failed to load session")
+            .expect("Session should exist");
+        let idle = chrono::Duration::try_seconds(SESSION_MAX_AGE_SECONDS).unwrap();
+        let remaining = session.expires_at - Utc::now();
+        assert!(
+            remaining > idle - chrono::Duration::minutes(5),
+            "expiry should be extended back to the full idle window, got {remaining:?}"
+        );
+
+        // A session that has been sliding for a long time cannot exceed the
+        // absolute maximum.
+        sqlx::query!(
+            "UPDATE sessions SET created_at = NOW() - interval '29 days', expires_at = NOW() + interval '1 hour' WHERE id = $1",
+            session_id
+        )
+        .execute(&pool)
+        .await
+        .expect("Failed to age session");
+        let session = load_session(&pool, &session_id)
+            .await
+            .expect("Failed to load aged session")
+            .expect("Aged session should exist");
+        let absolute = chrono::Duration::try_seconds(SESSION_ABSOLUTE_MAX_AGE_SECONDS).unwrap();
+        let remaining = session.expires_at - Utc::now();
+        assert!(
+            remaining <= absolute,
+            "expiry must be capped at the absolute maximum, got {remaining:?}"
+        );
+        // The session was created 29 days ago, so the absolute cap (created_at
+        // + 30 days) leaves at most one day regardless of the idle window.
+        assert!(
+            remaining <= chrono::Duration::days(1) + chrono::Duration::minutes(5),
+            "expiry must be capped at created_at + absolute max, got {remaining:?}"
+        );
+
+        sqlx::query!("DELETE FROM sessions WHERE id = $1", session_id)
+            .execute(&pool)
+            .await
+            .expect("Failed to delete test session");
     }
 }

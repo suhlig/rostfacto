@@ -1,4 +1,6 @@
-use crate::auth::{AuthUser, MaybeAuthUser};
+use crate::auth::{
+    read_cookie, AuthUser, MaybeAuthUser, ADMIN_REAUTH_MAX_AGE_SECONDS, SESSION_COOKIE,
+};
 use crate::events::EventType;
 use crate::models::{
     apply_author_initials, ActionItem, Archive, Category, Item, Retrospective, Status,
@@ -12,13 +14,20 @@ use crate::AppState;
 use askama::Template;
 use axum::{
     extract::{Path, Query, State},
-    http::{header::HeaderName, HeaderValue, StatusCode},
+    http::{header::HeaderName, request::Parts, HeaderValue, StatusCode},
     response::{Html, IntoResponse, Response},
     Form,
 };
+use chrono::Utc;
 use serde::Deserialize;
 use sqlx::PgPool;
 use std::collections::HashMap;
+
+/// Upper bound for user-supplied card and action item text. Mirrored by the
+/// `*_text_length_check` constraints in migration 024; both must agree.
+const MAX_ITEM_TEXT_LENGTH: usize = 5_000;
+/// Upper bound for the retro title. Mirrored by `retrospectives_title_length_check`.
+const MAX_RETRO_TITLE_LENGTH: usize = 200;
 
 pub(crate) fn log_database_error(operation: &'static str, error: &sqlx::Error) {
     if let Some(database_error) = error.as_database_error() {
@@ -296,6 +305,17 @@ pub async fn create_retro(
         );
     }
 
+    let title = form.title.trim();
+    if title.is_empty() {
+        return bad_request(&state, "Title is required");
+    }
+    if title.chars().count() > MAX_RETRO_TITLE_LENGTH {
+        return bad_request(
+            &state,
+            &format!("Title must be {MAX_RETRO_TITLE_LENGTH} characters or less"),
+        );
+    }
+
     let team_slug = if state.config.demo_mode() {
         form.team_slug.unwrap_or_else(|| "demo".to_string())
     } else {
@@ -308,7 +328,7 @@ pub async fn create_retro(
     let retro = match sqlx::query_as!(
         Retrospective,
         "INSERT INTO retrospectives (title, slug, team_slug, created_by) VALUES ($1, $2, $3, $4) RETURNING *",
-        form.title,
+        title,
         form.slug,
         team_slug,
         user.user_id
@@ -517,6 +537,17 @@ pub async fn add_item(
         }
     }
 
+    let text = form.text.trim();
+    if text.is_empty() {
+        return Err(bad_request(&state, "Card text is required"));
+    }
+    if text.chars().count() > MAX_ITEM_TEXT_LENGTH {
+        return Err(bad_request(
+            &state,
+            &format!("Card text must be {MAX_ITEM_TEXT_LENGTH} characters or less"),
+        ));
+    }
+
     let mut tx = state.pool.begin().await.map_err(|error| {
         log_database_error("add_item_begin_transaction", &error);
         database_error_response()
@@ -527,7 +558,7 @@ pub async fn add_item(
            VALUES ($1, $2, $3, 'CREATED'::status, $4)
            RETURNING id"#,
         retro_id,
-        form.text,
+        text,
         category as Category,
         user.user_id
     )
@@ -889,6 +920,12 @@ pub async fn update_item(
     let text = form.text.trim();
     if text.is_empty() {
         return Err(bad_request(&state, "Card text is required"));
+    }
+    if text.chars().count() > MAX_ITEM_TEXT_LENGTH {
+        return Err(bad_request(
+            &state,
+            &format!("Card text must be {MAX_ITEM_TEXT_LENGTH} characters or less"),
+        ));
     }
     let old_text = item.text.clone();
 
@@ -1306,6 +1343,12 @@ pub async fn add_action_item(
     if text.is_empty() {
         return Err(bad_request(&state, "Action item text is required"));
     }
+    if text.chars().count() > MAX_ITEM_TEXT_LENGTH {
+        return Err(bad_request(
+            &state,
+            &format!("Action item text must be {MAX_ITEM_TEXT_LENGTH} characters or less"),
+        ));
+    }
 
     let action_item = sqlx::query_as!(
         ActionItem,
@@ -1381,6 +1424,12 @@ pub async fn update_action_item(
     let text = form.text.trim();
     if text.is_empty() {
         return Err(bad_request(&state, "Action item text is required"));
+    }
+    if text.chars().count() > MAX_ITEM_TEXT_LENGTH {
+        return Err(bad_request(
+            &state,
+            &format!("Action item text must be {MAX_ITEM_TEXT_LENGTH} characters or less"),
+        ));
     }
     sqlx::query!(
         "UPDATE action_items SET text = $1 WHERE id = $2",
@@ -1558,9 +1607,43 @@ pub async fn delete_retro(
     State(state): State<AppState>,
     user: AuthUser,
     Path(slug): Path<String>,
+    parts: Parts,
 ) -> impl IntoResponse {
     if !user.is_admin {
         return forbidden(&state, "Only admins can delete retrospectives");
+    }
+
+    // Step-up re-authentication: deleting a retro is destructive, so require
+    // a login that is at most ADMIN_REAUTH_MAX_AGE_SECONDS old. Older admins
+    // are sent back through the OAuth flow, which creates a fresh session.
+    if !state.config.demo_mode() {
+        let created_at = match read_cookie(&parts, SESSION_COOKIE) {
+            Some(session_id) => {
+                sqlx::query_scalar!("SELECT created_at FROM sessions WHERE id = $1", session_id)
+                    .fetch_optional(&state.pool)
+                    .await
+                    .ok()
+                    .flatten()
+            }
+            None => None,
+        };
+        let fresh_login = created_at.is_some_and(|created_at| {
+            Utc::now() - created_at
+                < chrono::Duration::try_seconds(ADMIN_REAUTH_MAX_AGE_SECONDS).unwrap()
+        });
+
+        if !fresh_login {
+            tracing::info!(
+                user_id = user.user_id,
+                "admin re-authentication required before deleting a retro"
+            );
+            return (
+                StatusCode::FORBIDDEN,
+                [("HX-Redirect", "/auth/login"), ("Location", "/auth/login")],
+                "Re-authentication required to delete a retro",
+            )
+                .into_response();
+        }
     }
 
     let retro = match sqlx::query_as!(

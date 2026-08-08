@@ -206,6 +206,8 @@ impl TestServer {
                 &format!("127.0.0.1:{}", port),
             ])
             .env("DATABASE_URL", database_url)
+            .env("DEMO_MODE", "1")
+            .env("PUBLIC_URL", format!("http://127.0.0.1:{}", port))
             .env_remove("GITHUB_ADMIN_ORG")
             .env_remove("GITHUB_ADMIN_TEAM_SLUG")
             .env_remove("GITHUB_USER_ORG")
@@ -380,7 +382,7 @@ impl<'a> RetrosPage<'a> {
         let slug_input = self.driver.find(By::Css("input[name='slug']")).await?;
         slug_input.send_keys(slug).await?;
         self.driver
-            .find(By::Css("button[type='submit']"))
+            .find(By::Css(".new-retro-form button[type='submit']"))
             .await?
             .click()
             .await?;

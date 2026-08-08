@@ -1203,6 +1203,21 @@ section.action-items .action-item:focus-within .action-item-delete {
   text-decoration: none;
 }
 
+.logout-form {
+  display: inline;
+  margin: 0;
+}
+
+.logout-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--rf-blue);
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .archive-menu-form {
   margin: 0;
 }
@@ -1247,9 +1262,16 @@ section.action-items .action-item:focus-within .action-item-delete {
   margin: 0;
 }
 
+.error-page p {
+  font-size: 1.5rem;
+  color: #666;
+}
+
 .error-page a {
   display: inline-block;
   margin-top: 2rem;
+  color: var(--rf-blue);
+  text-decoration: none;
 }
 
 /* Keyboard shortcuts help */

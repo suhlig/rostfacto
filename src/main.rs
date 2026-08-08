@@ -1,4 +1,6 @@
 use axum::{
+    extract::DefaultBodyLimit,
+    middleware,
     routing::{delete, get, post},
     Router, ServiceExt,
 };
@@ -12,6 +14,11 @@ use tower_http::{
     services::ServeDir,
     trace::{DefaultOnResponse, TraceLayer},
 };
+
+/// Reject request bodies larger than this up front. Form payloads are small
+/// (the largest fields are capped at 5000 characters), so this bounds the
+/// memory a single request can consume.
+const MAX_BODY_BYTES: usize = 64 * 1024;
 
 /// Command line arguments
 #[derive(Parser)]
@@ -31,10 +38,12 @@ pub struct AppState {
 
 mod auth;
 mod config;
+mod csrf;
 mod events;
 mod github;
 mod handlers;
 mod models;
+mod security_headers;
 pub mod templates;
 
 #[tokio::main]
@@ -134,9 +143,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/retro/{slug}/delete", delete(handlers::delete_retro))
         .route("/auth/login", get(auth::login))
         .route("/auth/callback", get(auth::callback))
-        .route("/auth/logout", get(auth::logout))
+        .route("/auth/logout", post(auth::logout))
         .nest_service("/static", ServeDir::new("static"))
         .fallback(handlers::not_found)
+        // CSRF defense-in-depth for cookie-authenticated mutations: rejects
+        // state-changing requests from foreign origins.
+        .layer(middleware::from_fn_with_state(state.clone(), csrf::check))
+        // Security headers (CSP, HSTS, frame protection, ...) on every response.
+        .layer(middleware::from_fn(security_headers::apply))
+        // Cap the request body so oversized form payloads cannot exhaust memory.
+        .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &axum::http::Request<axum::body::Body>| {

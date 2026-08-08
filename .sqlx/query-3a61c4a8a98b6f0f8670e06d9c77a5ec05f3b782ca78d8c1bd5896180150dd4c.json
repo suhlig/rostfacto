@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            u.id as user_id,\n            u.github_id,\n            u.username,\n            u.full_name,\n            s.is_admin,\n            s.teams as \"teams: _\",\n            s.team_listing_errors as \"team_listing_errors: _\"\n        FROM users u\n        JOIN sessions s ON s.user_id = u.id\n        WHERE s.id = $1 AND s.expires_at > NOW()\n        ",
+  "query": "\n        SELECT\n            u.id as user_id,\n            u.github_id,\n            u.username,\n            u.full_name,\n            s.is_admin,\n            s.teams as \"teams: _\",\n            s.team_listing_errors as \"team_listing_errors: _\",\n            s.created_at,\n            s.expires_at\n        FROM users u\n        JOIN sessions s ON s.user_id = u.id\n        WHERE s.id = $1 AND s.expires_at > NOW()\n        ",
   "describe": {
     "columns": [
       {
@@ -79,6 +79,28 @@
             "name": "team_listing_errors"
           }
         }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "expires_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "expires_at"
+          }
+        }
       }
     ],
     "parameters": {
@@ -93,8 +115,10 @@
       true,
       false,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "afe30c7958eda67ec72ea57c144f3464399e3da27850b0e81926c35b0225b87e"
+  "hash": "3a61c4a8a98b6f0f8670e06d9c77a5ec05f3b782ca78d8c1bd5896180150dd4c"
 }

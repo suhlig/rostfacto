@@ -1,13 +1,16 @@
 # Build stage: compile with the checked-in sqlx offline query cache (.sqlx),
 # so no database is needed. Askama templates are compiled into the binary.
-FROM rust:1-slim-trixie AS builder
+# Base images are pinned by digest so a rebuilt image is reproducible and a
+# compromised tag cannot change what ships.
+FROM rust:1-slim-trixie@sha256:3b2879047d42784ca9403ad20c51ed3df361a50f1df96f5777d39b4e33aa65cd AS builder
 
 WORKDIR /app
 ENV SQLX_OFFLINE=true
 
-# Install sqlx-cli so a later stage can run migrations. Caching this before the
-# source copy keeps the tool layer stable across routine code changes.
-RUN cargo install sqlx-cli --version ^0.9 --no-default-features --features rustls,postgres
+# Install sqlx-cli so a later stage can run migrations. Pinned to the exact
+# version and cached before the source copy so the tool layer stays stable
+# across routine code changes.
+RUN cargo install sqlx-cli --version 0.9.0 --no-default-features --features rustls,postgres
 
 COPY Cargo.toml Cargo.lock ./
 COPY .sqlx .sqlx
@@ -17,7 +20,7 @@ COPY templates templates
 RUN cargo build --release
 
 # Migration stage: a small image that runs `sqlx migrate run` against a database.
-FROM debian:trixie-slim AS migrator
+FROM debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258 AS migrator
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
@@ -31,7 +34,7 @@ ENTRYPOINT ["sqlx"]
 CMD ["migrate", "run"]
 
 # Runtime stage: just the binary, static assets, and CA roots (for the GitHub API).
-FROM debian:trixie-slim
+FROM debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
 
 LABEL org.opencontainers.image.source="https://github.com/suhlig/rostfacto" \
       org.opencontainers.image.description="Team retrospectives, inspired by Postfacto" \

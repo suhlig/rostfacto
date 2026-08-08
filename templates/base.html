@@ -10,8 +10,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/custom.css">
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js" integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V" crossorigin="anonymous"></script>
+    <script src="/static/js/site.js" defer></script>
 </head>
-<body>
+<body{% block body_attrs %}{% endblock %}>
     {% if demo_mode %}
     <div class="demo-banner" role="alert">
       ⚠️ This is an <strong>unsecured demo instance</strong>. Authentication is disabled and
@@ -30,5 +31,7 @@
       <a href="https://github.com/suhlig/rostfacto">©️ 2025-2026 The Rostfacto Authors</a>
     </footer>
     {% endblock %}
+
+    {% block scripts %}{% endblock %}
 </body>
 </html>

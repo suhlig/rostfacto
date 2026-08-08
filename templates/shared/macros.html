@@ -1,7 +1,11 @@
 {% macro account_nav_links() %}
   {% if let Some(user) = user %}
     <li><span>{{ user.username }}</span></li>
-    <li><a href="/auth/logout">Sign out</a></li>
+    <li>
+      <form method="POST" action="/auth/logout" class="logout-form">
+        <button type="submit" class="logout-button">Sign out</button>
+      </form>
+    </li>
   {% else %}
     <li><a href="/auth/login" class="header-button-link">Sign in with GitHub</a></li>
   {% endif %}
@@ -28,7 +32,7 @@
                 <form method="POST" action="/retro/{{ retro.id }}/archive">
                   <fieldset class="grid">
                     <legend class="visually-hidden">Archive actions</legend>
-                    <button type="button" class="btn-cancel secondary" onclick="this.closest('dialog').close()">Cancel</button>
+                    <button type="button" class="btn-cancel secondary" data-close-dialog>Cancel</button>
                     <button type="submit" class="btn-archive primary">Archive</button>
                   </fieldset>
                 </form>
@@ -37,72 +41,19 @@
             <form id="archive-direct-form-{{ retro.id }}" method="POST" action="/retro/{{ retro.id }}/archive" class="archive-menu-form" hidden>
               <button type="submit" hidden>Archive</button>
             </form>
-            <a href="#" class="archive-menu-link {% if !can_archive %}disabled{% endif %}" id="archive-menu-link-{{ retro.id }}" onclick="{% if can_archive %}openArchiveMenuDialog(event, {{ retro.id }}); return false;{% else %}return false;{% endif %}">Archive this retro</a>
+            <a href="#"
+               class="archive-menu-link {% if !can_archive %}disabled{% endif %}"
+               id="archive-menu-link-{{ retro.id }}"
+               data-archive-menu-retro="{{ retro.id }}">Archive this retro</a>
           </li>
         {% endif %}
-        <li><a href="/auth/logout">Sign out</a></li>
+        <li>
+          <form method="POST" action="/auth/logout" class="logout-form">
+            <button type="submit" class="logout-button">Sign out</button>
+          </form>
+        </li>
       </ul>
     </div>
-    <script>
-      (function() {
-        const menu = document.currentScript.previousElementSibling;
-        if (!menu) return;
-        const button = menu.querySelector('button');
-        if (!button) return;
-
-        menu.addEventListener('click', function(e) {
-          e.stopPropagation();
-        });
-
-        button.addEventListener('click', function() {
-          menu.classList.toggle('is-open');
-        });
-
-        document.addEventListener('click', function() {
-          menu.classList.remove('is-open');
-        });
-      })();
-
-      function openArchiveMenuDialog(event, retroId) {
-        event.preventDefault();
-        const unaddressed = document.querySelectorAll('article.card:not(.completed)');
-        if (unaddressed.length > 0) {
-          const dialog = document.getElementById('archive-confirm-' + retroId);
-          const message = document.getElementById('archive-confirm-message-' + retroId);
-          message.textContent = 'There ' + (unaddressed.length === 1 ? 'is' : 'are') + ' ' +
-            unaddressed.length + ' unaddressed card' + (unaddressed.length === 1 ? '' : 's') +
-            '. Are you sure you want to archive them?';
-          dialog.showModal();
-        } else {
-          document.getElementById('archive-direct-form-' + retroId).submit();
-        }
-      }
-
-      (function() {
-        const retroId = {{ retro.id }};
-
-        function updateArchiveLink() {
-          const link = document.getElementById('archive-menu-link-' + retroId);
-          if (!link) return;
-          const hasCards = document.querySelectorAll('article.card').length > 0;
-          if (hasCards) {
-            link.classList.remove('disabled');
-            link.onclick = function(event) {
-              openArchiveMenuDialog(event, retroId);
-              return false;
-            };
-          } else {
-            link.classList.add('disabled');
-            link.onclick = function() {
-              return false;
-            };
-          }
-        }
-
-        document.addEventListener('DOMContentLoaded', updateArchiveLink);
-        document.body.addEventListener('htmx:afterSettle', updateArchiveLink);
-      })();
-    </script>
   {% endif %}
 {% endmacro %}
 
@@ -112,8 +63,7 @@
           aria-label="Like"
           hx-post="/items/{{ item.id }}/like"
           hx-target="closest .card"
-          hx-swap="outerHTML"
-          hx-on:click="event.stopPropagation()">
+          hx-swap="outerHTML">
     <svg class="heart-icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
     </svg>
@@ -127,10 +77,7 @@
           aria-label="Edit card text"
           hx-get="/items/{{ item.id }}/edit"
           hx-target="closest .card"
-          hx-swap="outerHTML"
-          {% if stop_propagation %}
-          hx-on:click="event.stopPropagation()"
-          {% endif %}>
+          hx-swap="outerHTML">
     <span class="card-text">{{ item.text }}</span>
     <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span>
   </button>
@@ -175,7 +122,7 @@
       <form method="POST" action="/retro/{{ retro_id }}/archive">
         <fieldset class="grid">
           <legend class="visually-hidden">Archive actions</legend>
-          <button type="button" class="btn-cancel secondary" formmethod="dialog" onclick="this.closest('dialog').close()">Cancel</button>
+          <button type="button" class="btn-cancel secondary" formmethod="dialog" data-close-dialog>Cancel</button>
           <button type="submit" class="btn-archive primary" formmethod="post">Archive</button>
         </fieldset>
       </form>
@@ -187,10 +134,8 @@
   <form class="add-card-form"
         hx-post="/items/{{ category.url_segment() }}/{{ retro_id }}"
         hx-target="#{{ target_id }}"
-        hx-swap="afterbegin"
-        hx-on::after-request="if(event.detail.successful) this.reset()">
-    <textarea name="text" class="add-card-input" rows="1" placeholder="{{ placeholder }}" required
-              hx-on:keydown="if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); this.closest('form').requestSubmit(); }"></textarea>
+        hx-swap="afterbegin">
+    <textarea name="text" class="add-card-input" rows="1" placeholder="{{ placeholder }}" required></textarea>
     <button class="add-card-submit" type="submit">Add</button>
   </form>
 {% endmacro %}

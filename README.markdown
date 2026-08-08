@@ -26,6 +26,9 @@ createdb -O rostfacto rostfacto-dev
 export DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev
 cargo install sqlx-cli
 sqlx migrate run
+# Without the GitHub variables below the app refuses to start: run unsecured
+# local development with DEMO_MODE=1 or configure GITHUB_ADMIN_ORG etc.
+export DEMO_MODE=1
 cargo watch -x run
 ```
 
@@ -34,10 +37,18 @@ cargo watch -x run
 Quickest way to run the whole stack (database, migrations, app) — no local build required:
 
 ```command
+cp .env.example .env
+# fill in the values (see the Authentication section below)
 docker compose up -d
 ```
 
-Images are pulled from the GitHub Container Registry: `ghcr.io/suhlig/rostfacto` for the app and `ghcr.io/suhlig/rostfacto-migrator` for the one-shot migration step. Both are tagged `latest` and `sha-<commit>` on every push to `main`; every GitHub release additionally tags them with the release version, e.g. `ghcr.io/suhlig/rostfacto:v2.0`.
+The compose file refuses to start without the required variables, so all secrets come from your `.env` (which is gitignored): the database passwords (`POSTGRES_PASSWORD` for the migration user, `POSTGRES_APP_PASSWORD` for the least-privilege `rostfacto_app` role the app connects as) and the GitHub OAuth settings. On first boot, `docker/init-app-role.sh` creates the `rostfacto_app` role with only SELECT/INSERT/UPDATE/DELETE privileges; for an existing database volume, run it manually once:
+
+```command
+docker compose exec db /docker-entrypoint-initdb.d/init-app-role.sh
+```
+
+Images are pulled from the GitHub Container Registry and pinned by digest for reproducible deployments: `ghcr.io/suhlig/rostfacto` for the app and `ghcr.io/suhlig/rostfacto-migrator` for the one-shot migration step. Both are also tagged `latest` and `sha-<commit>` on every push to `main`; every GitHub release additionally tags them with the release version, e.g. `ghcr.io/suhlig/rostfacto:v2.0`.
 
 The app is published on port 3000. To run it on a different host port, set `APP_PORT`:
 
@@ -45,16 +56,16 @@ The app is published on port 3000. To run it on a different host port, set `APP_
 APP_PORT=8080 docker compose up -d
 ```
 
-or put `APP_PORT=8080` in a `.env` file next to `docker-compose.yml`; the default stays 3000, so plain `docker compose up` keeps working. With GitHub authentication enabled, make sure `PUBLIC_URL` matches the chosen port (see the table above).
+or put `APP_PORT=8080` in the `.env` file; the default stays 3000. With GitHub authentication enabled, make sure `PUBLIC_URL` matches the chosen port (see the table below).
 
 ## Authentication (GitHub)
 
-By default the app runs in **demo mode** (no authentication) if `GITHUB_ADMIN_ORG` is not set. To enable GitHub or GitHub Enterprise authentication, configure the following environment variables:
+Set `DEMO_MODE=1` to run the app without authentication (every visitor is treated as an admin and a red banner warns that the instance is unsecured). Otherwise the app **fails closed**: it refuses to start until the GitHub authentication environment variables below are configured. To enable GitHub or GitHub Enterprise authentication, configure the following environment variables:
 
 | Variable | Where to get it |
 |----------|-----------------|
-| `PUBLIC_URL` | The public base URL of your deployment, e.g. `https://rostfacto.example.com`. Used to build the OAuth callback URL. |
-| `SESSION_SECRET` | Generate a random secret, e.g. `openssl rand -hex 32`. |
+| `DEMO_MODE` | Set to `1` to run without authentication; never set it in production. |
+| `PUBLIC_URL` | The public base URL of your deployment, e.g. `https://rostfacto.example.com`. Used to build the OAuth callback URL. Required whenever authentication is enabled. |
 | `GITHUB_CLIENT_ID` | Create an OAuth App at <https://github.com/settings/developers> (or on your GHE instance). |
 | `GITHUB_CLIENT_SECRET` | Same OAuth App page as above. |
 | `GITHUB_ADMIN_ORG` | The GitHub organization that contains your admin team. You can see your orgs at <https://github.com/settings/organizations>. |

@@ -56,7 +56,7 @@
         <td>
           <button type="button"
                   class="delete-btn"
-                  onclick="document.getElementById('delete-confirm-{{ retro.id }}').showModal()">
+                  data-open-dialog="delete-confirm-{{ retro.id }}">
             Delete
           </button>
         </td>
@@ -73,11 +73,10 @@
       <p>Are you sure you want to delete this retrospective?</p>
       <form hx-delete="/retro/{{ retro.slug }}/delete"
             hx-target="#retro-row-{{ retro.id }}"
-            hx-swap="outerHTML"
-            hx-on::after-request="if (event.detail.successful) this.closest('dialog').close()">
+            hx-swap="outerHTML">
         <fieldset class="grid">
           <legend class="visually-hidden">Delete actions</legend>
-          <button type="button" class="btn-cancel secondary" onclick="this.closest('dialog').close()">Cancel</button>
+          <button type="button" class="btn-cancel secondary" data-close-dialog>Cancel</button>
           <button type="submit" class="btn-primary primary">Delete</button>
         </fieldset>
       </form>
