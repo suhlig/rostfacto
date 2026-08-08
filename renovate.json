@@ -14,6 +14,14 @@
       "platformAutomerge": true
     },
     {
+      "description": "GitHub Actions are pinned to commit SHAs; auto-merge digest updates, which stay on the same major/minor tag (the trailing comment shows the tag).",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["digest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
       "description": "Require human review for potentially breaking dependency updates.",
       "matchUpdateTypes": ["minor", "major"],
       "automerge": false
