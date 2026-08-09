@@ -813,12 +813,7 @@ async fn test_cancel_highlighted_card() -> WebDriverResult<()> {
     retro_page
         .verify_card_state(card_id, "card highlighted")
         .await?;
-    retro_page
-        .driver
-        .find(By::Css(".card-actions .secondary"))
-        .await?
-        .click()
-        .await?;
+    retro_page.cancel_card().await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
     // Verify card state

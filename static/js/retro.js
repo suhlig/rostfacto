@@ -365,26 +365,33 @@
         body: params ? params.toString() : ''
       }).then(function(response) {
         const eventId = response.headers.get('X-Event-Id');
+        if (!response.ok) throw new Error('timer request failed: ' + response.status);
         if (eventId) {
-          // The response already applied the change; ignore the matching SSE event.
+          // The response already applied the change; ignore the matching SSE
+          // event. Only dedup successful responses: an error response cannot
+          // have applied the change, and dropping the SSE event would lose
+          // the deadline entirely.
           document.body.dispatchEvent(new CustomEvent('sse:event-applied', { detail: { id: eventId } }));
         }
-        if (!response.ok) throw new Error('timer request failed: ' + response.status);
         return response.text();
       }).then(function(html) {
         applyTimerResponseHtml(itemId, html);
       }).catch(function(error) {
         console.error('SSE: timer request failed', itemId, error);
+      }).finally(function() {
+        pendingTimerPosts.delete(String(itemId));
       });
     }
 
     function startTimerRequest(itemId, durationSeconds) {
+      pendingTimerPosts.set(String(itemId), true);
       const params = new URLSearchParams();
       params.set('duration', String(durationSeconds));
       postTimerAction(itemId, '/items/' + itemId + '/timer/start', params);
     }
 
     function extendTimerRequest(itemId) {
+      pendingTimerPosts.set(String(itemId), true);
       postTimerAction(itemId, '/items/' + itemId + '/timer/extend', null);
     }
 
@@ -430,11 +437,63 @@
     // The owner's own status-change events are deduplicated, so the highlight
     // request itself is the reliable cycle boundary on this client: a deadline
     // left over from the previous cycle must not block the auto-start below.
+    // The same hook arms the auto-start fallback (see below).
     document.body.addEventListener('htmx:beforeRequest', function(event) {
       const elt = (event.detail && (event.detail.requestConfig && event.detail.requestConfig.elt || event.detail.elt)) || null;
       const itemId = elt && elt.dataset ? elt.dataset.itemId : null;
       if (itemId) timerDeadlines.delete(itemId);
+      const path = (event.detail && event.detail.requestConfig && event.detail.requestConfig.path) || '';
+      if (path.indexOf('action=highlight') === -1) return;
+      if (itemId) armHighlightFallback(String(itemId));
     });
+
+    // The auto-start normally fires from htmx:afterRequest, but htmx 2.0.10
+    // drops that event when the SSE re-fetch for the same status change
+    // replaces the request element before the highlight response lands: the
+    // surviving-ancestor re-trigger walks the element's (now unreachable)
+    // ancestors, finds none, and never dispatches. The timer would then never
+    // start, so this fallback arms itself when the highlight request goes out
+    // (htmx:beforeRequest always fires) and starts the timer if the badge
+    // still has no deadline. The deadline is server-authoritative and the
+    // start is guarded by pendingTimerPosts, so a racing fast-path start
+    // cannot double-start the timer.
+    const pendingTimerPosts = new Map(); // item id (string) -> true while a POST is in flight
+    const highlightFallbacks = new Map(); // item id (string) -> interval id
+    function armHighlightFallback(key) {
+      if (highlightFallbacks.has(key)) return;
+      let attempts = 0;
+      const interval = setInterval(function() {
+        attempts++;
+        const card = document.querySelector('article.card[data-item-id="' + key + '"]');
+        if (!card) {
+          clearInterval(interval);
+          highlightFallbacks.delete(key);
+          return;
+        }
+        if (!card.classList.contains('highlighted')) {
+          // The highlight did not stick (e.g. the single-highlight conflict).
+          clearInterval(interval);
+          highlightFallbacks.delete(key);
+          return;
+        }
+        const badge = card.querySelector('.timer-badge');
+        if (!badge || badge.hasAttribute('data-end-at') || badge.hasAttribute('data-elapsed')) {
+          // The deadline landed through the fast path or an SSE event.
+          clearInterval(interval);
+          highlightFallbacks.delete(key);
+          return;
+        }
+        if (timerDeadlines.has(key) || pendingTimerPosts.has(key)) return; // already handled or in flight
+        if (attempts >= 10) {
+          clearInterval(interval);
+          highlightFallbacks.delete(key);
+          return;
+        }
+        const duration = parseInt(document.body.dataset.timerDefaultSeconds || '300', 10);
+        startTimerRequest(key, duration);
+      }, 1500);
+      highlightFallbacks.set(key, interval);
+    }
 
     document.body.addEventListener('sse:timer-elapsed', function(event) {
       const card = document.querySelector('article.card[data-item-id="' + event.detail.itemId + '"]');

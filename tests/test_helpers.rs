@@ -3,7 +3,9 @@
 use portpicker::pick_unused_port;
 use std::process::{Child, Command};
 use std::sync::atomic::{AtomicBool, Ordering};
-use thirtyfour::{common::capabilities::firefox::FirefoxPreferences, prelude::*};
+use thirtyfour::{
+    common::capabilities::firefox::FirefoxPreferences, error::WebDriverErrorInner, prelude::*,
+};
 use tokio::sync::{Mutex, Semaphore, SemaphorePermit};
 use url::Url;
 
@@ -488,33 +490,62 @@ impl<'a> RetroPage<'a> {
         Ok(id)
     }
 
-    pub async fn edit_card(&self, id: i32, text: &str) -> WebDriverResult<()> {
-        self.driver
-            .find(By::Css(format!(
-                "article[data-item-id='{}'] .card-text-edit",
-                id
-            )))
-            .await?
-            .click()
-            .await?;
+    /// Click an element matching `selector`, re-finding it when a render
+    /// replaces it between the find and the click (SSE re-fetches swap cards
+    /// and buttons under load). `what` names the element in the timeout panic.
+    async fn click_with_retry(&self, selector: &str, what: &str) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            match self.driver.find(By::Css(selector)).await {
+                Ok(element) => match element.click().await {
+                    Ok(()) => return Ok(()),
+                    Err(error)
+                        if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {}
+                    Err(error) => return Err(error),
+                },
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {}
+                Err(error) => return Err(error),
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out clicking {}", what);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
 
-        let input = self
-            .driver
-            .find(By::Css(format!(
-                "article[data-item-id='{}'] textarea[name='text']",
-                id
-            )))
-            .await?;
+    pub async fn edit_card(&self, id: i32, text: &str) -> WebDriverResult<()> {
+        self.click_with_retry(
+            &format!("article[data-item-id='{}'] .card-text-edit", id),
+            "the edit button",
+        )
+        .await?;
+
+        // The edit button swap renders the textarea; poll for it instead of
+        // finding it immediately (the swap can lag under load).
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let input = loop {
+            if let Ok(input) = self
+                .driver
+                .find(By::Css(format!(
+                    "article[data-item-id='{}'] textarea[name='text']",
+                    id
+                )))
+                .await
+            {
+                break input;
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for the edit textarea on card {}", id);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        };
         input.clear().await?;
         input.send_keys(text).await?;
-        self.driver
-            .find(By::Css(format!(
-                "article[data-item-id='{}'] .btn-save-edit",
-                id
-            )))
-            .await?
-            .click()
-            .await?;
+        self.click_with_retry(
+            &format!("article[data-item-id='{}'] .btn-save-edit", id),
+            "the save button",
+        )
+        .await?;
 
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         Ok(())
@@ -689,9 +720,11 @@ impl<'a> RetroPage<'a> {
     }
 
     pub async fn like_card(&self, id: i32) -> WebDriverResult<()> {
-        let card = self.get_card(id).await?;
-        let like_button = card.find(By::Css(".like-button")).await?;
-        like_button.click().await?;
+        self.click_with_retry(
+            &format!("article[data-item-id='{}'] .like-button", id),
+            "the like button",
+        )
+        .await?;
         // Wait for HTMX to swap the card with the updated like count.
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         Ok(())
@@ -888,47 +921,28 @@ impl<'a> RetroPage<'a> {
 
     /// Click the +2 min timer button on a card.
     pub async fn click_extend(&self, id: i32) -> WebDriverResult<()> {
-        let button = self
-            .driver
-            .find(By::Css(format!(
-                "article[data-item-id='{}'] .timer-extend",
-                id
-            )))
-            .await?;
-        button.click().await?;
+        self.click_with_retry(
+            &format!("article[data-item-id='{}'] .timer-extend", id),
+            "the +2 min button",
+        )
+        .await?;
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         Ok(())
     }
 
     /// Click the Cancel button on the highlighted card.
     pub async fn cancel_card(&self) -> WebDriverResult<()> {
-        self.driver
-            .find(By::Css(".card-actions .btn-secondary"))
-            .await?
-            .click()
+        self.click_with_retry(".card-actions .btn-secondary", "the Cancel button")
             .await?;
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         Ok(())
     }
 
     pub async fn complete_card(&self) -> WebDriverResult<()> {
-        // The highlight response may still be settling; wait for the Done
-        // button instead of assuming it is already there.
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
-        let button = loop {
-            if let Ok(button) = self
-                .driver
-                .find(By::Css(".card-actions .btn-primary"))
-                .await
-            {
-                break button;
-            }
-            if tokio::time::Instant::now() >= deadline {
-                panic!("Timed out waiting for the Done button");
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        };
-        button.click().await?;
+        // The highlight response may still be settling; the retry loop re-finds
+        // the button until it is present and stays clickable.
+        self.click_with_retry(".card-actions .btn-primary", "the Done button")
+            .await?;
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         Ok(())
     }
