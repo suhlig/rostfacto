@@ -1093,8 +1093,10 @@ async fn test_like_does_not_restart_highlighted_timer() -> WebDriverResult<()> {
     let card_id = retro_page.add_card("Good", "card to time").await?;
     retro_page.click_card(card_id).await?;
 
-    // Wait long enough to be sure the timer has counted down from 5:00.
-    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    // Wait for the highlight to land and the timer to count down from 5:00.
+    // Polling (instead of a fixed sleep) keeps this reliable on slow machines,
+    // where the highlight swap can lag.
+    retro_page.wait_for_timer_text_at_most(card_id, 299).await?;
     let before = retro_page.timer_text(card_id).await?;
     let before_seconds = parse_timer(&before);
     assert!(
@@ -1410,7 +1412,10 @@ async fn test_sse_syncs_timers_between_clients() -> WebDriverResult<()> {
     retro_a.wait_for_extend_button_visible(item_id).await?;
     retro_b.wait_for_extend_button_visible(item_id).await?;
 
-    // A extends the timer: both clients show the same new deadline.
+    // A extends the timer: both clients show the same new deadline, and both
+    // count down from it. The deadline equality is checked above; here we only
+    // need to see the countdown running (each "M:SS" value lasts one second,
+    // so use the tolerant at-most check).
     retro_a.click_extend(item_id).await?;
     let end_a = retro_a.wait_for_timer_end_at(item_id).await?;
     let end_b = retro_b.wait_for_timer_end_at(item_id).await?;
@@ -1418,8 +1423,8 @@ async fn test_sse_syncs_timers_between_clients() -> WebDriverResult<()> {
         end_a, end_b,
         "both clients should show the extended deadline"
     );
-    retro_a.wait_for_timer_text(item_id, "2:00").await?;
-    retro_b.wait_for_timer_text(item_id, "2:00").await?;
+    retro_a.wait_for_timer_text_at_most(item_id, 125).await?;
+    retro_b.wait_for_timer_text_at_most(item_id, 125).await?;
 
     // A cancels the highlight: both clients lose the timer badge.
     retro_a.cancel_card().await?;

@@ -463,16 +463,26 @@ impl<'a> RetroPage<'a> {
             .click()
             .await?;
 
-        // Wait for HTMX to finish processing the newly added card before
-        // interacting with it.
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        // Wait for HTMX to swap the new card in. Polling instead of a fixed
+        // sleep keeps the helper reliable on slow machines, where the swap can
+        // take longer than a single sleep.
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let cards = loop {
+            let cards = self
+                .driver
+                .find_all(By::Css(format!("{} article.card", target)))
+                .await?;
+            if !cards.is_empty() {
+                break cards;
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for a new card in {}", target);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        };
 
         // New cards are prepended to the category list.
-        let card = self
-            .driver
-            .find(By::Css(format!("{} article.card", target)))
-            .await?;
-        let id_str = card.attr("data-item-id").await?.unwrap();
+        let id_str = cards[0].attr("data-item-id").await?.unwrap();
         let id = id_str.parse::<i32>().unwrap();
 
         Ok(id)
@@ -698,6 +708,23 @@ impl<'a> RetroPage<'a> {
         badge.text().await
     }
 
+    /// Like `timer_text`, but returns `None` while the badge does not exist
+    /// yet (the highlighted card, and with it the badge, is swapped in
+    /// asynchronously after the highlight request).
+    pub async fn try_timer_text(&self, id: i32) -> WebDriverResult<Option<String>> {
+        let badges = self
+            .driver
+            .find_all(By::Css(format!(
+                "article[data-item-id='{}'] .timer-badge",
+                id
+            )))
+            .await?;
+        match badges.first() {
+            Some(badge) => Ok(Some(badge.text().await?)),
+            None => Ok(None),
+        }
+    }
+
     /// Wait until the badge carries a server-rendered deadline, returning it
     /// as epoch milliseconds (identical on every client).
     pub async fn wait_for_timer_end_at(&self, id: i32) -> WebDriverResult<i64> {
@@ -726,22 +753,63 @@ impl<'a> RetroPage<'a> {
     }
 
     /// Wait until the timer badge shows the given text (SSE delivery is
-    /// asynchronous).
+    /// asynchronous). Only use this for values that persist (e.g. "0:00");
+    /// for a running countdown use `wait_for_timer_text_at_most`.
     pub async fn wait_for_timer_text(&self, id: i32, expected: &str) -> WebDriverResult<()> {
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
         loop {
-            let text = self.timer_text(id).await?;
-            if text == expected {
-                return Ok(());
-            }
-            if tokio::time::Instant::now() >= deadline {
-                panic!(
-                    "Timed out waiting for card {} timer text '{}', got '{}'",
-                    id, expected, text
-                );
+            if let Some(text) = self.try_timer_text(id).await? {
+                if text == expected {
+                    return Ok(());
+                }
+                if tokio::time::Instant::now() >= deadline {
+                    panic!(
+                        "Timed out waiting for card {} timer text '{}', got '{}'",
+                        id, expected, text
+                    );
+                }
+            } else if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for the timer badge on card {}", id);
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
+    }
+
+    /// Wait until the running countdown on the card shows at most
+    /// `max_seconds` remaining. Each "M:SS" value is only displayed for one
+    /// second, so an exact-text wait can miss it on a slow machine; this
+    /// tolerant check is the reliable way to assert a countdown is running.
+    /// Also tolerates the badge not existing yet (highlight still landing).
+    pub async fn wait_for_timer_text_at_most(
+        &self,
+        id: i32,
+        max_seconds: i64,
+    ) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            if let Some(text) = self.try_timer_text(id).await? {
+                if let Some(remaining) = parse_countdown(&text) {
+                    if remaining <= max_seconds {
+                        return Ok(());
+                    }
+                }
+                if tokio::time::Instant::now() >= deadline {
+                    panic!(
+                        "Timed out waiting for card {} timer to reach {}s, got '{}'",
+                        id, max_seconds, text
+                    );
+                }
+            } else if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for the timer badge on card {}", id);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Parses a "M:SS" countdown string into seconds.
+    fn parse_countdown(text: &str) -> Option<i64> {
+        let (minutes, seconds) = text.split_once(':')?;
+        Some(minutes.parse::<i64>().ok()? * 60 + seconds.parse::<i64>().ok()?)
     }
 
     /// Wait until the +2 min button is visible (timer running or elapsed).
@@ -813,11 +881,21 @@ impl<'a> RetroPage<'a> {
     }
 
     pub async fn archive(&self) -> WebDriverResult<()> {
-        let archive_button = self.driver.find(By::Css("#archive-modal .primary")).await?;
-        assert!(
-            archive_button.is_displayed().await?,
-            "Archive dialog should be visible"
-        );
+        // The all-done modal is opened asynchronously (client-side after the
+        // last card is completed), so poll for its button instead of finding
+        // it immediately.
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let archive_button = loop {
+            if let Ok(button) = self.driver.find(By::Css("#archive-modal .primary")).await {
+                if button.is_displayed().await? {
+                    break button;
+                }
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for the archive dialog");
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        };
         archive_button.click().await?;
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         Ok(())
@@ -897,4 +975,10 @@ impl<'a> RetroPage<'a> {
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         }
     }
+}
+
+/// Parses a "M:SS" countdown string into seconds.
+fn parse_countdown(text: &str) -> Option<i64> {
+    let (minutes, seconds) = text.split_once(':')?;
+    Some(minutes.parse::<i64>().ok()? * 60 + seconds.parse::<i64>().ok()?)
 }

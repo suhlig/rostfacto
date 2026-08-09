@@ -77,6 +77,19 @@
       template.innerHTML = html.trim();
       const replacement = template.content.firstElementChild;
       if (current && replacement) {
+        // The re-fetched card can be stale: when the SSE event for a status
+        // change beats the htmx response, the fetch may complete before the
+        // owner's timer auto-start lands, and replacing the card would clobber
+        // the running countdown. The deadline is server-authoritative, so carry
+        // it over to the incoming badge when it is missing.
+        const oldBadge = current.querySelector('.timer-badge');
+        const newBadge = replacement.querySelector('.timer-badge');
+        if (oldBadge && newBadge &&
+            oldBadge.hasAttribute('data-end-at') &&
+            !newBadge.hasAttribute('data-end-at') &&
+            !newBadge.hasAttribute('data-elapsed')) {
+          newBadge.setAttribute('data-end-at', oldBadge.getAttribute('data-end-at'));
+        }
         current.replaceWith(replacement);
         processWithHtmx(replacement);
         notifyCardSwapped();
