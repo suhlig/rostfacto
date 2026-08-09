@@ -1413,12 +1413,13 @@ async fn test_sse_syncs_timers_between_clients() -> WebDriverResult<()> {
     retro_b.wait_for_extend_button_visible(item_id).await?;
 
     // A extends the timer: both clients show the same new deadline, and both
-    // count down from it. The deadline equality is checked above; here we only
-    // need to see the countdown running (each "M:SS" value lasts one second,
-    // so use the tolerant at-most check).
+    // count down from it. The deadline is sticky (it survives the elapse), so
+    // the waits must accept only a deadline newer than the original one; the
+    // equality check is below. Each "M:SS" countdown value lasts one second,
+    // so use the tolerant at-most check for the running countdown.
     retro_a.click_extend(item_id).await?;
-    let end_a = retro_a.wait_for_timer_end_at(item_id).await?;
-    let end_b = retro_b.wait_for_timer_end_at(item_id).await?;
+    let end_a = retro_a.wait_for_timer_end_after(item_id, end_a).await?;
+    let end_b = retro_b.wait_for_timer_end_after(item_id, end_b).await?;
     assert_eq!(
         end_a, end_b,
         "both clients should show the extended deadline"

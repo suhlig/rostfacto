@@ -140,6 +140,12 @@
       if (appliedEventIds.has(event.lastEventId)) return;
       const data = parseEvent(event);
       if (!data) return;
+      // A status change ends the previous timer cycle (completing or
+      // cancelling resets the timer columns); the timer module forgets the
+      // deadline so a stale render of the next highlight cannot pick it up.
+      document.body.dispatchEvent(new CustomEvent('sse:timer-reset', {
+        detail: { itemId: data.item_id }
+      }));
       fetchCardHtml(data.item_id, function(html) {
         replaceCard(data.item_id, html);
         // Completing the last active card shows the all-done archive modal on
@@ -229,6 +235,12 @@
     // (timer_ends_at, rendered as data-end-at), never from a local map, so
     // every client shows the same countdown.
     const timerIntervals = new Map(); // badge element -> interval id
+    // The most recent authoritative deadline per item, from TIMER_STARTED /
+    // TIMER_EXTENDED payloads. Card re-fetches can be stale (the owner's
+    // auto-start POST lands after the highlight response, and SSE re-fetches
+    // race it), so renderTimer falls back to this when a badge has no
+    // deadline of its own.
+    const timerDeadlines = new Map(); // item id -> ends_at (epoch ms)
 
     function formatTime(totalSeconds) {
       const seconds = Math.max(0, Math.ceil(totalSeconds));
@@ -299,6 +311,16 @@
       if (!isNaN(endAt)) {
         setCountdown(badge, endAt);
       } else {
+        // The badge may come from a stale render (a card fetched before the
+        // timer auto-start landed). The deadline is server-authoritative, so
+        // fall back to the one carried by the timer events.
+        const card = badge.closest('article.card');
+        const itemId = card ? card.dataset.itemId : null;
+        const knownEndAt = itemId ? timerDeadlines.get(itemId) : undefined;
+        if (typeof knownEndAt === 'number') {
+          setCountdown(badge, knownEndAt);
+          return;
+        }
         // Highlighted but not started yet: show the initial duration statically.
         badge.textContent = formatTime(parseInt(badge.dataset.initialSeconds || '300', 10));
         badge.classList.remove('timer-over');
@@ -387,12 +409,31 @@
       startTimerRequest(itemId, duration);
     });
 
-    // Another client's timer event: render the same deadline from the payload.
+    // Another client's timer event: remember the authoritative deadline and
+    // render the same countdown from it. Keys are strings so they match
+    // card.dataset.itemId lookups in renderTimer.
     document.body.addEventListener('sse:timer-updated', function(event) {
+      timerDeadlines.set(String(event.detail.itemId), event.detail.endsAt);
       const card = document.querySelector('article.card[data-item-id="' + event.detail.itemId + '"]');
       if (!card) return;
       const badge = card.querySelector('.timer-badge');
       if (badge) setCountdown(badge, event.detail.endsAt);
+    });
+
+    // A status change ends the previous timer cycle (completing or cancelling
+    // resets the timer columns); forget its deadline so a stale render of the
+    // next highlight cannot pick it up.
+    document.body.addEventListener('sse:timer-reset', function(event) {
+      timerDeadlines.delete(String(event.detail.itemId));
+    });
+
+    // The owner's own status-change events are deduplicated, so the highlight
+    // request itself is the reliable cycle boundary on this client: a deadline
+    // left over from the previous cycle must not block the auto-start below.
+    document.body.addEventListener('htmx:beforeRequest', function(event) {
+      const elt = (event.detail && (event.detail.requestConfig && event.detail.requestConfig.elt || event.detail.elt)) || null;
+      const itemId = elt && elt.dataset ? elt.dataset.itemId : null;
+      if (itemId) timerDeadlines.delete(itemId);
     });
 
     document.body.addEventListener('sse:timer-elapsed', function(event) {
@@ -403,7 +444,9 @@
         badge.textContent = '0:00';
         badge.classList.remove('timer-warning');
         badge.classList.add('timer-over');
-        delete badge.dataset.endAt;
+        // Keep the server-rendered deadline on the badge: it is the
+        // authoritative record of when the timer ended, and a stale card
+        // re-fetch may render an elapsed badge without a deadline of its own.
         const extendBtn = card.querySelector('.timer-extend');
         if (extendBtn) extendBtn.hidden = false;
         stopInterval(badge);

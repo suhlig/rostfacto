@@ -157,7 +157,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - Integration tests are in `tests/integration_test.rs` using `thirtyfour`.
 - Migration tests are in `tests/migration_test.rs`.
 - `tests/test_helpers.rs` starts a geckodriver instance and provides page objects (`HomePage`, `RetrosPage`, `RetroPage`).
-- Each integration test starts its own app instance on a random port with a fresh PostgreSQL database copied from a migrated template; you do not need to start a server beforehand and it will not conflict with a dev server on port 3000.
+- Each integration test starts its own app instance on a random port with a fresh PostgreSQL database copied from a migrated template; you do not need to start a server beforehand and it will not conflict with a dev server on port 3000. `TestServer::start` runs the pre-built binary via `CARGO_BIN_EXE_rostfacto` (never `cargo run`) — spawning cargo from inside tests rebuilds the app and its shared dependencies on every run, serializing the suite on the build lock and starving the browsers under CI load.
 - Test databases are dropped when a test finishes (or panics), but a killed test process (Ctrl+C, timeout) cannot clean up after itself. Each test run therefore starts by dropping leftover `rostfacto_test_*` databases that have no active connections.
 - The template database (`rostfacto_test_template`) is created automatically on the first test run, so `rostfacto-dev` is no longer polluted by test data.
 - The tests rely on **demo mode** (`DEMO_MODE=1`, no `GITHUB_ADMIN_ORG` set) so they run without real GitHub credentials. `TestServer::start` also sets `PUBLIC_URL` to the random test port.

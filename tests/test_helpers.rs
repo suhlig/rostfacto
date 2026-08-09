@@ -197,14 +197,14 @@ impl TestServer {
     pub async fn start(database_url: &str) -> Self {
         let port = pick_unused_port().expect("No ports available");
 
-        let mut child = Command::new("cargo")
-            .args([
-                "run",
-                "--quiet",
-                "--",
-                "--bind-address",
-                &format!("127.0.0.1:{}", port),
-            ])
+        // Run the binary cargo already built for this test run instead of
+        // spawning `cargo run`: the latter rebuilds the app (and the
+        // dependencies it shares with the test build, e.g. reqwest/rustls/sqlx)
+        // from inside every test, serializing the suite on the build lock and
+        // loading the machine with concurrent compiles while the browsers are
+        // starting.
+        let mut child = Command::new(env!("CARGO_BIN_EXE_rostfacto"))
+            .args(["--bind-address", &format!("127.0.0.1:{}", port)])
             .env("DATABASE_URL", database_url)
             .env("DEMO_MODE", "1")
             .env("PUBLIC_URL", format!("http://127.0.0.1:{}", port))
@@ -743,8 +743,61 @@ impl<'a> RetroPage<'a> {
                 }
             }
             if tokio::time::Instant::now() >= deadline {
+                // Snapshot the badge state for diagnosis: the flake under load
+                // is a badge that exists but carries no deadline.
+                let mut state = String::new();
+                for attr in [
+                    "data-end-at",
+                    "data-elapsed",
+                    "data-initial-seconds",
+                    "class",
+                ] {
+                    if let Ok(Some(value)) = badge.attr(attr).await {
+                        state.push_str(&format!(" {}={:?}", attr, value));
+                    }
+                }
+                let text = badge.text().await.unwrap_or_default();
+                // The badge sits inside .timer-wrap inside article.card.
+                let card_class = match badge.find(By::XPath("../..")).await {
+                    Ok(card) => match card.attr("class").await {
+                        Ok(Some(class)) => class,
+                        _ => String::new(),
+                    },
+                    Err(_) => String::new(),
+                };
                 panic!(
-                    "Timed out waiting for a server-rendered timer deadline on card {}",
+                    "Timed out waiting for a server-rendered timer deadline on card {}; badge text {:?} card class {:?}{}",
+                    id, text, card_class, state
+                );
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Wait until the badge's server-rendered deadline is strictly newer than
+    /// `old_end_at`. The previous deadline stays on the badge until the
+    /// extend response (or the SSE event) replaces it, so a plain presence
+    /// wait could return the stale value.
+    pub async fn wait_for_timer_end_after(&self, id: i32, old_end_at: i64) -> WebDriverResult<i64> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            let badge = self
+                .driver
+                .find(By::Css(format!(
+                    "article[data-item-id='{}'] .timer-badge",
+                    id
+                )))
+                .await?;
+            if let Some(end_at) = badge.attr("data-end-at").await? {
+                if let Ok(end_at) = end_at.parse::<i64>() {
+                    if end_at > old_end_at {
+                        return Ok(end_at);
+                    }
+                }
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!(
+                    "Timed out waiting for an extended timer deadline on card {}",
                     id
                 );
             }

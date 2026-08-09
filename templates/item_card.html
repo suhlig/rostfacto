@@ -5,7 +5,11 @@
     <article class="card highlighted" tabindex="0" data-item-id="{{ item.id }}">
       <div class="timer-wrap">
         {% if item.timer_elapsed_at.is_some() %}
-          <div class="timer-badge timer-over" data-elapsed>0:00</div>
+          {% if let Some(ends_at) = item.timer_ends_at %}
+            <div class="timer-badge timer-over" data-elapsed data-end-at="{{ ends_at.timestamp_millis() }}">0:00</div>
+          {% else %}
+            <div class="timer-badge timer-over" data-elapsed>0:00</div>
+          {% endif %}
           <button type="button" class="timer-extend" data-extend-seconds="120">+2 min</button>
         {% else %}
           {% if let Some(ends_at) = item.timer_ends_at %}
