@@ -166,10 +166,10 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
   brew install geckodriver
   brew install --cask firefox
   ```
-- Run the tests with:
+- Run the tests with (CI runs all three test binaries; the `SHOW_BROWSER` variant below only applies to the browser tests):
   ```bash
   export DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev
-  cargo test --test integration_test
+  cargo test --test integration_test --test events_test --test migration_test
   ```
 - Set `SHOW_BROWSER` to run Firefox visibly:
   ```bash

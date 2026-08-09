@@ -66,4 +66,4 @@ jobs:
       - name: Run unit tests
         run: cargo test --bins
       - name: Run integration tests
-        run: cargo test --test integration_test
+        run: cargo test --test integration_test --test events_test --test migration_test
