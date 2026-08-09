@@ -1059,19 +1059,13 @@ async fn test_like_card() -> WebDriverResult<()> {
 
     let card_id = retro_page.add_card("Good", "card to like").await?;
 
-    let card = retro_page.get_card(card_id).await?;
-    let count = card.find(By::Css(".like-count")).await?.text().await?;
-    assert_eq!(count, "0", "New cards should start with zero likes");
+    retro_page.wait_for_like_count(card_id, "0").await?;
 
     retro_page.like_card(card_id).await?;
-    let card = retro_page.get_card(card_id).await?;
-    let count = card.find(By::Css(".like-count")).await?.text().await?;
-    assert_eq!(count, "1", "Liking a card should increment the count");
+    retro_page.wait_for_like_count(card_id, "1").await?;
 
     retro_page.like_card(card_id).await?;
-    let card = retro_page.get_card(card_id).await?;
-    let count = card.find(By::Css(".like-count")).await?.text().await?;
-    assert_eq!(count, "0", "Liking again should toggle the like off");
+    retro_page.wait_for_like_count(card_id, "0").await?;
 
     browser.close().await?;
     Ok(())

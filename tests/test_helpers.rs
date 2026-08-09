@@ -469,23 +469,32 @@ impl<'a> RetroPage<'a> {
         // sleep keeps the helper reliable on slow machines, where the swap can
         // take longer than a single sleep.
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
-        let cards = loop {
+        let id = loop {
             let cards = self
                 .driver
                 .find_all(By::Css(format!("{} article.card", target)))
                 .await?;
-            if !cards.is_empty() {
-                break cards;
+            if let Some(first) = cards.first() {
+                // The SSE ITEM_CREATED re-fetch can replace the new card
+                // between the find and this read; re-find everything instead
+                // of failing the test.
+                match first.attr("data-item-id").await {
+                    Ok(Some(id_str)) => {
+                        if let Ok(id) = id_str.parse::<i32>() {
+                            break id;
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(error)
+                        if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {}
+                    Err(error) => return Err(error),
+                }
             }
             if tokio::time::Instant::now() >= deadline {
                 panic!("Timed out waiting for a new card in {}", target);
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         };
-
-        // New cards are prepended to the category list.
-        let id_str = cards[0].attr("data-item-id").await?.unwrap();
-        let id = id_str.parse::<i32>().unwrap();
 
         Ok(id)
     }
@@ -556,8 +565,38 @@ impl<'a> RetroPage<'a> {
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
 
         loop {
-            let card = self.driver.find(By::Css(&selector)).await?;
-            let class_attr = card.attr("class").await?.unwrap_or_default();
+            let card = match self.driver.find(By::Css(&selector)).await {
+                Ok(card) => card,
+                // A re-fetch can replace the card between iterations; keep
+                // polling instead of failing the test.
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        assert_eq!(
+                            "(card missing)", expected_class,
+                            "Card {} should be in {} state",
+                            id, expected_class
+                        );
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            let class_attr = match card.attr("class").await {
+                Ok(class) => class.unwrap_or_default(),
+                Err(error) if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        assert_eq!(
+                            "(card swapped)", expected_class,
+                            "Card {} should be in {} state",
+                            id, expected_class
+                        );
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
             if class_attr.trim() == expected_class {
                 return Ok(());
             }
@@ -609,11 +648,27 @@ impl<'a> RetroPage<'a> {
                 .await?;
             let mut found = false;
             for card in cards {
-                if let Ok(text_span) = card.find(By::Css(".card-text")).await {
-                    if text_span.text().await? == text {
-                        found = true;
-                        break;
+                let text_span = match card.find(By::Css(".card-text")).await {
+                    Ok(text_span) => text_span,
+                    Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                        continue;
                     }
+                    Err(error) => return Err(error),
+                };
+                let span_text = match text_span.text().await {
+                    Ok(text) => text,
+                    // The card was replaced mid-read by an SSE re-fetch; skip
+                    // it, the next iteration re-lists the cards.
+                    Err(error)
+                        if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) =>
+                    {
+                        continue;
+                    }
+                    Err(error) => return Err(error),
+                };
+                if span_text == text {
+                    found = true;
+                    break;
                 }
             }
             if found {
@@ -654,8 +709,51 @@ impl<'a> RetroPage<'a> {
     pub async fn wait_for_card_text(&self, id: i32, expected: &str) -> WebDriverResult<()> {
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
         loop {
-            let card = self.get_card(id).await?;
-            let text = card.find(By::Css(".card-text")).await?.text().await?;
+            let card = match self.get_card(id).await {
+                Ok(card) => card,
+                // A re-fetch can replace the card mid-loop; keep polling
+                // instead of failing the test.
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!(
+                            "Timed out waiting for card {} text '{}' (card missing)",
+                            id, expected
+                        );
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            let text = match card.find(By::Css(".card-text")).await {
+                Ok(text_span) => match text_span.text().await {
+                    Ok(text) => text,
+                    Err(error)
+                        if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) =>
+                    {
+                        if tokio::time::Instant::now() >= deadline {
+                            panic!(
+                                "Timed out waiting for card {} text '{}' (card swapped)",
+                                id, expected
+                            );
+                        }
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        continue;
+                    }
+                    Err(error) => return Err(error),
+                },
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!(
+                            "Timed out waiting for card {} text '{}' (no text span)",
+                            id, expected
+                        );
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
             if text == expected {
                 return Ok(());
             }
@@ -673,8 +771,51 @@ impl<'a> RetroPage<'a> {
     pub async fn wait_for_like_count(&self, id: i32, expected: &str) -> WebDriverResult<()> {
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
         loop {
-            let card = self.get_card(id).await?;
-            let count = card.find(By::Css(".like-count")).await?.text().await?;
+            let card = match self.get_card(id).await {
+                Ok(card) => card,
+                // A re-fetch can replace the card mid-loop; keep polling
+                // instead of failing the test.
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!(
+                            "Timed out waiting for card {} like count '{}' (card missing)",
+                            id, expected
+                        );
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            let count = match card.find(By::Css(".like-count")).await {
+                Ok(count_span) => match count_span.text().await {
+                    Ok(count) => count,
+                    Err(error)
+                        if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) =>
+                    {
+                        if tokio::time::Instant::now() >= deadline {
+                            panic!(
+                                "Timed out waiting for card {} like count '{}' (card swapped)",
+                                id, expected
+                            );
+                        }
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        continue;
+                    }
+                    Err(error) => return Err(error),
+                },
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!(
+                            "Timed out waiting for card {} like count '{}' (no like span)",
+                            id, expected
+                        );
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
             if count == expected {
                 return Ok(());
             }
@@ -709,14 +850,38 @@ impl<'a> RetroPage<'a> {
     }
 
     pub async fn click_card(&self, id: i32) -> WebDriverResult<()> {
-        let card = self.get_card(id).await?;
-        // Use a JavaScript click on the article element so that the click event
-        // target is the article itself, not the nested text-edit button.
-        self.driver
-            .execute("arguments[0].click()", vec![card.to_json()?])
-            .await?;
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        Ok(())
+        // An SSE re-fetch can replace the card between the find and the click
+        // (same race as click_with_retry), so re-find on a stale reference.
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            match self.get_card(id).await {
+                Ok(card) => {
+                    // Use a JavaScript click on the article element so that the
+                    // click event target is the article itself, not the nested
+                    // text-edit button.
+                    match self
+                        .driver
+                        .execute("arguments[0].click()", vec![card.to_json()?])
+                        .await
+                    {
+                        Ok(_) => {
+                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                            return Ok(());
+                        }
+                        Err(error)
+                            if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {
+                        }
+                        Err(error) => return Err(error),
+                    }
+                }
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {}
+                Err(error) => return Err(error),
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out clicking card {}", id);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
     }
 
     pub async fn like_card(&self, id: i32) -> WebDriverResult<()> {
@@ -731,30 +896,62 @@ impl<'a> RetroPage<'a> {
     }
 
     pub async fn timer_text(&self, id: i32) -> WebDriverResult<String> {
-        let badge = self
-            .driver
-            .find(By::Css(format!(
-                "article[data-item-id='{}'] .timer-badge",
-                id
-            )))
-            .await?;
-        badge.text().await
+        // The card can be swapped by an SSE re-fetch or an HTMX response
+        // between the find and the text read; re-find on stale references.
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            match self
+                .driver
+                .find(By::Css(format!(
+                    "article[data-item-id='{}'] .timer-badge",
+                    id
+                )))
+                .await
+            {
+                Ok(badge) => match badge.text().await {
+                    Ok(text) => return Ok(text),
+                    Err(error)
+                        if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {}
+                    Err(error) => return Err(error),
+                },
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {}
+                Err(error) => return Err(error),
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out reading the timer badge on card {}", id);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
     }
 
     /// Like `timer_text`, but returns `None` while the badge does not exist
     /// yet (the highlighted card, and with it the badge, is swapped in
     /// asynchronously after the highlight request).
     pub async fn try_timer_text(&self, id: i32) -> WebDriverResult<Option<String>> {
-        let badges = self
-            .driver
-            .find_all(By::Css(format!(
-                "article[data-item-id='{}'] .timer-badge",
-                id
-            )))
-            .await?;
-        match badges.first() {
-            Some(badge) => Ok(Some(badge.text().await?)),
-            None => Ok(None),
+        // The badge can be swapped by an SSE re-fetch between the find and the
+        // text read; re-find on stale references instead of failing the test.
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            let badges = self
+                .driver
+                .find_all(By::Css(format!(
+                    "article[data-item-id='{}'] .timer-badge",
+                    id
+                )))
+                .await?;
+            match badges.first() {
+                Some(badge) => match badge.text().await {
+                    Ok(text) => return Ok(Some(text)),
+                    Err(error)
+                        if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {}
+                    Err(error) => return Err(error),
+                },
+                None => return Ok(None),
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out reading the timer badge on card {}", id);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
     }
 
@@ -763,14 +960,45 @@ impl<'a> RetroPage<'a> {
     pub async fn wait_for_timer_end_at(&self, id: i32) -> WebDriverResult<i64> {
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
         loop {
-            let badge = self
+            let badge = match self
                 .driver
                 .find(By::Css(format!(
                     "article[data-item-id='{}'] .timer-badge",
                     id
                 )))
-                .await?;
-            if let Some(end_at) = badge.attr("data-end-at").await? {
+                .await
+            {
+                Ok(badge) => badge,
+                // A re-fetch can replace the card between iterations; keep
+                // polling instead of failing the test.
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!(
+                            "Timed out waiting for a server-rendered timer deadline on card {} (badge missing)",
+                            id
+                        );
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            let end_at = match badge.attr("data-end-at").await {
+                Ok(end_at) => end_at,
+                // The badge element can be detached mid-read by a re-fetch.
+                Err(error) if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!(
+                            "Timed out waiting for a server-rendered timer deadline on card {} (badge swapped)",
+                            id
+                        );
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            if let Some(end_at) = end_at {
                 if let Ok(end_at) = end_at.parse::<i64>() {
                     return Ok(end_at);
                 }
@@ -814,14 +1042,38 @@ impl<'a> RetroPage<'a> {
     pub async fn wait_for_timer_end_after(&self, id: i32, old_end_at: i64) -> WebDriverResult<i64> {
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
         loop {
-            let badge = self
+            let badge = match self
                 .driver
                 .find(By::Css(format!(
                     "article[data-item-id='{}'] .timer-badge",
                     id
                 )))
-                .await?;
-            if let Some(end_at) = badge.attr("data-end-at").await? {
+                .await
+            {
+                Ok(badge) => badge,
+                // A re-fetch can replace the card between iterations; keep
+                // polling instead of failing the test.
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!(
+                            "Timed out waiting for an extended timer deadline on card {} (badge missing)",
+                            id
+                        );
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            let end_at = match badge.attr("data-end-at").await {
+                Ok(end_at) => end_at,
+                // The badge element can be detached mid-read by a re-fetch.
+                Err(error) if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {
+                    None
+                }
+                Err(error) => return Err(error),
+            };
+            if let Some(end_at) = end_at {
                 if let Ok(end_at) = end_at.parse::<i64>() {
                     if end_at > old_end_at {
                         return Ok(end_at);
@@ -902,15 +1154,32 @@ impl<'a> RetroPage<'a> {
     pub async fn wait_for_extend_button_visible(&self, id: i32) -> WebDriverResult<()> {
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
         loop {
-            let button = self
+            let button = match self
                 .driver
                 .find(By::Css(format!(
                     "article[data-item-id='{}'] .timer-extend",
                     id
                 )))
-                .await?;
-            if button.is_displayed().await? {
-                return Ok(());
+                .await
+            {
+                Ok(button) => button,
+                // A re-fetch can replace the card between iterations; keep
+                // polling instead of failing the test.
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!("Timed out waiting for the +2 min button on card {}", id);
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            match button.is_displayed().await {
+                Ok(true) => return Ok(()),
+                Ok(false) => {}
+                // The card was replaced mid-check by an SSE re-fetch.
+                Err(error) if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {}
+                Err(error) => return Err(error),
             }
             if tokio::time::Instant::now() >= deadline {
                 panic!("Timed out waiting for the +2 min button on card {}", id);
