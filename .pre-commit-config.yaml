@@ -33,6 +33,13 @@ repos:
         pass_filenames: false
         files: ^(src/.*\.rs|tests/.*\.rs|Cargo\.(toml|lock))$
 
+      - id: cargo-audit
+        name: cargo audit
+        entry: cargo audit
+        language: system
+        pass_filenames: false
+        files: ^Cargo\.(toml|lock)$
+
       - id: sqlx-prepare
         name: Update sqlx offline query data
         entry: scripts/sqlx-prepare.sh
