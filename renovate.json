@@ -32,7 +32,7 @@
     {
       "description": "Our own images are rebuilt on every push to main, so a new digest appears faster than the stability window; skip minimumReleaseAge for them (they are already validated by CI).",
       "matchPackageNames": ["ghcr.io/suhlig/rostfacto", "ghcr.io/suhlig/rostfacto-migrator"],
-      "minimumReleaseAge": 0
+      "minimumReleaseAge": "0"
     },
     {
       "description": "Require human review for potentially breaking dependency updates.",
