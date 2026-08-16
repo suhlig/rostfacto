@@ -23,7 +23,7 @@
     },
     {
       "description": "Container images (Dockerfile and docker-compose.yml) are pinned by digest; auto-merge digest updates, which stay on the same tag.",
-      "matchManagers": ["docker"],
+      "matchManagers": ["dockerfile", "docker-compose"],
       "matchUpdateTypes": ["digest"],
       "automerge": true,
       "automergeType": "pr",
