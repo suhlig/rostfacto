@@ -2,6 +2,21 @@ name: Container
 on:
   push:
     branches: [main]
+    # Only rebuild images when files that affect the image content change.
+    # Without this filter, every push to main (including Renovate's own
+    # digest-bump merges) would build and push a new digest, which would
+    # trigger the next digest-bump PR, in an endless loop.
+    paths:
+      - 'src/**'
+      - 'templates/**'
+      - 'static/**'
+      - 'migrations/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.sqlx/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/container.yml'
   release:
     types: [published]
 env:

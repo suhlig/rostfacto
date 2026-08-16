@@ -48,7 +48,7 @@ The compose file refuses to start without the required variables, so all secrets
 docker compose exec db /docker-entrypoint-initdb.d/init-app-role.sh
 ```
 
-Images are pulled from the GitHub Container Registry and pinned by digest for reproducible deployments: `ghcr.io/suhlig/rostfacto` for the app and `ghcr.io/suhlig/rostfacto-migrator` for the one-shot migration step. Both are also tagged `latest` and `sha-<commit>` on every push to `main`; every GitHub release additionally tags them with the release version, e.g. `ghcr.io/suhlig/rostfacto:v2.0`.
+Images are pulled from the GitHub Container Registry and pinned by digest for reproducible deployments: `ghcr.io/suhlig/rostfacto` for the app and `ghcr.io/suhlig/rostfacto-migrator` for the one-shot migration step. Both are also tagged `latest` and `sha-<commit>` on every push to `main` that changes image-relevant files (the Container workflow path filter, which keeps the digest-bump PRs from triggering their own rebuild); every GitHub release additionally tags them with the release version, e.g. `ghcr.io/suhlig/rostfacto:v2.0`.
 
 The app is published on port 3000. To run it on a different host port, set `APP_PORT`:
 
