@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
 
   migrations:
-    image: ghcr.io/suhlig/rostfacto-migrator@sha256:440c57aeb9245fd3359a9937953307408e50b3cdfea3eeae7872cba929941b46
+    image: ghcr.io/suhlig/rostfacto-migrator@sha256:80631bab2901e7bbe216319f8e059899f980148d1e0bee4389bc60182827eca3
     environment:
       DATABASE_URL: postgres://rostfacto:${POSTGRES_PASSWORD}@db/rostfacto
     depends_on:
