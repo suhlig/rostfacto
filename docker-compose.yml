@@ -31,7 +31,7 @@ services:
         condition: service_healthy
 
   app:
-    image: ghcr.io/suhlig/rostfacto@sha256:34b68408b6ab5b5d7b3a7b1eb3999c574a3077eb8189f6ce5bb3ec0ce1603cf2
+    image: ghcr.io/suhlig/rostfacto@sha256:68431dfd901b5352929437a10ba1ae8cba83facdd30d3604efd3ea525e91e060
     environment:
       DATABASE_URL: postgres://rostfacto_app:${POSTGRES_APP_PASSWORD}@db/rostfacto
       PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL in your .env (the public base URL used for OAuth)}
