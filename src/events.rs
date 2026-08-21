@@ -7,7 +7,7 @@ use axum::{
     body::Body,
     extract::{Path, State},
     http::{header, HeaderMap, StatusCode},
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
@@ -229,7 +229,7 @@ pub async fn retro_events(
     let retro = match require_retro_access(&state, &user, &slug).await {
         Ok(Some(retro)) => retro,
         Ok(None) => return not_found_response(&state, &slug),
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
 
     let last_event_id = headers

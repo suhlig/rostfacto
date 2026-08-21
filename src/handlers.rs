@@ -29,6 +29,24 @@ const MAX_ITEM_TEXT_LENGTH: usize = 5_000;
 /// Upper bound for the retro title. Mirrored by `retrospectives_title_length_check`.
 const MAX_RETRO_TITLE_LENGTH: usize = 200;
 
+/// Error type returned by handlers. `axum::http::Response` is larger than the
+/// 128-byte threshold that trips `clippy::result_large_err`, so it is boxed;
+/// `IntoResponse` unwraps it again at the HTTP boundary. `From<Response>` lets
+/// `?` on helper results convert a plain `Response` into this type.
+pub(crate) struct HandlerError(Box<Response>);
+
+impl From<Response> for HandlerError {
+    fn from(response: Response) -> Self {
+        Self(Box::new(response))
+    }
+}
+
+impl IntoResponse for HandlerError {
+    fn into_response(self) -> Response {
+        *self.0
+    }
+}
+
 pub(crate) fn log_database_error(operation: &'static str, error: &sqlx::Error) {
     if let Some(database_error) = error.as_database_error() {
         tracing::error!(
@@ -150,23 +168,20 @@ pub(crate) async fn require_retro_access(
     state: &AppState,
     user: &AuthUser,
     slug: &str,
-) -> Result<Option<Retrospective>, Response> {
+) -> Result<Option<Retrospective>, HandlerError> {
     let retro = match load_retro(&state.pool, slug).await {
         Ok(Some(r)) => r,
         Ok(None) => return Ok(None),
         Err(error) => {
             log_database_error("load_retro_by_slug", &error);
-            return Err(database_error_response());
+            return Err(database_error_response().into());
         }
     };
 
     if user.is_admin || user.is_member_of_team(&retro.team_slug) {
         Ok(Some(retro))
     } else {
-        Err(forbidden(
-            state,
-            "You do not have access to this retrospective",
-        ))
+        Err(forbidden(state, "You do not have access to this retrospective").into())
     }
 }
 
@@ -174,7 +189,7 @@ async fn require_retro_access_by_id(
     state: &AppState,
     user: &AuthUser,
     retro_id: i32,
-) -> Result<Option<Retrospective>, Response> {
+) -> Result<Option<Retrospective>, HandlerError> {
     let retro = match sqlx::query_as!(
         Retrospective,
         "SELECT * FROM retrospectives WHERE id = $1",
@@ -187,17 +202,14 @@ async fn require_retro_access_by_id(
         Ok(None) => return Ok(None),
         Err(error) => {
             log_database_error("load_retro_by_id", &error);
-            return Err(database_error_response());
+            return Err(database_error_response().into());
         }
     };
 
     if user.is_admin || user.is_member_of_team(&retro.team_slug) {
         Ok(Some(retro))
     } else {
-        Err(forbidden(
-            state,
-            "You do not have access to this retrospective",
-        ))
+        Err(forbidden(state, "You do not have access to this retrospective").into())
     }
 }
 
@@ -212,7 +224,7 @@ pub async fn home(State(state): State<AppState>, maybe_user: MaybeAuthUser) -> H
 pub async fn list_retros(
     State(state): State<AppState>,
     user: AuthUser,
-) -> Result<Html<String>, Response> {
+) -> Result<Html<String>, HandlerError> {
     let retros = if user.is_admin {
         sqlx::query_as!(
             Retrospective,
@@ -254,9 +266,9 @@ pub async fn list_retros(
 pub async fn new_retro(
     State(state): State<AppState>,
     user: AuthUser,
-) -> Result<Html<String>, Response> {
+) -> Result<Html<String>, HandlerError> {
     if !user.is_admin {
-        return Err(forbidden(&state, "Only admins can create retrospectives"));
+        return Err(forbidden(&state, "Only admins can create retrospectives").into());
     }
 
     let teams = user
@@ -379,7 +391,7 @@ pub async fn show_retro(
     State(state): State<AppState>,
     user: AuthUser,
     Path(slug): Path<String>,
-) -> Result<impl IntoResponse, Response> {
+) -> Result<impl IntoResponse, HandlerError> {
     let retro = match require_retro_access(&state, &user, &slug).await? {
         Some(r) => r,
         None => return Ok(not_found_response(&state, &slug)),
@@ -529,23 +541,24 @@ pub async fn add_item(
     user: AuthUser,
     Path((category, retro_id)): Path<(Category, i32)>,
     Form(form): Form<NewItem>,
-) -> Result<Response, Response> {
+) -> Result<Response, HandlerError> {
     match require_retro_access_by_id(&state, &user, retro_id).await? {
         Some(_) => {}
         None => {
-            return Err(not_found_response(&state, ""));
+            return Err(not_found_response(&state, "").into());
         }
     }
 
     let text = form.text.trim();
     if text.is_empty() {
-        return Err(bad_request(&state, "Card text is required"));
+        return Err(bad_request(&state, "Card text is required").into());
     }
     if text.chars().count() > MAX_ITEM_TEXT_LENGTH {
         return Err(bad_request(
             &state,
             &format!("Card text must be {MAX_ITEM_TEXT_LENGTH} characters or less"),
-        ));
+        )
+        .into());
     }
 
     let mut tx = state.pool.begin().await.map_err(|error| {
@@ -630,27 +643,24 @@ pub async fn change_item_status(
     user: AuthUser,
     Path(item_id): Path<i32>,
     Query(params): Query<HashMap<String, String>>,
-) -> Result<Response, Response> {
+) -> Result<Response, HandlerError> {
     // Verify the item exists and the user has access to its retro before mutating.
     let retro_id = match sqlx::query_scalar!("SELECT retro_id FROM items WHERE id = $1", item_id)
         .fetch_optional(&state.pool)
         .await
     {
         Ok(Some(id)) => id,
-        Ok(None) => return Err(not_found_response(&state, "")),
+        Ok(None) => return Err(not_found_response(&state, "").into()),
         Err(error) => {
             log_database_error("load_item_retro_id", &error);
-            return Err(database_error_response());
+            return Err(database_error_response().into());
         }
     };
 
     match require_retro_access_by_id(&state, &user, retro_id).await? {
         Some(_) => {}
         None => {
-            return Err(forbidden(
-                &state,
-                "You do not have access to this retrospective",
-            ));
+            return Err(forbidden(&state, "You do not have access to this retrospective").into());
         }
     }
 
@@ -738,7 +748,7 @@ pub async fn change_item_status(
                 .into_response());
             }
             log_database_error("change_item_status", &e);
-            return Err(database_error_response());
+            return Err(database_error_response().into());
         }
     };
 
@@ -835,7 +845,7 @@ pub async fn show_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(item_id): Path<i32>,
-) -> Result<Html<String>, Response> {
+) -> Result<Html<String>, HandlerError> {
     let mut conn = state.pool.acquire().await.map_err(|error| {
         log_database_error("load_item_acquire", &error);
         database_error_response()
@@ -852,7 +862,7 @@ pub async fn show_item(
 
     match require_retro_access_by_id(&state, &user, item.retro_id).await? {
         Some(_) => {}
-        None => return Err(not_found_page(&state)),
+        None => return Err(not_found_page(&state).into()),
     }
 
     Ok(Html(
@@ -869,7 +879,7 @@ pub async fn edit_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(item_id): Path<i32>,
-) -> Result<Html<String>, Response> {
+) -> Result<Html<String>, HandlerError> {
     let mut conn = state.pool.acquire().await.map_err(|error| {
         log_database_error("load_item_for_edit_acquire", &error);
         database_error_response()
@@ -886,7 +896,7 @@ pub async fn edit_item(
 
     match require_retro_access_by_id(&state, &user, item.retro_id).await? {
         Some(_) => {}
-        None => return Err(not_found_page(&state)),
+        None => return Err(not_found_page(&state).into()),
     }
 
     Ok(Html(ItemEditTemplate { item }.render().unwrap()))
@@ -897,7 +907,7 @@ pub async fn update_item(
     user: AuthUser,
     Path(item_id): Path<i32>,
     Form(form): Form<NewItem>,
-) -> Result<Response, Response> {
+) -> Result<Response, HandlerError> {
     let mut conn = state.pool.acquire().await.map_err(|error| {
         log_database_error("load_item_for_update_acquire", &error);
         database_error_response()
@@ -914,18 +924,19 @@ pub async fn update_item(
 
     match require_retro_access_by_id(&state, &user, item.retro_id).await? {
         Some(_) => {}
-        None => return Err(not_found_page(&state)),
+        None => return Err(not_found_page(&state).into()),
     }
 
     let text = form.text.trim();
     if text.is_empty() {
-        return Err(bad_request(&state, "Card text is required"));
+        return Err(bad_request(&state, "Card text is required").into());
     }
     if text.chars().count() > MAX_ITEM_TEXT_LENGTH {
         return Err(bad_request(
             &state,
             &format!("Card text must be {MAX_ITEM_TEXT_LENGTH} characters or less"),
-        ));
+        )
+        .into());
     }
     let old_text = item.text.clone();
 
@@ -988,26 +999,23 @@ pub async fn like_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(item_id): Path<i32>,
-) -> Result<Response, Response> {
+) -> Result<Response, HandlerError> {
     let retro_id = match sqlx::query_scalar!("SELECT retro_id FROM items WHERE id = $1", item_id)
         .fetch_optional(&state.pool)
         .await
     {
         Ok(Some(id)) => id,
-        Ok(None) => return Err(not_found_response(&state, "")),
+        Ok(None) => return Err(not_found_response(&state, "").into()),
         Err(error) => {
             log_database_error("load_item_retro_id_for_like", &error);
-            return Err(database_error_response());
+            return Err(database_error_response().into());
         }
     };
 
     match require_retro_access_by_id(&state, &user, retro_id).await? {
         Some(_) => {}
         None => {
-            return Err(forbidden(
-                &state,
-                "You do not have access to this retrospective",
-            ))
+            return Err(forbidden(&state, "You do not have access to this retrospective").into())
         }
     }
 
@@ -1128,25 +1136,22 @@ async fn require_timer_access(
     state: &AppState,
     user: &AuthUser,
     item_id: i32,
-) -> Result<(), Response> {
+) -> Result<(), HandlerError> {
     let retro_id = match sqlx::query_scalar!("SELECT retro_id FROM items WHERE id = $1", item_id)
         .fetch_optional(&state.pool)
         .await
     {
         Ok(Some(id)) => id,
-        Ok(None) => return Err(not_found_response(state, "")),
+        Ok(None) => return Err(not_found_response(state, "").into()),
         Err(error) => {
             log_database_error("load_item_retro_id_for_timer", &error);
-            return Err(database_error_response());
+            return Err(database_error_response().into());
         }
     };
 
     match require_retro_access_by_id(state, user, retro_id).await? {
         Some(_) => Ok(()),
-        None => Err(forbidden(
-            state,
-            "You do not have access to this retrospective",
-        )),
+        None => Err(forbidden(state, "You do not have access to this retrospective").into()),
     }
 }
 
@@ -1157,7 +1162,7 @@ pub async fn start_item_timer(
     user: AuthUser,
     Path(item_id): Path<i32>,
     Form(form): Form<TimerStartForm>,
-) -> Result<Response, Response> {
+) -> Result<Response, HandlerError> {
     require_timer_access(&state, &user, item_id).await?;
 
     let duration = form.duration.unwrap_or(300).clamp(1, 3600);
@@ -1232,7 +1237,7 @@ pub async fn extend_item_timer(
     State(state): State<AppState>,
     user: AuthUser,
     Path(item_id): Path<i32>,
-) -> Result<Response, Response> {
+) -> Result<Response, HandlerError> {
     require_timer_access(&state, &user, item_id).await?;
 
     let mut tx = state.pool.begin().await.map_err(|error| {
@@ -1333,21 +1338,22 @@ pub async fn add_action_item(
     user: AuthUser,
     Path(retro_id): Path<i32>,
     Form(form): Form<NewActionItem>,
-) -> Result<Html<String>, Response> {
+) -> Result<Html<String>, HandlerError> {
     match require_retro_access_by_id(&state, &user, retro_id).await? {
         Some(_) => {}
-        None => return Err(not_found_response(&state, "")),
+        None => return Err(not_found_response(&state, "").into()),
     }
 
     let text = form.text.trim();
     if text.is_empty() {
-        return Err(bad_request(&state, "Action item text is required"));
+        return Err(bad_request(&state, "Action item text is required").into());
     }
     if text.chars().count() > MAX_ITEM_TEXT_LENGTH {
         return Err(bad_request(
             &state,
             &format!("Action item text must be {MAX_ITEM_TEXT_LENGTH} characters or less"),
-        ));
+        )
+        .into());
     }
 
     let action_item = sqlx::query_as!(
@@ -1373,7 +1379,7 @@ pub async fn show_action_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(action_item_id): Path<i32>,
-) -> Result<Html<String>, Response> {
+) -> Result<Html<String>, HandlerError> {
     let action_item = load_action_item(&state.pool, action_item_id)
         .await
         .map_err(|error| match error {
@@ -1390,7 +1396,7 @@ pub async fn edit_action_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(action_item_id): Path<i32>,
-) -> Result<Html<String>, Response> {
+) -> Result<Html<String>, HandlerError> {
     let action_item = load_action_item(&state.pool, action_item_id)
         .await
         .map_err(|error| match error {
@@ -1410,7 +1416,7 @@ pub async fn update_action_item(
     user: AuthUser,
     Path(action_item_id): Path<i32>,
     Form(form): Form<NewActionItem>,
-) -> Result<Html<String>, Response> {
+) -> Result<Html<String>, HandlerError> {
     let existing = load_action_item(&state.pool, action_item_id)
         .await
         .map_err(|error| match error {
@@ -1423,13 +1429,14 @@ pub async fn update_action_item(
 
     let text = form.text.trim();
     if text.is_empty() {
-        return Err(bad_request(&state, "Action item text is required"));
+        return Err(bad_request(&state, "Action item text is required").into());
     }
     if text.chars().count() > MAX_ITEM_TEXT_LENGTH {
         return Err(bad_request(
             &state,
             &format!("Action item text must be {MAX_ITEM_TEXT_LENGTH} characters or less"),
-        ));
+        )
+        .into());
     }
     sqlx::query!(
         "UPDATE action_items SET text = $1 WHERE id = $2",
@@ -1452,7 +1459,7 @@ pub async fn complete_action_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(action_item_id): Path<i32>,
-) -> Result<Html<String>, Response> {
+) -> Result<Html<String>, HandlerError> {
     let existing = load_action_item(&state.pool, action_item_id)
         .await
         .map_err(|error| match error {
@@ -1482,7 +1489,7 @@ pub async fn delete_action_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(action_item_id): Path<i32>,
-) -> Result<StatusCode, Response> {
+) -> Result<StatusCode, HandlerError> {
     let existing = load_action_item(&state.pool, action_item_id)
         .await
         .map_err(|error| match error {
@@ -1506,7 +1513,7 @@ pub async fn archive_retro(
     State(state): State<AppState>,
     user: AuthUser,
     Path(retro_id): Path<i32>,
-) -> Result<impl IntoResponse, Response> {
+) -> Result<impl IntoResponse, HandlerError> {
     let retro = match require_retro_access_by_id(&state, &user, retro_id).await? {
         Some(r) => r,
         None => {
@@ -1674,7 +1681,7 @@ pub async fn list_archives(
     State(state): State<AppState>,
     user: AuthUser,
     Path(slug): Path<String>,
-) -> Result<impl IntoResponse, Response> {
+) -> Result<impl IntoResponse, HandlerError> {
     let retro = match require_retro_access(&state, &user, &slug).await? {
         Some(r) => r,
         None => return Ok(not_found_response(&state, &slug)),
@@ -1762,7 +1769,7 @@ pub async fn show_archive(
     State(state): State<AppState>,
     user: AuthUser,
     Path((slug, archive_id)): Path<(String, i32)>,
-) -> Result<impl IntoResponse, Response> {
+) -> Result<impl IntoResponse, HandlerError> {
     let retro = match require_retro_access(&state, &user, &slug).await? {
         Some(r) => r,
         None => return Ok(not_found_response(&state, &slug)),
@@ -1782,10 +1789,10 @@ pub async fn show_archive(
     .await
     {
         Ok(Some(a)) => a,
-        Ok(None) => return Err(not_found_page(&state)),
+        Ok(None) => return Err(not_found_page(&state).into()),
         Err(error) => {
             log_database_error("show_archive", &error);
-            return Err(database_error_response());
+            return Err(database_error_response().into());
         }
     };
 
