@@ -19,8 +19,13 @@ jobs:
       SQLX_OFFLINE: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-        with: { toolchain: stable, targets: "${{ matrix.target }}" }
+      # The toolchain is pinned by rust-toolchain.toml; the first cargo command
+      # makes rustup install it. Install the cross-compilation target on that
+      # same pinned toolchain (rustup target add honors the directory override).
+      - name: Install pinned Rust toolchain and cross-compilation target
+        run: |
+          cargo --version
+          rustup target add "${{ matrix.target }}"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Install musl-tools (Linux musl targets)
         if: contains(matrix.target, 'musl')

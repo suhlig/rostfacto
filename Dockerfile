@@ -1,8 +1,9 @@
 # Build stage: compile with the checked-in sqlx offline query cache (.sqlx),
 # so no database is needed. Askama templates are compiled into the binary.
 # Base images are pinned by digest so a rebuilt image is reproducible and a
-# compromised tag cannot change what ships.
-FROM rust:1-slim-trixie@sha256:8e8cf8f7fd54a2d23d5a743b3a03f56e26b6c774276c33fa0595111704ebb15c AS builder
+# compromised tag cannot change what ships. The builder base tracks the
+# toolchain pinned in rust-toolchain.toml; bump both together.
+FROM rust:1.98.0-slim-trixie@sha256:cc0448b41c3b7b7fea44f5dc50eacba729a56db365b65b7bd5e8a82d5b3db078 AS builder
 
 WORKDIR /app
 ENV SQLX_OFFLINE=true
