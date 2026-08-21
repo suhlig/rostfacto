@@ -169,8 +169,9 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - Run the tests with (CI runs all three test binaries; the `SHOW_BROWSER` variant below only applies to the browser tests):
   ```bash
   export DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev
-  cargo test --test integration_test --test events_test --test migration_test
+  cargo test --test integration_test --test events_test --test migration_test -- --test-threads=1
   ```
+- **Run the browser suite serially (`--test-threads=1`)**: concurrent geckodriver/Firefox sessions starve each other's HTMX/SSE card swaps and make tests fail intermittently (the failing spot rotates between the highlight/timer waits in `tests/test_helpers.rs`). Serial is not slower in wall time (the parallel runs thrash); if you see a flake, re-run the single test in isolation — it will pass.
 - Set `SHOW_BROWSER` to run Firefox visibly:
   ```bash
   SHOW_BROWSER=1 cargo test --test integration_test

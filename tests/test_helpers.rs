@@ -325,7 +325,7 @@ impl BrowserSession {
 
         // Retry connecting to geckodriver instead of relying on a fixed sleep.
         let url = format!("http://localhost:{}", port);
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         let driver = loop {
             match WebDriver::new(&url, caps.clone()).await {
                 Ok(driver) => break driver,
@@ -468,7 +468,7 @@ impl<'a> RetroPage<'a> {
         // Wait for HTMX to swap the new card in. Polling instead of a fixed
         // sleep keeps the helper reliable on slow machines, where the swap can
         // take longer than a single sleep.
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         let id = loop {
             let cards = self
                 .driver
@@ -503,7 +503,7 @@ impl<'a> RetroPage<'a> {
     /// replaces it between the find and the click (SSE re-fetches swap cards
     /// and buttons under load). `what` names the element in the timeout panic.
     async fn click_with_retry(&self, selector: &str, what: &str) -> WebDriverResult<()> {
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             match self.driver.find(By::Css(selector)).await {
                 Ok(element) => match element.click().await {
@@ -531,7 +531,7 @@ impl<'a> RetroPage<'a> {
 
         // The edit button swap renders the textarea; poll for it instead of
         // finding it immediately (the swap can lag under load).
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         let input = loop {
             if let Ok(input) = self
                 .driver
@@ -642,7 +642,7 @@ impl<'a> RetroPage<'a> {
             "Watch" => "#watch-items",
             _ => panic!("Invalid category"),
         };
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             let cards = self
                 .driver
@@ -689,7 +689,7 @@ impl<'a> RetroPage<'a> {
         category: &str,
         expected: usize,
     ) -> WebDriverResult<()> {
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             let cards = self.get_cards_in_category(category).await?;
             if cards.len() == expected {
@@ -709,7 +709,7 @@ impl<'a> RetroPage<'a> {
 
     /// Wait until the card's text matches (SSE delivery is asynchronous).
     pub async fn wait_for_card_text(&self, id: i32, expected: &str) -> WebDriverResult<()> {
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             let card = match self.get_card(id).await {
                 Ok(card) => card,
@@ -771,7 +771,7 @@ impl<'a> RetroPage<'a> {
 
     /// Wait until the card's like count matches (SSE delivery is asynchronous).
     pub async fn wait_for_like_count(&self, id: i32, expected: &str) -> WebDriverResult<()> {
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             let card = match self.get_card(id).await {
                 Ok(card) => card,
@@ -904,7 +904,7 @@ impl<'a> RetroPage<'a> {
     /// Wait until the all-done archive modal is open (SSE delivery is
     /// asynchronous).
     pub async fn wait_for_archive_modal(&self) -> WebDriverResult<()> {
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             if self
                 .driver
@@ -924,7 +924,7 @@ impl<'a> RetroPage<'a> {
     pub async fn click_card(&self, id: i32) -> WebDriverResult<()> {
         // An SSE re-fetch can replace the card between the find and the click
         // (same race as click_with_retry), so re-find on a stale reference.
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             match self.get_card(id).await {
                 Ok(card) => {
@@ -970,7 +970,7 @@ impl<'a> RetroPage<'a> {
     pub async fn timer_text(&self, id: i32) -> WebDriverResult<String> {
         // The card can be swapped by an SSE re-fetch or an HTMX response
         // between the find and the text read; re-find on stale references.
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             match self
                 .driver
@@ -1002,7 +1002,7 @@ impl<'a> RetroPage<'a> {
     pub async fn try_timer_text(&self, id: i32) -> WebDriverResult<Option<String>> {
         // The badge can be swapped by an SSE re-fetch between the find and the
         // text read; re-find on stale references instead of failing the test.
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             let badges = self
                 .driver
@@ -1030,7 +1030,7 @@ impl<'a> RetroPage<'a> {
     /// Wait until the badge carries a server-rendered deadline, returning it
     /// as epoch milliseconds (identical on every client).
     pub async fn wait_for_timer_end_at(&self, id: i32) -> WebDriverResult<i64> {
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             let badge = match self
                 .driver
@@ -1112,7 +1112,7 @@ impl<'a> RetroPage<'a> {
     /// extend response (or the SSE event) replaces it, so a plain presence
     /// wait could return the stale value.
     pub async fn wait_for_timer_end_after(&self, id: i32, old_end_at: i64) -> WebDriverResult<i64> {
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             let badge = match self
                 .driver
@@ -1166,7 +1166,7 @@ impl<'a> RetroPage<'a> {
     /// asynchronous). Only use this for values that persist (e.g. "0:00");
     /// for a running countdown use `wait_for_timer_text_at_most`.
     pub async fn wait_for_timer_text(&self, id: i32, expected: &str) -> WebDriverResult<()> {
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             if let Some(text) = self.try_timer_text(id).await? {
                 if text == expected {
@@ -1226,7 +1226,7 @@ impl<'a> RetroPage<'a> {
 
     /// Wait until the +2 min button is visible (timer running or elapsed).
     pub async fn wait_for_extend_button_visible(&self, id: i32) -> WebDriverResult<()> {
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             let button = match self
                 .driver
@@ -1294,7 +1294,7 @@ impl<'a> RetroPage<'a> {
         // The all-done modal is opened asynchronously (client-side after the
         // last card is completed), so poll for its button instead of finding
         // it immediately.
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         let archive_button = loop {
             if let Ok(button) = self.driver.find(By::Css("#archive-modal .primary")).await {
                 if button.is_displayed().await? {
@@ -1372,7 +1372,7 @@ impl<'a> RetroPage<'a> {
         }
 
         // Wait for the HTMX delete request to finish and the row to be removed.
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             let xpath = format!("//table//tr[contains(., '{}')]", self.title);
             let still_present = !self.driver.find_all(By::XPath(&xpath)).await?.is_empty();

@@ -62,4 +62,7 @@ jobs:
       - name: Run unit tests
         run: cargo test --bins
       - name: Run integration tests
-        run: cargo test --test integration_test --test events_test --test migration_test
+        # The browser suite runs serially: concurrent geckodriver/Firefox
+        # sessions on the loaded runner starve each other's HTMX/SSE swaps
+        # and make tests fail intermittently (see tests/test_helpers.rs).
+        run: cargo test --test integration_test --test events_test --test migration_test -- --test-threads=1
