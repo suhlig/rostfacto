@@ -562,7 +562,9 @@ impl<'a> RetroPage<'a> {
 
     pub async fn verify_card_state(&self, id: i32, expected_class: &str) -> WebDriverResult<()> {
         let selector = format!("article[data-item-id='{}']", id);
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
+        // The deadline is generous: the card's re-render (HTMX response plus
+        // SSE re-fetch) can lag well beyond this on a loaded machine.
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
 
         loop {
             let card = match self.driver.find(By::Css(&selector)).await {
@@ -823,6 +825,76 @@ impl<'a> RetroPage<'a> {
                 panic!(
                     "Timed out waiting for card {} like count '{}', got '{}'",
                     id, expected, count
+                );
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Wait until the card shows the given error message. The error is
+    /// rendered by the HTMX response to the status change request, which can
+    /// lag the click under load; poll instead of finding it immediately.
+    pub async fn wait_for_card_error_message(
+        &self,
+        id: i32,
+        expected: &str,
+    ) -> WebDriverResult<()> {
+        // The deadline is generous: under parallel CI load, the highlight
+        // response and the SSE re-fetch can take a while to render the error.
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
+        loop {
+            let card = match self.get_card(id).await {
+                Ok(card) => card,
+                // A re-fetch can replace the card mid-loop; keep polling
+                // instead of failing the test.
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!(
+                            "Timed out waiting for card {} error message '{}' (card missing)",
+                            id, expected
+                        );
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            let message = match card.find(By::Css(".error-message")).await {
+                Ok(message_span) => match message_span.text().await {
+                    Ok(message) => message,
+                    Err(error)
+                        if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) =>
+                    {
+                        if tokio::time::Instant::now() >= deadline {
+                            panic!(
+                                "Timed out waiting for card {} error message '{}' (card swapped)",
+                                id, expected
+                            );
+                        }
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        continue;
+                    }
+                    Err(error) => return Err(error),
+                },
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!(
+                            "Timed out waiting for card {} error message '{}' (no error span)",
+                            id, expected
+                        );
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            if message == expected {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!(
+                    "Timed out waiting for card {} error message '{}', got '{}'",
+                    id, expected, message
                 );
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -1123,7 +1195,9 @@ impl<'a> RetroPage<'a> {
         id: i32,
         max_seconds: i64,
     ) -> WebDriverResult<()> {
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        // The deadline is generous: under parallel CI load, the highlight
+        // response and the SSE re-fetch can take a while to render the badge.
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
             if let Some(text) = self.try_timer_text(id).await? {
                 if let Some(remaining) = parse_countdown(&text) {

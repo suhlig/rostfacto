@@ -1036,14 +1036,14 @@ async fn test_single_highlight_error_message() -> WebDriverResult<()> {
         .verify_card_state(first_id, "card highlighted")
         .await?;
 
-    // Attempting to highlight a second card should show an error on that card
+    // Attempting to highlight a second card should show an error on that card.
+    // The error is rendered by the HTMX response to the highlight request,
+    // which can lag the click under load; wait instead of finding it
+    // immediately.
     retro_page.click_card(second_id).await?;
-    let second_card = retro_page.get_card(second_id).await?;
-    let error = second_card.find(By::Css(".error-message")).await?;
-    assert_eq!(
-        error.text().await?,
-        "Only one item can be highlighted at a time"
-    );
+    retro_page
+        .wait_for_card_error_message(second_id, "Only one item can be highlighted at a time")
+        .await?;
 
     browser.close().await?;
     Ok(())
