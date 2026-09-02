@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
 
   migrations:
-    image: ghcr.io/suhlig/rostfacto-migrator@sha256:75c89c051cd3340e0ccdaf4ade233c003ed5b1b67f06ca8a70fa673f2062a9c6
+    image: ghcr.io/suhlig/rostfacto-migrator@sha256:a91ce5660b0f8468397f38d9e1bbee0937a2aa878a5e1ea04203cf4561e2f7ec
     environment:
       DATABASE_URL: postgres://rostfacto:${POSTGRES_PASSWORD}@db/rostfacto
     depends_on:
@@ -31,7 +31,7 @@ services:
         condition: service_healthy
 
   app:
-    image: ghcr.io/suhlig/rostfacto@sha256:572c294aa40f1d3f69829a89299d3406a77ab42f4bf0718d161bb6ab71766e52
+    image: ghcr.io/suhlig/rostfacto@sha256:4e93d1bca0231c6474f7435e091196b6d7e5664c6379502976a9ec5a52572a8f
     environment:
       DATABASE_URL: postgres://rostfacto_app:${POSTGRES_APP_PASSWORD}@db/rostfacto
       PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL in your .env (the public base URL used for OAuth)}
