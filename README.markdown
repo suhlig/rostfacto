@@ -2,6 +2,8 @@
 
 This project aims to revive [Postfacto](https://github.com/vmware-archive/postfacto), but in Rust.
 
+![Rostfacto Board](static/screenshots/board.png)
+
 # What's different to Postfacto
 
 Rostfacto keeps the retro flow Postfacto made popular — cards, highlighting, timers, action items — and rebuilds it from scratch:
