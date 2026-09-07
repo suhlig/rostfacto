@@ -1,6 +1,6 @@
 # Rostfacto
 
-This project aims to revive [Postfacto](https://github.com/vmware-archive/postfacto), but in Rust.
+[Postfacto](https://github.com/vmware-archive/postfacto) was a self-hosted retro tool aimed at helping teams run great retrospectives, remotely or in presence. This project aims to revive it, but in Rust.
 
 ![Rostfacto Board](static/screenshots/board.png)
 
