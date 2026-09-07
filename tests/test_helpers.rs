@@ -961,7 +961,20 @@ impl<'a> RetroPage<'a> {
             // click event target is the article itself, not the nested
             // text-edit button.
             let node_before_click = card.to_json()?;
-            let class_before_click = card.attr("class").await?.unwrap_or_default();
+            // Same stale race as the hx-post read above: the card can be
+            // replaced between two attribute reads, so re-find instead of
+            // failing the test.
+            let class_before_click = match card.attr("class").await {
+                Ok(class) => class.unwrap_or_default(),
+                Err(error) if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!("Timed out clicking card {}", id);
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
             match self
                 .driver
                 .execute("arguments[0].click()", vec![card.to_json()?])
