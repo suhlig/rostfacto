@@ -1,7 +1,13 @@
-# Production-oriented stack: all secrets come from the environment (see
-# .env.example). The app connects to the database as the least-privilege
-# `rostfacto_app` role created by docker/init-app-role.sh on first boot;
-# only the one-shot migrations service uses the superuser.
+# All secrets come from the environment (see .env.example). The app connects
+# to the database as the least-privilege `rostfacto_app` role created by
+# docker/init-app-role.sh on first boot; only the one-shot migrations service
+# uses the superuser.
+#
+# The stack runs with GitHub authentication when GITHUB_ADMIN_ORG and the
+# other GitHub variables are set in .env. For an unsecured local demo, set
+# DEMO_MODE=1 instead and leave the GitHub variables blank; the app fails
+# closed at startup if neither DEMO_MODE nor a complete GitHub configuration
+# is present. Never run DEMO_MODE in production.
 services:
   db:
     # Pinned by digest for reproducible deployments.
@@ -34,11 +40,15 @@ services:
     image: ghcr.io/suhlig/rostfacto@sha256:8cd31a99c1a0587685ce3d60a627e8498a27508d13462c2bae2be5f438c37019
     environment:
       DATABASE_URL: postgres://rostfacto_app:${POSTGRES_APP_PASSWORD}@db/rostfacto
-      PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL in your .env (the public base URL used for OAuth)}
-      GITHUB_ADMIN_ORG: ${GITHUB_ADMIN_ORG:?Set GITHUB_ADMIN_ORG in your .env}
-      GITHUB_ADMIN_TEAM_SLUG: ${GITHUB_ADMIN_TEAM_SLUG:?Set GITHUB_ADMIN_TEAM_SLUG in your .env}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?Set GITHUB_CLIENT_ID in your .env}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?Set GITHUB_CLIENT_SECRET in your .env}
+      # GitHub auth variables are optional so that .env can opt into the
+      # unsecured DEMO_MODE=1; blank values count as unset (the app fails
+      # closed when neither DEMO_MODE=1 nor the GitHub config is present).
+      DEMO_MODE: ${DEMO_MODE:-0}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      GITHUB_ADMIN_ORG: ${GITHUB_ADMIN_ORG:-}
+      GITHUB_ADMIN_TEAM_SLUG: ${GITHUB_ADMIN_TEAM_SLUG:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       GITHUB_USER_ORG: ${GITHUB_USER_ORG:-}
       GITHUB_APP_OWNER: ${GITHUB_APP_OWNER:-}
     ports:

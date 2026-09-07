@@ -40,11 +40,12 @@ Quickest way to run the whole stack (database, migrations, app) — no local bui
 
 ```command
 cp .env.example .env
-# fill in the values (see the Authentication section below)
+# either fill in the GitHub auth values (see the Authentication section below),
+# or set DEMO_MODE=1 and leave the GitHub variables blank for an unsecured demo
 docker compose up -d
 ```
 
-The compose file refuses to start without the required variables, so all secrets come from your `.env` (which is gitignored): the database passwords (`POSTGRES_PASSWORD` for the migration user, `POSTGRES_APP_PASSWORD` for the least-privilege `rostfacto_app` role the app connects as) and the GitHub OAuth settings. On first boot, `docker/init-app-role.sh` creates the `rostfacto_app` role with only SELECT/INSERT/UPDATE/DELETE privileges; for an existing database volume, run it manually once:
+All secrets come from your `.env` (which is gitignored). The compose file requires only the database passwords: `POSTGRES_PASSWORD` for the migration user and `POSTGRES_APP_PASSWORD` for the least-privilege `rostfacto_app` role the app connects as. The GitHub auth variables are optional: set `GITHUB_ADMIN_ORG`, `GITHUB_ADMIN_TEAM_SLUG`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` and `PUBLIC_URL` to run with GitHub authentication, or set `DEMO_MODE=1` and leave them blank for an unsecured demo instance (never in production). The app fails closed when neither is configured. On first boot, `docker/init-app-role.sh` creates the `rostfacto_app` role with only SELECT/INSERT/UPDATE/DELETE privileges; for an existing database volume, run it manually once:
 
 ```command
 docker compose exec db /docker-entrypoint-initdb.d/init-app-role.sh

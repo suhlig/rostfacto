@@ -27,10 +27,14 @@ impl Config {
 
         // Demo mode (no authentication, every request treated as admin) must
         // be requested explicitly. Without it, a missing GITHUB_ADMIN_ORG is
-        // a configuration error and prevents startup. Explicit auth
-        // configuration always wins over DEMO_MODE, so a lingering DEMO_MODE=1
-        // can never silently unsecure a real deployment.
-        let github_admin_org = env::var("GITHUB_ADMIN_ORG").ok();
+        // a configuration error and prevents startup. An empty value counts
+        // as unset (the compose stack passes blank strings when .env omits a
+        // variable). Explicit auth configuration always wins over DEMO_MODE,
+        // so a lingering DEMO_MODE=1 can never silently unsecure a real
+        // deployment.
+        let github_admin_org = env::var("GITHUB_ADMIN_ORG")
+            .ok()
+            .filter(|value| !value.is_empty());
         let demo_mode = if github_admin_org.is_some() {
             false
         } else {
@@ -48,8 +52,12 @@ impl Config {
 
         let github_client_id = env::var("GITHUB_CLIENT_ID").unwrap_or_default();
         let github_client_secret = env::var("GITHUB_CLIENT_SECRET").unwrap_or_default();
-        let github_admin_team_slug = env::var("GITHUB_ADMIN_TEAM_SLUG").ok();
-        let github_enterprise_url = env::var("GITHUB_ENTERPRISE_URL").ok();
+        let github_admin_team_slug = env::var("GITHUB_ADMIN_TEAM_SLUG")
+            .ok()
+            .filter(|value| !value.is_empty());
+        let github_enterprise_url = env::var("GITHUB_ENTERPRISE_URL")
+            .ok()
+            .filter(|value| !value.is_empty());
         // GITHUB_USER_ORG may list multiple organizations, separated by colons.
         let github_user_orgs = env::var("GITHUB_USER_ORG")
             .map(|value| {
@@ -61,7 +69,9 @@ impl Config {
                     .collect()
             })
             .unwrap_or_default();
-        let github_app_owner = env::var("GITHUB_APP_OWNER").ok();
+        let github_app_owner = env::var("GITHUB_APP_OWNER")
+            .ok()
+            .filter(|value| !value.is_empty());
         let public_url = match env::var("PUBLIC_URL") {
             Ok(url) => url,
             Err(_) if demo_mode => {
