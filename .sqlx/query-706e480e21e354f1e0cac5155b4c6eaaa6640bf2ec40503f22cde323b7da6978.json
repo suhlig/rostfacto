@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE items\n           SET timer_started_at = NOW(),\n               timer_duration_seconds = $2,\n               timer_elapsed_at = NULL\n           WHERE id = $1 AND status = 'HIGHLIGHTED'::status\n           RETURNING timer_started_at as \"timer_started_at!\", timer_duration_seconds as \"timer_duration_seconds!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "timer_started_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "timer_started_at"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "timer_duration_seconds!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "timer_duration_seconds"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "706e480e21e354f1e0cac5155b4c6eaaa6640bf2ec40503f22cde323b7da6978"
+}

@@ -119,7 +119,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - `users(id, github_id, username, full_name, display_name, avatar_url, created_at, updated_at)` — GitHub users who have logged in. `display_name` is a virtual column (`COALESCE(full_name, username)`).
 - `sessions(id, user_id, expires_at, created_at, updated_at, is_admin, teams, team_listing_errors)` — server-side sessions. `id` is a UUIDv7 text token; `teams` is a JSONB cache of team slugs/names; `team_listing_errors` is a JSONB list of configured user orgs whose teams could not be listed at login. Expiry slides on activity (7-day idle window, 30-day absolute cap); re-login revokes all previous sessions of the user.
 - `likes(item_id, user_id)` — toggled likes on items.
-- `events(id, retro_id, event_type, item_id, payload, created_at)` — durable event log written by DB triggers on `items`/`likes`/`archives`; the notifier task and SSE replay read from it. `event_type` is an enum (`ITEM_CREATED`, `ITEM_UPDATED`, `ITEM_STATUS_CHANGED`, `ITEM_LIKED`, `ITEM_UNLIKED`, `TIMER_STARTED`, `TIMER_EXTENDED`, `TIMER_CANCELLED` — reserved, never emitted, `TIMER_ELAPSED`, `RETRO_ARCHIVED`).
+- `events(id, retro_id, event_type, item_id, payload, created_at)` — durable event log written by the app inside the same transaction as the mutation that produced it (the `emit_event` helper in `src/handlers.rs`, which also `NOTIFY`s the `rostfacto_events` channel; the original DB-trigger writers were removed in migration 025); the notifier task and SSE replay read from it. `event_type` is an enum (`ITEM_CREATED`, `ITEM_UPDATED`, `ITEM_STATUS_CHANGED`, `ITEM_LIKED`, `ITEM_UNLIKED`, `TIMER_STARTED`, `TIMER_EXTENDED`, `TIMER_CANCELLED` — reserved, never emitted, `TIMER_ELAPSED`, `RETRO_ARCHIVED`).
 - Enums:
   - `category` = `GOOD`, `BAD`, `WATCH`
   - `status` = `CREATED`, `HIGHLIGHTED`, `COMPLETED`, `ARCHIVED`
@@ -138,7 +138,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - **Likes**: any card can be liked; likes are per-user and toggle on/off.
 - **Editing**: item text can be edited inline.
 - **All-done prompt**: when the last active item is completed, the server returns a modal asking whether to archive all cards. Declining keeps them visible as completed.
-- **Cross-client sync**: every mutation writes an `events` row via DB triggers and `NOTIFY`s the `rostfacto_events` channel; a per-process notifier task (`events::notifier_loop`) fans events out to SSE subscribers (`GET /retro/{slug}/events`). Mutating handlers return their event id in an `X-Event-Id` header so clients can ignore the matching SSE event (dedup).
+- **Cross-client sync**: every mutation writes an `events` row in the same transaction (via the `emit_event` helper in `src/handlers.rs`) and `NOTIFY`s the `rostfacto_events` channel; a per-process notifier task (`events::notifier_loop`) fans events out to SSE subscribers (`GET /retro/{slug}/events`). Mutating handlers return their event id in an `X-Event-Id` header so clients can ignore the matching SSE event (dedup).
 - **Slug rules**: lowercase letters, numbers, dashes only, max 255 chars, unique.
 
 ## How the frontend works
@@ -189,5 +189,5 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - `main()` spawns two background tasks: `events::notifier_loop` (`LISTEN` on `rostfacto_events`, fans events out to SSE subscribers) and `handlers::timer_sweep_loop` (marks elapsed highlight timers every second). Both are idempotent/multi-instance-safe; the durable `events` table is the source of truth for replay.
 - Sessions slide on activity (7-day idle, 30-day cap) and are revoked on re-login; deleting a retro requires an admin session at most 24 h old (step-up re-auth, redirects to `/auth/login`).
 - CSRF protection is an Origin/Referer match check for state-changing requests (mismatch → 403); Firefox sends neither header on same-origin form POSTs, so a missing header is accepted — SameSite=Lax cookies are the primary defense.
-- Timer events: `TIMER_CANCELLED` is never emitted — cancelling a highlight is always observed as `ITEM_STATUS_CHANGED` (the trigger's status branch wins over timer changes).
+- Timer events: `TIMER_CANCELLED` is never emitted — cancelling a highlight is always observed as `ITEM_STATUS_CHANGED` (the status-change handler emits only that event).
 - The dev database must stay consistent with the recorded migrations: `sqlx migrate run` only applies *new* migrations, so manually dropping triggers/functions on an already-migrated DB leaves it broken while `_sqlx_migrations` still claims everything is applied. When iterating on unmerged migrations, drop the `_sqlx_migrations` rows for them and re-apply, or recreate the dev DB.

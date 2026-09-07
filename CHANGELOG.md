@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 - Server-authoritative highlight timers: timer state lives on the item (`timer_started_at`, `timer_duration_seconds`, virtual generated `timer_ends_at`, `timer_elapsed_at`), started automatically on highlight, extended with +2 min, and marked elapsed by a background sweep; all clients see the same countdown.
 - The all-done archive modal and the archived board now appear on every connected client, not just the one that triggered them.
 
+### Changed
+
+- Events are now emitted by the application instead of database triggers: each mutation writes its `events` row (and `NOTIFY`s the `rostfacto_events` channel) in the same transaction via the `emit_event` helper, and migration 025 drops the trigger machinery. The SSE contract (event ids, payloads, replay, `X-Event-Id` dedup) is unchanged. See `adr/0001-database.markdown`.
+
 ## [1.1.0] - 2025-05-02
 
 ### Added

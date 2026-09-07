@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE items\n           SET timer_duration_seconds = timer_duration_seconds + 120,\n               timer_elapsed_at = NULL\n           WHERE id = $1 AND timer_started_at IS NOT NULL\n           RETURNING timer_started_at as \"timer_started_at!\", timer_duration_seconds as \"timer_duration_seconds!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "timer_started_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "timer_started_at"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "timer_duration_seconds!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "timer_duration_seconds"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "8887ee90796a6d74f3986fa095bd413cf55578bc2ed7b74a07e18538b8c4acea"
+}

@@ -20,6 +20,7 @@ use axum::{
 };
 use chrono::Utc;
 use serde::Deserialize;
+use serde_json::json;
 use sqlx::PgPool;
 use std::collections::HashMap;
 
@@ -162,6 +163,40 @@ fn attach_event_id_header(response: &mut Response, event_id: Option<i64>) {
             response.headers_mut().insert("x-event-id", value);
         }
     }
+}
+
+/// Write one `events` row and wake every app instance's notifier, inside the
+/// same transaction as the mutation it describes. The returned id is surfaced
+/// as the `X-Event-Id` response header so the mutating client can ignore the
+/// matching SSE event. Running the `pg_notify` in the transaction means the
+/// notification is only delivered if the mutation commits.
+async fn emit_event(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    retro_id: i32,
+    event_type: EventType,
+    item_id: Option<i32>,
+    payload: serde_json::Value,
+) -> Result<i64, sqlx::Error> {
+    let event_id = sqlx::query_scalar!(
+        r#"INSERT INTO events (retro_id, event_type, item_id, payload)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id"#,
+        retro_id,
+        event_type as EventType,
+        item_id,
+        payload
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+
+    sqlx::query!(
+        "SELECT pg_notify('rostfacto_events', $1)",
+        retro_id.to_string()
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(event_id)
 }
 
 pub(crate) async fn require_retro_access(
@@ -561,6 +596,10 @@ pub async fn add_item(
         .into());
     }
 
+    // Rendered before the INSERT so `category` can be moved into the query;
+    // the payload carries the same uppercase label the DB enum uses.
+    let category_label = category.to_string();
+
     let mut tx = state.pool.begin().await.map_err(|error| {
         log_database_error("add_item_begin_transaction", &error);
         database_error_response()
@@ -582,17 +621,26 @@ pub async fn add_item(
         database_error_response()
     })?;
 
-    // The item is brand new, so the only ITEM_CREATED event for it is the one
-    // this statement's trigger wrote inside the same transaction.
-    let event_id = sqlx::query_scalar!(
-        "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
-        item_id,
-        EventType::ItemCreated as EventType
+    // The new card gets exactly one ITEM_CREATED event, written like every
+    // mutation's event in the same transaction as the INSERT.
+    let event_id = emit_event(
+        &mut tx,
+        retro_id,
+        EventType::ItemCreated as EventType,
+        Some(item_id),
+        json!({
+            "item_id": item_id,
+            "retro_id": retro_id,
+            "category": category_label,
+            "text": text,
+            "status": "CREATED",
+            "likes_count": 0,
+            "author_name": user.full_name,
+        }),
     )
-    .fetch_optional(&mut *tx)
     .await
     .map_err(|error| {
-        log_database_error("add_item_event_id", &error);
+        log_database_error("add_item_emit_event", &error);
         database_error_response()
     })?;
 
@@ -634,7 +682,7 @@ pub async fn add_item(
     } else {
         html.into_response()
     };
-    attach_event_id_header(&mut response, event_id);
+    attach_event_id_header(&mut response, Some(event_id));
     Ok(response)
 }
 
@@ -691,7 +739,7 @@ pub async fn change_item_status(
             ELSE status
         END,
         -- Completing or cancelling a highlight ends its timer: reset the timer
-        -- columns in the same UPDATE (the trigger emits ITEM_STATUS_CHANGED,
+        -- columns in the same UPDATE (the handler emits ITEM_STATUS_CHANGED,
         -- never TIMER_CANCELLED). The condition on the old status keeps a
         -- no-op status change from touching the timer.
         timer_started_at = CASE
@@ -752,17 +800,31 @@ pub async fn change_item_status(
         }
     };
 
-    let event_id = sqlx::query_scalar!(
-        "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
-        status_change.id,
-        EventType::ItemStatusChanged as EventType
-    )
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|error| {
-        log_database_error("change_item_status_event_id", &error);
-        database_error_response()
-    })?;
+    // Only an actual status change emits an event. A no-op stays quiet so no
+    // X-Event-Id is attached: attaching a stale id would wrongly suppress a
+    // future SSE update for this item.
+    let event_id = if status_change.old_status != status_change.new_status {
+        Some(
+            emit_event(
+                &mut tx,
+                retro_id,
+                EventType::ItemStatusChanged as EventType,
+                Some(status_change.id),
+                json!({
+                    "item_id": status_change.id,
+                    "old_status": status_change.old_status.to_string(),
+                    "new_status": status_change.new_status.to_string(),
+                }),
+            )
+            .await
+            .map_err(|error| {
+                log_database_error("change_item_status_emit_event", &error);
+                database_error_response()
+            })?,
+        )
+    } else {
+        None
+    };
 
     tx.commit().await.map_err(|error| {
         log_database_error("change_item_status_commit_transaction", &error);
@@ -832,11 +894,6 @@ pub async fn change_item_status(
     };
 
     let mut response = Html(template).into_response();
-    // A no-op status change emits no event; attaching the previous event's id
-    // would wrongly suppress a future SSE update.
-    let event_id = (status_change.old_status != status_change.new_status)
-        .then_some(event_id)
-        .flatten();
     attach_event_id_header(&mut response, event_id);
     Ok(response)
 }
@@ -953,17 +1010,26 @@ pub async fn update_item(
             database_error_response()
         })?;
 
-    let event_id = sqlx::query_scalar!(
-        "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
-        item_id,
-        EventType::ItemUpdated as EventType
-    )
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|error| {
-        log_database_error("update_item_event_id", &error);
-        database_error_response()
-    })?;
+    // Only a real text change emits ITEM_UPDATED (matching the header, which
+    // must not suppress a future event with a stale id).
+    let event_id = if old_text != text {
+        Some(
+            emit_event(
+                &mut tx,
+                item.retro_id,
+                EventType::ItemUpdated as EventType,
+                Some(item_id),
+                json!({"item_id": item_id, "text": text}),
+            )
+            .await
+            .map_err(|error| {
+                log_database_error("update_item_emit_event", &error);
+                database_error_response()
+            })?,
+        )
+    } else {
+        None
+    };
 
     let item = load_item_with_initials(&mut tx, item_id)
         .await
@@ -988,9 +1054,6 @@ pub async fn update_item(
         .unwrap(),
     )
     .into_response();
-    // The trigger only emits ITEM_UPDATED when the text actually changes; the
-    // header must mirror that.
-    let event_id = if old_text != text { event_id } else { None };
     attach_event_id_header(&mut response, event_id);
     Ok(response)
 }
@@ -1037,10 +1100,6 @@ pub async fn like_item(
     })?
     .unwrap_or(false);
 
-    // The lookup runs in the same transaction as the mutation, so the returned
-    // id is the event this mutation's trigger wrote (unless a concurrent
-    // client's event for the same item committed in between, which the client
-    // side dedup tolerates).
     if already_liked {
         sqlx::query!(
             r#"DELETE FROM likes WHERE item_id = $1 AND user_id = $2"#,
@@ -1067,31 +1126,33 @@ pub async fn like_item(
         })?;
     }
 
-    let event_id = if already_liked {
-        sqlx::query_scalar!(
-            "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
-            item_id,
-            EventType::ItemUnliked as EventType
-        )
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|error| {
-            log_database_error("delete_like_event_id", &error);
-            database_error_response()
-        })?
+    // Recompute the like count after the toggle, in the same transaction,
+    // mirroring the count the trigger used to send in the payload.
+    let event_type = if already_liked {
+        EventType::ItemUnliked
     } else {
-        sqlx::query_scalar!(
-            "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
-            item_id,
-            EventType::ItemLiked as EventType
-        )
-        .fetch_optional(&mut *tx)
+        EventType::ItemLiked
+    };
+    let likes_count = sqlx::query_scalar!("SELECT COUNT(*) FROM likes WHERE item_id = $1", item_id)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|error| {
-            log_database_error("insert_like_event_id", &error);
+            log_database_error("like_item_count", &error);
             database_error_response()
         })?
-    };
+        .unwrap_or(0);
+    let event_id = emit_event(
+        &mut tx,
+        retro_id,
+        event_type as EventType,
+        Some(item_id),
+        json!({"item_id": item_id, "likes_count": likes_count}),
+    )
+    .await
+    .map_err(|error| {
+        log_database_error("like_item_emit_event", &error);
+        database_error_response()
+    })?;
 
     let item = load_item_with_initials(&mut tx, item_id)
         .await
@@ -1122,7 +1183,7 @@ pub async fn like_item(
         .unwrap(),
     )
     .into_response();
-    attach_event_id_header(&mut response, event_id);
+    attach_event_id_header(&mut response, Some(event_id));
     Ok(response)
 }
 
@@ -1131,12 +1192,28 @@ pub struct TimerStartForm {
     pub duration: Option<i32>,
 }
 
+/// Timer columns read back from a timer UPDATE's RETURNING clause. The
+/// deadline is derived exactly like the DB's `timer_ends_at` generated column
+/// (`timer_started_at + timer_duration_seconds`), so event payloads and card
+/// renders always agree.
+#[derive(sqlx::FromRow)]
+struct TimerRow {
+    timer_started_at: chrono::DateTime<chrono::Utc>,
+    timer_duration_seconds: i32,
+}
+
+impl TimerRow {
+    fn ends_at(&self) -> chrono::DateTime<chrono::Utc> {
+        self.timer_started_at + chrono::Duration::seconds(self.timer_duration_seconds as i64)
+    }
+}
+
 /// Verify the item exists and the user has access to its retro.
 async fn require_timer_access(
     state: &AppState,
     user: &AuthUser,
     item_id: i32,
-) -> Result<(), HandlerError> {
+) -> Result<i32, HandlerError> {
     let retro_id = match sqlx::query_scalar!("SELECT retro_id FROM items WHERE id = $1", item_id)
         .fetch_optional(&state.pool)
         .await
@@ -1150,7 +1227,7 @@ async fn require_timer_access(
     };
 
     match require_retro_access_by_id(state, user, retro_id).await? {
-        Some(_) => Ok(()),
+        Some(_) => Ok(retro_id),
         None => Err(forbidden(state, "You do not have access to this retrospective").into()),
     }
 }
@@ -1163,7 +1240,7 @@ pub async fn start_item_timer(
     Path(item_id): Path<i32>,
     Form(form): Form<TimerStartForm>,
 ) -> Result<Response, HandlerError> {
-    require_timer_access(&state, &user, item_id).await?;
+    let retro_id = require_timer_access(&state, &user, item_id).await?;
 
     let duration = form.duration.unwrap_or(300).clamp(1, 3600);
 
@@ -1172,36 +1249,45 @@ pub async fn start_item_timer(
         database_error_response()
     })?;
 
-    let result = sqlx::query!(
+    let started = sqlx::query_as!(
+        TimerRow,
         r#"UPDATE items
            SET timer_started_at = NOW(),
                timer_duration_seconds = $2,
                timer_elapsed_at = NULL
-           WHERE id = $1 AND status = 'HIGHLIGHTED'::status"#,
+           WHERE id = $1 AND status = 'HIGHLIGHTED'::status
+           RETURNING timer_started_at as "timer_started_at!", timer_duration_seconds as "timer_duration_seconds!""#,
         item_id,
         duration
     )
-    .execute(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|error| {
         log_database_error("start_item_timer", &error);
         database_error_response()
     })?;
 
-    let event_id = if result.rows_affected() > 0 {
-        sqlx::query_scalar!(
-            "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
-            item_id,
-            EventType::TimerStarted as EventType
-        )
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|error| {
-            log_database_error("start_timer_event_id", &error);
-            database_error_response()
-        })?
-    } else {
-        None
+    let event_id = match started {
+        Some(row) => Some(
+            emit_event(
+                &mut tx,
+                retro_id,
+                EventType::TimerStarted as EventType,
+                Some(item_id),
+                json!({
+                    "item_id": item_id,
+                    "duration_seconds": row.timer_duration_seconds,
+                    "started_at": row.timer_started_at,
+                    "ends_at": row.ends_at(),
+                }),
+            )
+            .await
+            .map_err(|error| {
+                log_database_error("start_timer_emit_event", &error);
+                database_error_response()
+            })?,
+        ),
+        None => None,
     };
 
     let item = load_item_with_initials(&mut tx, item_id)
@@ -1238,41 +1324,50 @@ pub async fn extend_item_timer(
     user: AuthUser,
     Path(item_id): Path<i32>,
 ) -> Result<Response, HandlerError> {
-    require_timer_access(&state, &user, item_id).await?;
+    let retro_id = require_timer_access(&state, &user, item_id).await?;
 
     let mut tx = state.pool.begin().await.map_err(|error| {
         log_database_error("extend_timer_begin_transaction", &error);
         database_error_response()
     })?;
 
-    let result = sqlx::query!(
+    let extended = sqlx::query_as!(
+        TimerRow,
         r#"UPDATE items
            SET timer_duration_seconds = timer_duration_seconds + 120,
                timer_elapsed_at = NULL
-           WHERE id = $1 AND timer_started_at IS NOT NULL"#,
+           WHERE id = $1 AND timer_started_at IS NOT NULL
+           RETURNING timer_started_at as "timer_started_at!", timer_duration_seconds as "timer_duration_seconds!""#,
         item_id
     )
-    .execute(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|error| {
         log_database_error("extend_item_timer", &error);
         database_error_response()
     })?;
 
-    let event_id = if result.rows_affected() > 0 {
-        sqlx::query_scalar!(
-            "SELECT id FROM events WHERE item_id = $1 AND event_type = $2 ORDER BY id DESC LIMIT 1",
-            item_id,
-            EventType::TimerExtended as EventType
-        )
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|error| {
-            log_database_error("extend_timer_event_id", &error);
-            database_error_response()
-        })?
-    } else {
-        None
+    let event_id = match extended {
+        Some(row) => Some(
+            emit_event(
+                &mut tx,
+                retro_id,
+                EventType::TimerExtended as EventType,
+                Some(item_id),
+                json!({
+                    "item_id": item_id,
+                    "duration_seconds": row.timer_duration_seconds,
+                    "started_at": row.timer_started_at,
+                    "ends_at": row.ends_at(),
+                }),
+            )
+            .await
+            .map_err(|error| {
+                log_database_error("extend_timer_emit_event", &error);
+                database_error_response()
+            })?,
+        ),
+        None => None,
     };
 
     let item = load_item_with_initials(&mut tx, item_id)
@@ -1310,27 +1405,55 @@ pub async fn timer_sweep_loop(pool: PgPool) {
     let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
     loop {
         interval.tick().await;
-        let result = sqlx::query!(
-            r#"UPDATE items
-               SET timer_elapsed_at = NOW()
-               WHERE status = 'HIGHLIGHTED'::status
-                 AND timer_ends_at <= NOW()
-                 AND timer_elapsed_at IS NULL"#
-        )
-        .execute(&pool)
-        .await;
-        match result {
-            Ok(result) => {
-                if result.rows_affected() > 0 {
-                    tracing::debug!(
-                        count = result.rows_affected(),
-                        "highlight timers marked elapsed"
-                    );
-                }
-            }
-            Err(error) => log_database_error("timer_sweep", &error),
+        if let Err(error) = sweep_elapsed_timers(&pool).await {
+            log_database_error("timer_sweep", &error);
         }
     }
+}
+
+/// Mark overdue highlight timers elapsed and emit one TIMER_ELAPSED event per
+/// item, all in one transaction so the mutation and its events commit
+/// together. Idempotent: a second run (e.g. another app instance) matches no
+/// rows because the first run set `timer_elapsed_at`.
+async fn sweep_elapsed_timers(pool: &PgPool) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let swept = sqlx::query_as!(
+        SweptTimer,
+        r#"UPDATE items
+           SET timer_elapsed_at = NOW()
+           WHERE status = 'HIGHLIGHTED'::status
+             AND timer_ends_at <= NOW()
+             AND timer_elapsed_at IS NULL
+           RETURNING id as "id!", retro_id as "retro_id!""#
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+
+    for row in &swept {
+        emit_event(
+            &mut tx,
+            row.retro_id,
+            EventType::TimerElapsed as EventType,
+            Some(row.id),
+            json!({"item_id": row.id}),
+        )
+        .await?;
+    }
+
+    if !swept.is_empty() {
+        tracing::debug!(count = swept.len(), "highlight timers marked elapsed");
+    }
+
+    tx.commit().await?;
+    Ok(())
+}
+
+/// A row swept by the timer sweep; carries the retro for the TIMER_ELAPSED
+/// event's NOTIFY.
+#[derive(sqlx::FromRow)]
+struct SweptTimer {
+    id: i32,
+    retro_id: i32,
 }
 
 pub async fn add_action_item(
@@ -1581,6 +1704,18 @@ pub async fn archive_retro(
         .await
         .map_err(|error| {
             log_database_error("archive_retro_action_items", &error);
+            database_error_response()
+        })?;
+        emit_event(
+            &mut tx,
+            retro_id,
+            EventType::RetroArchived as EventType,
+            None,
+            json!({"retro_id": retro_id}),
+        )
+        .await
+        .map_err(|error| {
+            log_database_error("archive_retro_emit_event", &error);
             database_error_response()
         })?;
         tx.commit().await.map_err(|error| {
