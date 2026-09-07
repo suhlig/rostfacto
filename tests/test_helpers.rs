@@ -922,37 +922,138 @@ impl<'a> RetroPage<'a> {
     }
 
     pub async fn click_card(&self, id: i32) -> WebDriverResult<()> {
-        // An SSE re-fetch can replace the card between the find and the click
-        // (same race as click_with_retry), so re-find on a stale reference.
+        // An SSE re-fetch (or a late-arriving add-card HTMX swap) can replace
+        // the card between the find and the click (same race as
+        // click_with_retry), so re-find on a stale reference. htmx 2.x drops
+        // click triggers on elements that no longer are in the document, and
+        // a JS click on such a node succeeds silently, so after clicking a
+        // clickable card we confirm the highlight request actually fired and
+        // re-dispatch otherwise.
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
         loop {
-            match self.get_card(id).await {
-                Ok(card) => {
-                    // Use a JavaScript click on the article element so that the
-                    // click event target is the article itself, not the nested
-                    // text-edit button.
-                    match self
-                        .driver
-                        .execute("arguments[0].click()", vec![card.to_json()?])
-                        .await
-                    {
-                        Ok(_) => {
-                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                            return Ok(());
-                        }
-                        Err(error)
-                            if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {
-                        }
-                        Err(error) => return Err(error),
+            let card = match self.get_card(id).await {
+                Ok(card) => card,
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!("Timed out clicking card {}", id);
                     }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
                 }
-                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {}
+                Err(error) => return Err(error),
+            };
+
+            // Only created cards carry hx-post; completed and highlighted
+            // cards intentionally ignore card clicks.
+            let clickable = match card.attr("hx-post").await {
+                Ok(hx_post) => hx_post.is_some(),
+                Err(error) if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        panic!("Timed out clicking card {}", id);
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+
+            // Use a JavaScript click on the article element so that the
+            // click event target is the article itself, not the nested
+            // text-edit button.
+            let node_before_click = card.to_json()?;
+            let class_before_click = card.attr("class").await?.unwrap_or_default();
+            match self
+                .driver
+                .execute("arguments[0].click()", vec![card.to_json()?])
+                .await
+            {
+                Ok(_) => {
+                    if !clickable {
+                        return Ok(());
+                    }
+                    if self
+                        .confirm_click_issued_request(id, &node_before_click, &class_before_click)
+                        .await?
+                    {
+                        return Ok(());
+                    }
+                    // The click was dropped; fall through and re-dispatch on
+                    // the live card.
+                }
+                Err(error) if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {}
                 Err(error) => return Err(error),
             }
+
             if tokio::time::Instant::now() >= deadline {
                 panic!("Timed out clicking card {}", id);
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// After a JS click on a created card, wait briefly for evidence that the
+    /// highlight request fired: the card carries the `htmx-request` class for
+    /// the whole duration of the POST, or the response re-renders the card as
+    /// a new node with a different class (highlight) or an error message
+    /// (conflicting highlight). A replaced node with identical state is an
+    /// SSE re-fetch rather than our response, so it does not count.
+    async fn confirm_click_issued_request(
+        &self,
+        id: i32,
+        node_before_click: &serde_json::Value,
+        class_before_click: &str,
+    ) -> WebDriverResult<bool> {
+        let window = tokio::time::Instant::now() + tokio::time::Duration::from_millis(2000);
+        loop {
+            let card = match self.get_card(id).await {
+                Ok(card) => card,
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    // The card is being swapped; the next iteration re-finds.
+                    if tokio::time::Instant::now() >= window {
+                        return Ok(false);
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+
+            let class = match card.attr("class").await {
+                Ok(class) => class.unwrap_or_default(),
+                Err(error) if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {
+                    if tokio::time::Instant::now() >= window {
+                        return Ok(false);
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            if class.split_whitespace().any(|c| c == "htmx-request") {
+                return Ok(true);
+            }
+            if card.to_json()? != *node_before_click {
+                let has_error = match card.find(By::Css(".error-message")).await {
+                    Ok(_) => true,
+                    Err(error)
+                        if matches!(
+                            *error,
+                            WebDriverErrorInner::NoSuchElement(..)
+                                | WebDriverErrorInner::StaleElementReference(..)
+                        ) =>
+                    {
+                        false
+                    }
+                    Err(error) => return Err(error),
+                };
+                if class.trim() != class_before_click.trim() || has_error {
+                    return Ok(true);
+                }
+            }
+            if tokio::time::Instant::now() >= window {
+                return Ok(false);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }
     }
 

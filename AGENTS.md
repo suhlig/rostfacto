@@ -173,6 +173,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
   cargo test --test integration_test --test events_test --test migration_test -- --test-threads=1
   ```
 - **Run the browser suite serially (`--test-threads=1`)**: concurrent geckodriver/Firefox sessions starve each other's HTMX/SSE card swaps and make tests fail intermittently (the failing spot rotates between the highlight/timer waits in `tests/test_helpers.rs`). Serial is not slower in wall time (the parallel runs thrash); if you see a flake, re-run the single test in isolation — it will pass.
+- **Highlight-click race**: the click on a created card can be lost when an SSE re-fetch (or the late add-card response) replaces the card between `find` and the JS click — htmx 2.x checks `isConnected` and silently drops the trigger. `click_card` therefore confirms the request fired (the card briefly carries `htmx-request`, or the response re-renders it) and re-dispatches otherwise. Relatedly, `removeDuplicateCards` keeps the *last* duplicate in DOM order (the freshest render): the SSE re-fetch is rendered after the add response, so keeping the first allowed a late add-response to clobber a just-highlighted card.
 - Set `SHOW_BROWSER` to run Firefox visibly:
   ```bash
   SHOW_BROWSER=1 cargo test --test integration_test

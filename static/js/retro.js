@@ -26,17 +26,25 @@
     });
 
     // The HTMX swap and the SSE delivery of the same mutation can arrive in
-    // either order, so keep the board free of duplicate cards.
+    // either order, so keep the board free of duplicate cards. When both
+    // renders of a card are present, keep the one that was rendered last: the
+    // SSE re-fetch runs after the add response was rendered, so a late-arriving
+    // add-card response would otherwise replace a card the user just
+    // highlighted with its pre-highlight render.
     function removeDuplicateCards() {
       document.querySelectorAll('.item-list').forEach(function(list) {
         const seen = new Set();
+        const latest = new Map();
         list.querySelectorAll('article.card').forEach(function(card) {
           const id = card.dataset.itemId;
           if (seen.has(id)) {
-            card.remove();
-          } else {
-            seen.add(id);
+            const older = latest.get(id);
+            if (older && older !== card) {
+              older.remove();
+            }
           }
+          latest.set(id, card);
+          seen.add(id);
         });
       });
     }

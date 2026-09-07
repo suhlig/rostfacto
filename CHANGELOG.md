@@ -13,6 +13,8 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Events are now emitted by the application instead of database triggers: each mutation writes its `events` row (and `NOTIFY`s the `rostfacto_events` channel) in the same transaction via the `emit_event` helper, and migration 025 drops the trigger machinery. The SSE contract (event ids, payloads, replay, `X-Event-Id` dedup) is unchanged. See `adr/0001-database.markdown`.
+- When duplicate renders of the same card appear (the HTMX add response and the SSE re-fetch arriving in either order), the freshest render now wins: a late-arriving add-card response used to replace a card the user had just highlighted with its pre-highlight render.
+- The browser tests confirm that a card click actually fired its highlight request (htmx 2.x silently drops clicks on cards replaced mid-click by an SSE re-fetch) and re-dispatch the click otherwise.
 
 ## [1.1.0] - 2025-05-02
 
