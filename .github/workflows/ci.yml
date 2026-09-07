@@ -23,8 +23,11 @@ jobs:
       checks: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # The comment must name a real tag, not the v2 branch: Renovate's digest
+      # lookup matches tags exactly (github-tags datasource), and rustsec only
+      # tags releases (v2.0.0), so '# v2' made every lookup fail.
       - name: Audit dependencies for known vulnerabilities
-        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
   test:
