@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
 
   migrations:
-    image: ghcr.io/suhlig/rostfacto-migrator@sha256:776628904500c3823756f97664221e6cf5d9b7e1ccddd18c68e4cc1f82c74574
+    image: ghcr.io/suhlig/rostfacto-migrator@sha256:a7bdf947b93587a365cdd30113675c0452c1382457272651dd1107b5dc7a34eb
     environment:
       DATABASE_URL: postgres://rostfacto:${POSTGRES_PASSWORD}@db/rostfacto
     depends_on:
@@ -37,7 +37,7 @@ services:
         condition: service_healthy
 
   app:
-    image: ghcr.io/suhlig/rostfacto@sha256:8cd31a99c1a0587685ce3d60a627e8498a27508d13462c2bae2be5f438c37019
+    image: ghcr.io/suhlig/rostfacto@sha256:a874892c38f1ad9a7030770e4be3de07066f0092b38b7dce7fcdd065570c6afd
     environment:
       DATABASE_URL: postgres://rostfacto_app:${POSTGRES_APP_PASSWORD}@db/rostfacto
       # GitHub auth variables are optional so that .env can opt into the
