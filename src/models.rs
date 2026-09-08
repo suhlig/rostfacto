@@ -39,6 +39,7 @@ pub struct Item {
     pub text: String,
     pub category: Category,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
     pub status: Status,
     pub author_id: i32,
     pub author_name: String,

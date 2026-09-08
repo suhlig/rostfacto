@@ -85,11 +85,27 @@
       template.innerHTML = html.trim();
       const replacement = template.content.firstElementChild;
       if (current && replacement) {
-        // The re-fetched card can be stale: when the SSE event for a status
-        // change beats the htmx response, the fetch may complete before the
-        // owner's timer auto-start lands, and replacing the card would clobber
-        // the running countdown. The deadline is server-authoritative, so carry
-        // it over to the incoming badge when it is missing.
+        // A re-fetch for an older state can land after a newer render (e.g.
+        // the highlight re-fetch completing after the card was completed):
+        // events are broadcast in commit order, but each re-fetch renders
+        // whatever the DB held when its GET ran, so responses can arrive out
+        // of order. `data-updated-at` is the item's `updated_at` (bumped by a
+        // BEFORE UPDATE trigger on every mutation), so skip a replacement that
+        // is strictly older than the card already in the DOM. Equal timestamps
+        // still replace: idempotent re-renders and the single-highlight error
+        // render must apply.
+        const currentUpdatedAt = parseInt(current.dataset.updatedAt, 10);
+        const incomingUpdatedAt = parseInt(replacement.dataset.updatedAt, 10);
+        if (!isNaN(currentUpdatedAt) && !isNaN(incomingUpdatedAt) &&
+            incomingUpdatedAt < currentUpdatedAt) {
+          return;
+        }
+        // If the timestamps are equal, the re-fetch can still be stale: when
+        // the SSE event for a status change beats the htmx response, the fetch
+        // may complete before the owner's timer auto-start lands, and replacing
+        // the card would clobber the running countdown. The deadline is
+        // server-authoritative, so carry it over to the incoming badge when it
+        // is missing.
         const oldBadge = current.querySelector('.timer-badge');
         const newBadge = replacement.querySelector('.timer-badge');
         if (oldBadge && newBadge &&

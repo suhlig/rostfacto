@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                  i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                  i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                  ''::text as \"author_initials!\",\n                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as \"likes_count!\",\n                  i.archive_id as \"archive_id: _\", i.archived_at as \"archived_at: _\",\n                  i.timer_started_at as \"timer_started_at: _\", i.timer_duration_seconds as \"timer_duration_seconds: _\",\n                  i.timer_ends_at as \"timer_ends_at: _\", i.timer_elapsed_at as \"timer_elapsed_at: _\"\n           FROM items i\n           JOIN users u ON u.id = i.created_by\n           WHERE i.archive_id = $1\n           AND i.category = 'GOOD'\n           ORDER BY i.created_at ASC",
+  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                  i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                  i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                  ''::text as \"author_initials!\",\n                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as \"likes_count!\",\n                  i.archive_id as \"archive_id: _\", i.archived_at as \"archived_at: _\",\n                  i.timer_started_at as \"timer_started_at: _\", i.timer_duration_seconds as \"timer_duration_seconds: _\",\n                  i.timer_ends_at as \"timer_ends_at: _\", i.timer_elapsed_at as \"timer_elapsed_at: _\",\n                  i.updated_at as \"updated_at!\"\n           FROM items i\n           JOIN users u ON u.id = i.created_by\n           WHERE i.retro_id = $1\n           AND i.category = 'GOOD'\n           AND i.archive_id IS NULL\n           ORDER BY i.created_at ASC",
   "describe": {
     "columns": [
       {
@@ -191,6 +191,17 @@
             "name": "timer_elapsed_at"
           }
         }
+      },
+      {
+        "ordinal": 16,
+        "name": "updated_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "items",
+            "name": "updated_at"
+          }
+        }
       }
     ],
     "parameters": {
@@ -214,8 +225,9 @@
       true,
       true,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "b3ab7c8370cf247151b38b514cbe1dba42b471548480a0d233c0f4e12b50363a"
+  "hash": "5a3a526ad6bf6c43b1d2f0b981debe53c7e194d03e78fb68b43ac755b04653b5"
 }

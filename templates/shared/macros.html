@@ -103,7 +103,7 @@
 {% endmacro %}
 
 {% macro archived_card(item) %}
-<article class="card completed" data-item-id="{{ item.id }}">
+<article class="card completed" data-item-id="{{ item.id }}" data-updated-at="{{ item.updated_at.timestamp_millis() }}">
   <div class="card-content">
     <p>
       <span class="card-text">{{ item.text }}</span>

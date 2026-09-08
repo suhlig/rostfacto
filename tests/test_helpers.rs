@@ -652,7 +652,15 @@ impl<'a> RetroPage<'a> {
             for card in cards {
                 let text_span = match card.find(By::Css(".card-text")).await {
                     Ok(text_span) => text_span,
-                    Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                    Err(error)
+                        if matches!(
+                            *error,
+                            WebDriverErrorInner::NoSuchElement(..)
+                                | WebDriverErrorInner::StaleElementReference(..)
+                        ) =>
+                    {
+                        // The card was replaced mid-read by an SSE re-fetch; skip
+                        // it, the next iteration re-lists the cards.
                         continue;
                     }
                     Err(error) => return Err(error),
@@ -744,7 +752,13 @@ impl<'a> RetroPage<'a> {
                     }
                     Err(error) => return Err(error),
                 },
-                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                Err(error)
+                    if matches!(
+                        *error,
+                        WebDriverErrorInner::NoSuchElement(..)
+                            | WebDriverErrorInner::StaleElementReference(..)
+                    ) =>
+                {
                     if tokio::time::Instant::now() >= deadline {
                         panic!(
                             "Timed out waiting for card {} text '{}' (no text span)",
@@ -806,7 +820,13 @@ impl<'a> RetroPage<'a> {
                     }
                     Err(error) => return Err(error),
                 },
-                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                Err(error)
+                    if matches!(
+                        *error,
+                        WebDriverErrorInner::NoSuchElement(..)
+                            | WebDriverErrorInner::StaleElementReference(..)
+                    ) =>
+                {
                     if tokio::time::Instant::now() >= deadline {
                         panic!(
                             "Timed out waiting for card {} like count '{}' (no like span)",
@@ -876,7 +896,13 @@ impl<'a> RetroPage<'a> {
                     }
                     Err(error) => return Err(error),
                 },
-                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => {
+                Err(error)
+                    if matches!(
+                        *error,
+                        WebDriverErrorInner::NoSuchElement(..)
+                            | WebDriverErrorInner::StaleElementReference(..)
+                    ) =>
+                {
                     if tokio::time::Instant::now() >= deadline {
                         panic!(
                             "Timed out waiting for card {} error message '{}' (no error span)",

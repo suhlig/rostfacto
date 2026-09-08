@@ -79,7 +79,8 @@ async fn load_item_with_initials(
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
                   i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
                   i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
-                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _",
+                  i.updated_at as "updated_at!"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = (SELECT retro_id FROM items WHERE id = $1)"#,
@@ -441,7 +442,8 @@ pub async fn show_retro(
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
                   i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
                   i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
-                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _",
+                  i.updated_at as "updated_at!"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = $1
@@ -466,7 +468,8 @@ pub async fn show_retro(
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
                   i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
                   i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
-                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _",
+                  i.updated_at as "updated_at!"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = $1
@@ -491,7 +494,8 @@ pub async fn show_retro(
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
                   i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
                   i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
-                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _",
+                  i.updated_at as "updated_at!"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.retro_id = $1
@@ -1940,7 +1944,8 @@ pub async fn show_archive(
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
                   i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
                   i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
-                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _",
+                  i.updated_at as "updated_at!"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.archive_id = $1
@@ -1964,7 +1969,8 @@ pub async fn show_archive(
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
                   i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
                   i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
-                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _",
+                  i.updated_at as "updated_at!"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.archive_id = $1
@@ -1988,7 +1994,8 @@ pub async fn show_archive(
                   (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as "likes_count!",
                   i.archive_id as "archive_id: _", i.archived_at as "archived_at: _",
                   i.timer_started_at as "timer_started_at: _", i.timer_duration_seconds as "timer_duration_seconds: _",
-                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _"
+                  i.timer_ends_at as "timer_ends_at: _", i.timer_elapsed_at as "timer_elapsed_at: _",
+                  i.updated_at as "updated_at!"
            FROM items i
            JOIN users u ON u.id = i.created_by
            WHERE i.archive_id = $1

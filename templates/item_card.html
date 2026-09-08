@@ -2,7 +2,7 @@
 
 {% match item.status %}
   {% when Status::Highlighted %}
-    <article class="card highlighted" tabindex="0" data-item-id="{{ item.id }}">
+    <article class="card highlighted" tabindex="0" data-item-id="{{ item.id }}" data-updated-at="{{ item.updated_at.timestamp_millis() }}">
       <div class="timer-wrap">
         {% if item.timer_elapsed_at.is_some() %}
           {% if let Some(ends_at) = item.timer_ends_at %}
@@ -28,7 +28,7 @@
       </div>
     </article>
   {% when Status::Completed %}
-    <article class="card completed" tabindex="0" data-item-id="{{ item.id }}">
+    <article class="card completed" tabindex="0" data-item-id="{{ item.id }}" data-updated-at="{{ item.updated_at.timestamp_millis() }}">
       {{ macros::like_button(item) }}
       <div class="card-content">
         <p><span class="card-text">{{ item.text }}</span> <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
@@ -39,6 +39,7 @@
     <article class="card"
              tabindex="0"
              data-item-id="{{ item.id }}"
+             data-updated-at="{{ item.updated_at.timestamp_millis() }}"
              hx-post="/items/{{ item.id }}/status?action=highlight"
              hx-target="closest .card"
              hx-swap="outerHTML"
