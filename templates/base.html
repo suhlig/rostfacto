@@ -9,6 +9,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/custom.css">
+    <!-- The app does not use hx-indicator; htmx's default indicator styles are
+         injected as an inline <style>, which the strict CSP (style-src 'self')
+         blocks. Disable them so no CSP violation is logged. -->
+    <meta name="htmx-config" content='{"includeIndicatorStyles":false}'>
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js" integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V" crossorigin="anonymous"></script>
     <script src="/static/js/site.js" defer></script>
 </head>

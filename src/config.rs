@@ -1,4 +1,9 @@
 use std::env;
+use std::time::Duration;
+
+/// Default grace period (in seconds) before a disconnected participant is
+/// removed from a retro's presence roster.
+pub const DEFAULT_PRESENCE_GRACE_SECONDS: u64 = 15;
 
 #[derive(Clone)]
 pub struct Config {
@@ -18,6 +23,10 @@ pub struct Config {
     /// explicitly with `DEMO_MODE=1`; a deployment without GitHub auth
     /// configuration fails closed instead of silently running unsecured.
     pub demo_mode: bool,
+    /// Grace period before a disconnected participant is removed from a
+    /// retro's presence roster. Optional; falls back to the default on
+    /// missing or unparseable values.
+    pub presence_grace_seconds: u64,
 }
 
 impl Config {
@@ -72,6 +81,12 @@ impl Config {
         let github_app_owner = env::var("GITHUB_APP_OWNER")
             .ok()
             .filter(|value| !value.is_empty());
+        // Optional and parsed leniently: a missing or garbage value falls back
+        // to the default rather than failing startup.
+        let presence_grace_seconds = env::var("PRESENCE_GRACE_SECONDS")
+            .ok()
+            .and_then(|value| value.trim().parse::<u64>().ok())
+            .unwrap_or(DEFAULT_PRESENCE_GRACE_SECONDS);
         let public_url = match env::var("PUBLIC_URL") {
             Ok(url) => url,
             Err(_) if demo_mode => {
@@ -113,6 +128,7 @@ impl Config {
             github_user_orgs,
             github_app_owner,
             demo_mode,
+            presence_grace_seconds,
         }
     }
 
@@ -121,6 +137,12 @@ impl Config {
     /// instance is unsecured.
     pub fn demo_mode(&self) -> bool {
         self.demo_mode
+    }
+
+    /// Grace period before a disconnected participant is removed from a
+    /// retro's presence roster.
+    pub fn grace_duration(&self) -> Duration {
+        Duration::from_secs(self.presence_grace_seconds)
     }
 
     pub fn admin_team(&self) -> Option<(&str, &str)> {

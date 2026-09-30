@@ -196,6 +196,14 @@ pub struct TestServer {
 }
 
 impl TestServer {
+    /// Start two app processes (distinct ports, distinct presence instance
+    /// ids) sharing one database, to exercise the multi-process setup.
+    pub async fn start_pair(database_url: &str) -> (Self, Self) {
+        let first = Self::start(database_url).await;
+        let second = Self::start(database_url).await;
+        (first, second)
+    }
+
     pub async fn start(database_url: &str) -> Self {
         let port = pick_unused_port().expect("No ports available");
 
@@ -210,6 +218,8 @@ impl TestServer {
             .env("DATABASE_URL", database_url)
             .env("DEMO_MODE", "1")
             .env("PUBLIC_URL", format!("http://127.0.0.1:{}", port))
+            // Short presence grace period so disconnect tests stay fast.
+            .env("PRESENCE_GRACE_SECONDS", "2")
             .env_remove("GITHUB_ADMIN_ORG")
             .env_remove("GITHUB_ADMIN_TEAM_SLUG")
             .env_remove("GITHUB_USER_ORG")
@@ -437,6 +447,62 @@ impl<'a> RetroPage<'a> {
             slug: slug.to_string(),
             base_url: base_url.to_string(),
         })
+    }
+
+    /// Number of avatars currently rendered in the participants panel.
+    pub async fn participant_count(&self) -> WebDriverResult<usize> {
+        Ok(self
+            .driver
+            .find_all(By::Css("#participants-list .participant"))
+            .await?
+            .len())
+    }
+
+    /// Participant names in display order (read from the `title` attributes,
+    /// which carry the hover tooltip).
+    pub async fn participant_names(&self) -> WebDriverResult<Vec<String>> {
+        let entries = self
+            .driver
+            .find_all(By::Css(
+                "#participants-list .participant .participant-avatar, \
+                 #participants-list .participant .participant-initials",
+            ))
+            .await?;
+        let mut names = Vec::with_capacity(entries.len());
+        for entry in entries {
+            names.push(entry.attr("title").await?.unwrap_or_default());
+        }
+        Ok(names)
+    }
+
+    /// Text of the `Participants (N)` counter in the panel heading.
+    pub async fn participant_counter_text(&self) -> WebDriverResult<String> {
+        self.driver
+            .find(By::Css("#participants-count"))
+            .await?
+            .text()
+            .await
+    }
+
+    /// Wait until the panel lists exactly `expected` participants. The roster
+    /// arrives over SSE, and removals only happen after the server's grace
+    /// period (plus up to one keep-alive interval to notice a dead
+    /// connection), hence the generous timeout.
+    pub async fn wait_for_participant_count(&self, expected: usize) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(45);
+        loop {
+            let count = self.participant_count().await?;
+            if count == expected {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!(
+                    "Timed out waiting for {} participants, got {}",
+                    expected, count
+                );
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
     }
 
     pub async fn retro_id(&self) -> WebDriverResult<i32> {

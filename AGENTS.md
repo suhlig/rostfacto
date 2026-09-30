@@ -52,13 +52,14 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - `src/config.rs` — Environment-based configuration (`Config::from_env`); fails closed when GitHub auth is configured incompletely.
 - `src/csrf.rs` — Origin/Referer check middleware for state-changing requests.
 - `src/security_headers.rs` — CSP, HSTS, and other security headers on every response.
+- `src/presence.rs` — DB-backed presence (`PresenceHub`): who currently has each retro board open. The shared `presence` table in Postgres is the source of truth (one row per retro/participant/instance; liveness is `last_seen_at` freshness), so every process shows the same roster. The hub only tracks this process's connections and SSE subscribers, heartbeats its own rows, and polls (~1 s) to expire stale rows and broadcast roster changes. Ephemeral coordination state, not durable history.
 - `src/github.rs` — GitHub API helpers (get user, check team membership, list org teams).
 - `src/models.rs` — `Retrospective`, `Item`, `Category`, `Status` and author-initials logic.
 - `src/templates.rs` — Askama template structs for each page.
 - `templates/` — Askama HTML templates (no inline scripts or event handlers; CSP forbids them).
-- `static/js/` — `site.js` (dialogs, account menu, delete-dialog close), `retro.js` (board sync, timers, keyboard shortcuts), `home.js` (carousel).
+- `static/js/` — `site.js` (dialogs, account menu, delete-dialog close), `retro.js` (board sync, timers, participants panel, keyboard shortcuts), `home.js` (carousel).
 - `migrations/` — sqlx migrations (PostgreSQL enum types, tables, constraints).
-- `static/` — CSS, SVG icons, favicon.
+- `static/` — CSS, SVG icons (`participants.svg`), favicon.
 - `tests/` — WebDriver integration tests plus migration tests and shared helpers.
 
 ## Authentication & authorization
@@ -84,6 +85,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 | `GITHUB_USER_ORG` | Colon-separated list of organizations whose teams can be assigned to retros, e.g. `org-a:org-b` (optional) |
 | `GITHUB_APP_OWNER` | Name or email of the person to contact when an org's teams cannot be listed (e.g. SAML SSO authorization missing); shown on the retro creation form (optional) |
 | `GITHUB_ENTERPRISE_URL` | Base URL of a GitHub Enterprise Server instance (optional) |
+| `PRESENCE_GRACE_SECONDS` | Seconds a disconnected participant stays on the roster before removal (default `15`; optional, parsed leniently — a missing or garbage value falls back to the default) |
 
 `Config::from_env` panics on any missing required variable: a deployment with incomplete GitHub auth configuration will not start instead of silently running unsecured or broken. There is no `SESSION_SECRET` anymore — sessions are opaque random DB tokens, not signed cookies.
 
@@ -96,7 +98,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 | `/retros/new` | GET | Form to create a retro (admin only) |
 | `/retros` | POST | Create a retro (title, slug, team_slug) — admin only |
 | `/retro/{slug}` | GET | Show a retro board |
-| `/retro/{slug}/events` | GET | SSE stream of events for the retro (replays `Last-Event-ID` catch-up, then live events) |
+| `/retro/{slug}/events` | GET | SSE stream for the retro: replays `Last-Event-ID` catch-up, then live events, keep-alives, and ephemeral `PARTICIPANTS` roster frames. Accepts an optional `?participant=<uuid>` for demo-mode identity. |
 | `/retro/{slug}/delete` | DELETE | Delete a retro and its items (admin only) |
 | `/retro/{retro_id}/archive` | POST | Archive all items in the retro |
 | `/items/{category}/{retro_id}` | POST | Add a new item card |
@@ -120,6 +122,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - `sessions(id, user_id, expires_at, created_at, updated_at, is_admin, teams, team_listing_errors)` — server-side sessions. `id` is a UUIDv7 text token; `teams` is a JSONB cache of team slugs/names; `team_listing_errors` is a JSONB list of configured user orgs whose teams could not be listed at login. Expiry slides on activity (7-day idle window, 30-day absolute cap); re-login revokes all previous sessions of the user.
 - `likes(item_id, user_id)` — toggled likes on items.
 - `events(id, retro_id, event_type, item_id, payload, created_at)` — durable event log written by the app inside the same transaction as the mutation that produced it (the `emit_event` helper in `src/handlers.rs`, which also `NOTIFY`s the `rostfacto_events` channel; the original DB-trigger writers were removed in migration 025); the notifier task and SSE replay read from it. `event_type` is an enum (`ITEM_CREATED`, `ITEM_UPDATED`, `ITEM_STATUS_CHANGED`, `ITEM_LIKED`, `ITEM_UNLIKED`, `TIMER_STARTED`, `TIMER_EXTENDED`, `TIMER_CANCELLED` — reserved, never emitted, `TIMER_ELAPSED`, `RETRO_ARCHIVED`).
+- `presence(retro_id, participant_key, instance_id, name, avatar_url, initials, guest, joined_at, last_seen_at)` — ephemeral presence rows (migration 026), PK `(retro_id, participant_key, instance_id)`, FK to `retrospectives` `ON DELETE CASCADE`. `participant_key` is `user:{id}` (auth) or `guest:{uuid}` (demo); `instance_id` is a per-process UUID; a row is live while `last_seen_at > NOW() - grace`. Guest names come from the global `presence_guest_number_seq` sequence. Safe to truncate at any time.
 - Enums:
   - `category` = `GOOD`, `BAD`, `WATCH`
   - `status` = `CREATED`, `HIGHLIGHTED`, `COMPLETED`, `ARCHIVED`
@@ -139,6 +142,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - **Editing**: item text can be edited inline.
 - **All-done prompt**: when the last active item is completed, the server returns a modal asking whether to archive all cards. Declining keeps them visible as completed.
 - **Cross-client sync**: every mutation writes an `events` row in the same transaction (via the `emit_event` helper in `src/handlers.rs`) and `NOTIFY`s the `rostfacto_events` channel; a per-process notifier task (`events::notifier_loop`) fans events out to SSE subscribers (`GET /retro/{slug}/events`). Mutating handlers return their event id in an `X-Event-Id` header so clients can ignore the matching SSE event (dedup).
+- **Presence**: the retro board shows a live roster of connected participants, delivered as ephemeral `PARTICIPANTS` SSE frames from `src/presence.rs`. Presence lives in the shared `presence` table (so it is correct across processes) but is ephemeral coordination state — no `events` row is written and nothing is replayed as history. In auth mode participants dedup by `users.id` (all tabs/devices of one user collapse) and show the GitHub display name/avatar; in demo mode each browser generates a `localStorage` UUID (`rostfacto_participant_id`, sent as the `?participant=` query param) and is named `Guest N` from a global Postgres sequence (unique across processes, not contiguous per retro; a second connection of the same guest keeps its number). A disconnect is only announced after `PRESENCE_GRACE_SECONDS` (default 15 s), so EventSource reconnects and refreshes don't flicker the roster; a rejoin within the grace period keeps the participant's original position, a rejoin after it goes to the bottom.
 - **Slug rules**: lowercase letters, numbers, dashes only, max 255 chars, unique.
 
 ## How the frontend works
@@ -149,6 +153,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
   - Status changes, likes, and text edits replace the nearest `.card`.
   - Delete buttons target the closest table row.
 - The retro page opens an `EventSource('/retro/{slug}/events')` and applies events to the DOM: full card re-renders via `GET /items/{id}`, in-place updates for likes/text/timers, board clear on `RETRO_ARCHIVED`. Mutations deduplicate their own SSE events via the `X-Event-Id` response header; cards inserted or replaced outside an HTMX swap are handed to `htmx.process()` because htmx 2.0 binds trigger handlers directly on elements.
+- The participants panel is rendered client-side from `PARTICIPANTS` frames (`retro.html` markup, `retro.js` `renderParticipants`): the `EventSource` URL carries a stable per-browser id as `?participant=`, the panel toggle is a delegated click listener (overlay below the breakpoint, fixed panel on desktop), and rendering uses `textContent`/`createElement` only — names and avatar URLs are user-supplied. The `PARTICIPANTS` listener must **skip the `X-Event-Id` dedup check**: those frames carry no `id:` and are never replayed.
 - All JavaScript lives in `static/js/` (`site.js`, `retro.js`, `home.js`): the pages run under a strict CSP (`script-src 'self'` + the SRI-pinned htmx CDN), so **no inline scripts, `onclick`/`hx-on` attributes, or `style=` attributes may be added**. Behavior that used inline handlers now uses delegated listeners: `data-open-dialog`/`data-close-dialog` buttons, a `htmx:afterRequest` handler that resets forms and closes delete dialogs, and keydown handling for Cmd/Ctrl+Enter and Escape on card textareas.
 - Two-browser sync tests must take a `two_browser_permit()` (serializes against the Firefox session limit).
 
@@ -172,8 +177,10 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
   export DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev
   cargo test --test integration_test --test events_test --test migration_test -- --test-threads=1
   ```
+- **Sandboxed agents**: Firefox needs a writable home directory (it reads and creates `~/Library/Application Support/Firefox` at startup). An agent sandbox blocks that path, so every browser test fails with `Could not find profile folder`. Use `scripts/run-browser-tests.sh` instead — it points `CFFIXED_USER_HOME` at a throwaway home and runs the same three binaries serially. Pass a filter as an argument (e.g. `scripts/run-browser-tests.sh participants`).
 - **Run the browser suite serially (`--test-threads=1`)**: concurrent geckodriver/Firefox sessions starve each other's HTMX/SSE card swaps and make tests fail intermittently (the failing spot rotates between the highlight/timer waits in `tests/test_helpers.rs`). Serial is not slower in wall time (the parallel runs thrash); if you see a flake, re-run the single test in isolation — it will pass.
 - **Highlight-click race**: the click on a created card can be lost when an SSE re-fetch (or the late add-card response) replaces the card between `find` and the JS click — htmx 2.x checks `isConnected` and silently drops the trigger. `click_card` therefore confirms the request fired (the card briefly carries `htmx-request`, or the response re-renders it) and re-dispatches otherwise. Relatedly, `removeDuplicateCards` keeps the *last* duplicate in DOM order (the freshest render): the SSE re-fetch is rendered after the add response, so keeping the first allowed a late add-response to clobber a just-highlighted card.
+- **Presence coverage** (all demo mode, serial suite): a single browser sees exactly one participant; two browsers (`two_browser_permit()`) both see two, in join order; a second tab/window in the same browser stays at one (shared `localStorage` id); and after a browser navigates away its entry disappears within the grace period. `TestServer::start` sets `PRESENCE_GRACE_SECONDS=2` so the disconnect test stays fast; `RetroPage` exposes `participant_count()`, `participant_names()` (reads the `title` tooltips), `participant_counter_text()`, and `wait_for_participant_count()`.
 - Set `SHOW_BROWSER` to run Firefox visibly:
   ```bash
   SHOW_BROWSER=1 cargo test --test integration_test
@@ -187,7 +194,11 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - `models.rs` implements `Display` for `Category` so that `to_string()` returns uppercase (`GOOD`/`BAD`/`WATCH`) to match the DB enum. The same file also defines `url_segment()`, `display_label()`, `column_class()`, `icon()`, and `items_container_id()` helpers.
 - The `AuthUser` extractor reads cached admin/team data from the session; it does **not** call the GitHub API on every request. Live API calls happen only during the OAuth callback.
 - OAuth callbacks use `PUBLIC_URL` to build the redirect URI, so it must match the GitHub OAuth app settings.
-- `main()` spawns two background tasks: `events::notifier_loop` (`LISTEN` on `rostfacto_events`, fans events out to SSE subscribers) and `handlers::timer_sweep_loop` (marks elapsed highlight timers every second). Both are idempotent/multi-instance-safe; the durable `events` table is the source of truth for replay.
+- The CSP is built once at startup by `security_headers::content_security_policy` and stored in `AppState.csp` (it cannot be a static `HeaderValue` because `img-src` depends on config): it always allows `https://avatars.githubusercontent.com`, plus the `GITHUB_ENTERPRISE_URL` origin when configured (enterprise avatars are served from the enterprise host). Demo mode/tests render initials only, so the suite needs no external image host.
+- `PARTICIPANTS` frames are ephemeral: the `presence_frame` helper deliberately emits **no `id:` line** so a roster frame can never advance the client's `Last-Event-ID` replay cursor (a unit test asserts the exact frame format). Frames are broadcast on membership changes only (detected by the ~1 s poll loop), and the `presence` table is ephemeral coordination state — safe to truncate, rebuilt as every client's `EventSource` auto-reconnects and rejoins.
+- `main()` spawns four background tasks: `events::notifier_loop` (`LISTEN` on `rostfacto_events`, fans events out to SSE subscribers), `handlers::timer_sweep_loop` (marks elapsed highlight timers every second), and `presence::heartbeat_loop` / `presence::poll_loop` (keep this process's presence rows fresh; expire stale rows and broadcast roster changes). All are idempotent/multi-instance-safe; the durable `events` table is the source of truth for replay.
+- **Multi-process by design**: the app may run as several processes behind a load balancer sharing one Postgres database. Presence is correct across processes because the `presence` table is the shared source of truth and each process polls it (~1 s); a participant connected to process A is visible to one on process B. Each process has its own `instance_id` and only heartbeats/cleans up its own rows.
+- **Graceful shutdown**: `main` serves with `with_graceful_shutdown(shutdown_signal())` (SIGTERM/SIGINT). The signal also fires an `AppState.shutdown` watch channel that ends long-lived SSE streams (otherwise axum would wait forever for them to close); after `serve` returns, `presence.shutdown()` deletes this instance's rows so the roster clears immediately instead of aging out.
 - Sessions slide on activity (7-day idle, 30-day cap) and are revoked on re-login; deleting a retro requires an admin session at most 24 h old (step-up re-auth, redirects to `/auth/login`).
 - CSRF protection is an Origin/Referer match check for state-changing requests (mismatch → 403); Firefox sends neither header on same-origin form POSTs, so a missing header is accepted — SameSite=Lax cookies are the primary defense.
 - Timer events: `TIMER_CANCELLED` is never emitted — cancelling a highlight is always observed as `ITEM_STATUS_CHANGED` (the status-change handler emits only that event).

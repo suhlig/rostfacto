@@ -21,6 +21,15 @@
   {{ macros::retro_column(category=Category::Bad, placeholder="It wasn't so great that…", items=bad_items, retro_id=retro.id) }}
 </div>
 
+<aside class="participants-panel" id="participants-panel" aria-label="Participants">
+  <h2 class="participants-title">Participants (<span id="participants-count">0</span>)</h2>
+  <ul class="participants-list" id="participants-list"></ul>
+</aside>
+<button type="button" class="participants-toggle" id="participants-toggle"
+        aria-label="Show participants" aria-expanded="false" aria-controls="participants-panel">
+  <img src="/static/participants.svg" alt="" width="24" height="24">
+</button>
+
 <section class="action-items">
   <h3 class="action-items-title">Action Items</h3>
   <form class="action-items-form"

@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name as \"name!\", avatar_url, initials as \"initials!\", guest as \"guest!\"\n           FROM (\n               SELECT DISTINCT ON (participant_key)\n                      participant_key, name, avatar_url, initials, guest, joined_at\n               FROM presence\n               WHERE retro_id = $1\n                 AND last_seen_at > NOW() - make_interval(secs => $2::float8)\n               ORDER BY participant_key, joined_at\n           ) AS p\n           ORDER BY joined_at, participant_key",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "presence",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "avatar_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "presence",
+            "name": "avatar_url"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "initials!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "presence",
+            "name": "initials"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "guest!",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "presence",
+            "name": "guest"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "e25db28f502a36fd126501eed4c4f6656d96efda92054a40680d801a028be0ad"
+}

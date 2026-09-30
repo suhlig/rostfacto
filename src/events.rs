@@ -2,10 +2,11 @@ use crate::auth::AuthUser;
 use crate::handlers::{
     database_error_response, log_database_error, not_found_response, require_retro_access,
 };
+use crate::presence::{ParticipantKey, PresenceHub, Roster};
 use crate::AppState;
 use axum::{
     body::Body,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -20,6 +21,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
+use uuid::Uuid;
 
 /// Event types written to the `events` table by DB triggers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
@@ -215,16 +217,98 @@ fn sse_frame(event: &Event) -> Result<Bytes, std::convert::Infallible> {
     )))
 }
 
+/// Format a roster snapshot as a `PARTICIPANTS` SSE frame.
+///
+/// Deliberately has **no `id:` line**: presence is ephemeral, so the frame
+/// must not advance the client's `Last-Event-ID` replay cursor.
+fn presence_frame(roster: &Roster) -> Result<Bytes, std::convert::Infallible> {
+    let data = serde_json::to_string(&serde_json::json!({ "participants": roster }))
+        .expect("roster should serialize");
+    Ok(Bytes::from(format!(
+        "event: PARTICIPANTS\ndata: {}\n\n",
+        data
+    )))
+}
+
+/// Query parameters of the SSE endpoint.
+#[derive(Debug, Deserialize)]
+pub struct PresenceParams {
+    /// Client-generated participant id (demo mode only; ignored when
+    /// authenticated so it can never be used to impersonate another user).
+    participant: Option<String>,
+}
+
+/// Releases one presence connection when the SSE stream is dropped, i.e. when
+/// the client closes the connection, navigates away, or a keep-alive write
+/// fails. The participant's `presence` row then stops being heartbeated and
+/// ages out after the grace period.
+struct ConnectionGuard {
+    presence: PresenceHub,
+    retro_id: i32,
+    key: ParticipantKey,
+}
+
+impl Drop for ConnectionGuard {
+    fn drop(&mut self) {
+        self.presence.leave(self.retro_id, self.key.clone());
+    }
+}
+
+/// Who is connecting: dedup key plus display data (name, avatar).
+async fn resolve_participant(
+    state: &AppState,
+    user: &AuthUser,
+    params: &PresenceParams,
+) -> Result<(ParticipantKey, String, Option<String>), Box<Response>> {
+    if state.config.demo_mode() {
+        let id = params
+            .participant
+            .as_deref()
+            .and_then(|value| Uuid::parse_str(value).ok())
+            .unwrap_or_else(Uuid::new_v4);
+        // Name and avatar are ignored for guests; the hub assigns "Guest N".
+        return Ok((ParticipantKey::Guest(id), String::new(), None));
+    }
+
+    let row = sqlx::query!(
+        r#"SELECT display_name as "display_name?", avatar_url FROM users WHERE id = $1"#,
+        user.user_id
+    )
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("sse_participant_profile", &error);
+        Box::new(database_error_response())
+    })?;
+
+    let (name, avatar_url) = match row {
+        Some(row) => (row.display_name, row.avatar_url),
+        None => (None, None),
+    };
+    let name = name
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| {
+            if user.full_name.trim().is_empty() {
+                user.username.clone()
+            } else {
+                user.full_name.clone()
+            }
+        });
+    Ok((ParticipantKey::User(user.user_id), name, avatar_url))
+}
+
 /// `GET /retro/{slug}/events` — SSE stream of events for one retro.
 ///
 /// Replays events newer than the client's `Last-Event-ID` (bounded by the
 /// newest event at connect time) and then streams live events, with periodic
-/// keep-alive comments.
+/// keep-alive comments. Also streams `PARTICIPANTS` roster snapshots (see
+/// `presence`), which carry no event id.
 pub async fn retro_events(
     State(state): State<AppState>,
     user: AuthUser,
     headers: HeaderMap,
     Path(slug): Path<String>,
+    Query(params): Query<PresenceParams>,
 ) -> Response {
     let retro = match require_retro_access(&state, &user, &slug).await {
         Ok(Some(retro)) => retro,
@@ -265,7 +349,40 @@ pub async fn retro_events(
         None => Vec::new(),
     };
 
+    let (key, name, avatar_url) = match resolve_participant(&state, &user, &params).await {
+        Ok(participant) => participant,
+        Err(response) => return *response,
+    };
+
+    if let Err(error) = state
+        .presence
+        .join(retro.id, key.clone(), name, avatar_url)
+        .await
+    {
+        log_database_error("sse_presence_join", &error);
+        return database_error_response();
+    }
+    // From here on the guard owns the matching `leave`, so a failing
+    // `subscribe` below cannot leak a connection.
+    let guard = ConnectionGuard {
+        presence: state.presence.clone(),
+        retro_id: retro.id,
+        key,
+    };
+    // The first message is the current roster, including this client.
+    let mut presence_rx = match state.presence.subscribe(retro.id).await {
+        Ok(receiver) => receiver,
+        Err(error) => {
+            log_database_error("sse_presence_subscribe", &error);
+            return database_error_response();
+        }
+    };
+
     let stream = async_stream::stream! {
+        let _guard = guard;
+        // Ends the stream when the process shuts down, so axum's graceful
+        // shutdown does not wait forever for this connection to close.
+        let mut shutdown = state.shutdown.clone();
         for event in replay {
             yield sse_frame(&event);
         }
@@ -279,6 +396,13 @@ pub async fn retro_events(
                         None => break,
                     }
                 }
+                roster = presence_rx.recv() => {
+                    match roster {
+                        Some(roster) => yield presence_frame(&roster),
+                        None => break,
+                    }
+                }
+                _ = shutdown.changed() => break,
                 _ = keepalive.tick() => {
                     yield Ok::<Bytes, std::convert::Infallible>(
                         Bytes::from_static(b": keep-alive\n\n"),
@@ -295,4 +419,27 @@ pub async fn retro_events(
         .header("X-Accel-Buffering", "no")
         .body(Body::from_stream(stream))
         .expect("SSE response should build")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::presence::ParticipantView;
+
+    #[test]
+    fn presence_frame_has_no_event_id() {
+        let roster = vec![ParticipantView {
+            name: "Guest 1".into(),
+            avatar_url: None,
+            initials: "G1".into(),
+            guest: true,
+        }];
+
+        let frame = presence_frame(&roster).unwrap();
+
+        assert_eq!(
+            std::str::from_utf8(&frame).unwrap(),
+            "event: PARTICIPANTS\ndata: {\"participants\":[{\"name\":\"Guest 1\",\"avatar_url\":null,\"initials\":\"G1\",\"guest\":true}]}\n\n"
+        );
+    }
 }

@@ -149,7 +149,67 @@
       }
     }
 
-    const source = new EventSource('/retro/' + slug + '/events');
+    // Stable per-browser identity for demo-mode presence. localStorage (not
+    // sessionStorage) keeps it across refreshes, EventSource reconnects, and
+    // multiple tabs, so one browser counts as one participant. The server
+    // ignores the parameter in auth mode (the session identity wins).
+    function participantId() {
+      const key = 'rostfacto_participant_id';
+      try {
+        let id = window.localStorage.getItem(key);
+        if (!id) {
+          id = (window.crypto && window.crypto.randomUUID)
+            ? window.crypto.randomUUID()
+            : String(Date.now()) + '-' + Math.random().toString(16).slice(2);
+          window.localStorage.setItem(key, id);
+        }
+        return id;
+      } catch (error) {
+        // localStorage unavailable (private mode, disabled): fall back to an
+        // in-memory id for this page load.
+        return String(Date.now()) + '-' + Math.random().toString(16).slice(2);
+      }
+    }
+
+    const source = new EventSource(
+      '/retro/' + slug + '/events?participant=' + encodeURIComponent(participantId())
+    );
+
+    // Presence roster: full snapshots, ephemeral (no `id:` line), so there is
+    // nothing to deduplicate against the applied-event set. Render from
+    // scratch with DOM APIs (never innerHTML): display names are user-supplied.
+    function renderParticipants(roster) {
+      const list = document.getElementById('participants-list');
+      const count = document.getElementById('participants-count');
+      if (!list) return;
+      list.textContent = '';
+      roster.forEach(function(participant) {
+        const li = document.createElement('li');
+        li.className = 'participant';
+        if (participant.avatar_url) {
+          const img = document.createElement('img');
+          img.className = 'participant-avatar';
+          img.src = participant.avatar_url;
+          img.alt = participant.name;
+          img.title = participant.name;
+          li.appendChild(img);
+        } else {
+          const span = document.createElement('span');
+          span.className = 'participant-initials';
+          span.textContent = participant.initials;
+          span.title = participant.name;
+          li.appendChild(span);
+        }
+        list.appendChild(li);
+      });
+      if (count) count.textContent = String(roster.length);
+    }
+
+    source.addEventListener('PARTICIPANTS', function(event) {
+      const data = parseEvent(event);
+      if (!data || !Array.isArray(data.participants)) return;
+      renderParticipants(data.participants);
+    });
 
     source.addEventListener('ITEM_CREATED', function(event) {
       if (appliedEventIds.has(event.lastEventId)) return;
@@ -695,5 +755,16 @@
         const cancel = target.closest('form').querySelector('.btn-cancel-edit');
         if (cancel) cancel.click();
       }
+    });
+
+    // Participants panel toggle (narrow screens): the panel is an overlay that
+    // slides in from the right. Delegated listener, like the dialog buttons.
+    document.addEventListener('click', function(event) {
+      const toggle = event.target.closest && event.target.closest('#participants-toggle');
+      if (!toggle) return;
+      const panel = document.getElementById('participants-panel');
+      if (!panel) return;
+      const open = panel.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
   })();

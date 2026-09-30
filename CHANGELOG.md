@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Real-time sync across clients via SSE (`GET /retro/{slug}/events`), with Postgres as the hub: an `events` table written by database triggers plus a `LISTEN`/`NOTIFY` notifier fan events out to connected browsers; reconnecting clients replay missed events via `Last-Event-ID`.
 - Server-authoritative highlight timers: timer state lives on the item (`timer_started_at`, `timer_duration_seconds`, virtual generated `timer_ends_at`, `timer_elapsed_at`), started automatically on highlight, extended with +2 min, and marked elapsed by a background sweep; all clients see the same countdown.
 - The all-done archive modal and the archived board now appear on every connected client, not just the one that triggered them.
+- Live participants panel on the retro board: a roster of everyone currently connected, pushed over the same SSE stream as ephemeral `PARTICIPANTS` frames. Presence lives in a shared `presence` table, so it is correct across multiple app processes behind a load balancer; a disconnected participant is removed after a grace period (`PRESENCE_GRACE_SECONDS`, default 15 s), and graceful shutdown clears the instance's rows immediately. In demo mode each browser is identified by a `localStorage` id and named `Guest N`; in auth mode participants dedup by user and show their GitHub name and avatar.
 
 ### Changed
 

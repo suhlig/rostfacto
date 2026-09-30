@@ -164,6 +164,7 @@ mod tests {
             github_user_orgs: Vec::new(),
             github_app_owner: None,
             demo_mode: false,
+            presence_grace_seconds: crate::config::DEFAULT_PRESENCE_GRACE_SECONDS,
         }
     }
 

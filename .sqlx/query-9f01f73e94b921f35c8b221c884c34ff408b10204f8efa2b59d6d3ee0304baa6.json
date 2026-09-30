@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM presence WHERE last_seen_at < NOW() - make_interval(secs => $1::float8)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9f01f73e94b921f35c8b221c884c34ff408b10204f8efa2b59d6d3ee0304baa6"
+}

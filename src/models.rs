@@ -77,7 +77,7 @@ pub fn apply_author_initials(items: &mut [&mut Vec<Item>]) {
     }
 }
 
-fn initials(name: &str, disambiguate: bool) -> String {
+pub(crate) fn initials(name: &str, disambiguate: bool) -> String {
     let words: Vec<&str> = name.split_whitespace().collect();
     let Some(first_name) = words.first() else {
         return "?".to_string();

@@ -1460,3 +1460,174 @@ async fn test_sse_syncs_archive_and_all_done_modal_between_clients() -> WebDrive
     browser_b.close().await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn test_participants_panel_shows_single_browser_once() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+
+    let retros_page = browser.retros_page().await?;
+    let retro = retros_page.create_retro("Participants Single").await?;
+
+    retro.wait_for_participant_count(1).await?;
+    assert_eq!(retro.participant_names().await?, vec!["Guest 1"]);
+    assert_eq!(retro.participant_counter_text().await?, "1");
+
+    // The entry must be stable: no duplicate appears after the initial snapshot.
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    assert_eq!(retro.participant_count().await?, 1);
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_participants_panel_lists_two_browsers_in_join_order() -> WebDriverResult<()> {
+    let _two_browsers = two_browser_permit().await;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser_a = BrowserSession::new(&server.base_url()).await?;
+    let browser_b = BrowserSession::new(&server.base_url()).await?;
+
+    let retros_page = browser_a.retros_page().await?;
+    let retro_a = retros_page.create_retro("Participants Two").await?;
+    // A must be registered before B joins so the join order is deterministic.
+    retro_a.wait_for_participant_count(1).await?;
+
+    let retro_b = RetroPage::new(&browser_b.driver, &server.base_url(), &retro_a.slug).await?;
+
+    retro_a.wait_for_participant_count(2).await?;
+    retro_b.wait_for_participant_count(2).await?;
+
+    let expected = vec!["Guest 1".to_string(), "Guest 2".to_string()];
+    assert_eq!(retro_a.participant_names().await?, expected);
+    assert_eq!(retro_b.participant_names().await?, expected);
+    assert_eq!(retro_a.participant_counter_text().await?, "2");
+    assert_eq!(retro_b.participant_counter_text().await?, "2");
+
+    browser_a.close().await?;
+    browser_b.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_participants_panel_dedups_tabs_of_same_browser() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+
+    let retros_page = browser.retros_page().await?;
+    let retro = retros_page.create_retro("Participants Tabs").await?;
+    retro.wait_for_participant_count(1).await?;
+
+    let first_tab = browser.driver.window().await?;
+    let second_tab = browser.driver.new_tab().await?;
+    browser.driver.switch_to_window(second_tab).await?;
+    let retro_second_tab = RetroPage::new(&browser.driver, &server.base_url(), &retro.slug).await?;
+
+    // The second tab shares the localStorage id, so it is the same participant.
+    retro_second_tab.wait_for_participant_count(1).await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    assert_eq!(retro_second_tab.participant_count().await?, 1);
+    assert_eq!(retro_second_tab.participant_names().await?, vec!["Guest 1"]);
+
+    browser.driver.switch_to_window(first_tab).await?;
+    assert_eq!(retro.participant_count().await?, 1);
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_participants_panel_removes_participant_after_disconnect() -> WebDriverResult<()> {
+    let _two_browsers = two_browser_permit().await;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser_a = BrowserSession::new(&server.base_url()).await?;
+    let browser_b = BrowserSession::new(&server.base_url()).await?;
+
+    let retros_page = browser_a.retros_page().await?;
+    let retro_a = retros_page.create_retro("Participants Leave").await?;
+    retro_a.wait_for_participant_count(1).await?;
+
+    let retro_b = RetroPage::new(&browser_b.driver, &server.base_url(), &retro_a.slug).await?;
+    retro_a.wait_for_participant_count(2).await?;
+    retro_b.wait_for_participant_count(2).await?;
+
+    // B leaves the board: its SSE connection drops and, after the (short,
+    // test-configured) grace period, A's roster shrinks back to one.
+    browser_b.driver.goto(&server.base_url()).await?;
+    retro_a.wait_for_participant_count(1).await?;
+    assert_eq!(retro_a.participant_names().await?, vec!["Guest 1"]);
+    assert_eq!(retro_a.participant_counter_text().await?, "1");
+
+    browser_a.close().await?;
+    browser_b.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_participants_panel_is_shared_across_app_instances() -> WebDriverResult<()> {
+    let _two_browsers = two_browser_permit().await;
+    let db = TestDb::new().await;
+    // Two app processes behind one database, like a load-balanced deployment.
+    let (server_1, server_2) = TestServer::start_pair(&db.database_url).await;
+    let browser_a = BrowserSession::new(&server_1.base_url()).await?;
+    let browser_b = BrowserSession::new(&server_2.base_url()).await?;
+
+    let retros_page = browser_a.retros_page().await?;
+    let retro_a = retros_page
+        .create_retro("Participants Multi Process")
+        .await?;
+    retro_a.wait_for_participant_count(1).await?;
+
+    let retro_b = RetroPage::new(&browser_b.driver, &server_2.base_url(), &retro_a.slug).await?;
+
+    // The roster lives in the shared database and is propagated by each
+    // process's poll loop, so both browsers see both participants.
+    retro_a.wait_for_participant_count(2).await?;
+    retro_b.wait_for_participant_count(2).await?;
+
+    // Guest numbers come from a global sequence, so they stay unique across
+    // processes and the order is the join order.
+    let expected = vec!["Guest 1".to_string(), "Guest 2".to_string()];
+    assert_eq!(retro_a.participant_names().await?, expected);
+    assert_eq!(retro_b.participant_names().await?, expected);
+    assert_eq!(retro_a.participant_counter_text().await?, "2");
+    assert_eq!(retro_b.participant_counter_text().await?, "2");
+
+    browser_a.close().await?;
+    browser_b.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_participants_panel_removes_participant_leaving_other_app_instance(
+) -> WebDriverResult<()> {
+    let _two_browsers = two_browser_permit().await;
+    let db = TestDb::new().await;
+    let (server_1, server_2) = TestServer::start_pair(&db.database_url).await;
+    let browser_a = BrowserSession::new(&server_1.base_url()).await?;
+    let browser_b = BrowserSession::new(&server_2.base_url()).await?;
+
+    let retros_page = browser_a.retros_page().await?;
+    let retro_a = retros_page.create_retro("Participants Multi Leave").await?;
+    retro_a.wait_for_participant_count(1).await?;
+
+    let retro_b = RetroPage::new(&browser_b.driver, &server_2.base_url(), &retro_a.slug).await?;
+    retro_a.wait_for_participant_count(2).await?;
+    retro_b.wait_for_participant_count(2).await?;
+
+    // B leaves the board on instance 2. Instance 2 stops heartbeating B's row;
+    // instance 1's poll loop expires it after the grace period and pushes the
+    // shrunken roster to A.
+    browser_b.driver.goto(&server_2.base_url()).await?;
+    retro_a.wait_for_participant_count(1).await?;
+    assert_eq!(retro_a.participant_names().await?, vec!["Guest 1"]);
+    assert_eq!(retro_a.participant_counter_text().await?, "1");
+
+    browser_a.close().await?;
+    browser_b.close().await?;
+    Ok(())
+}
