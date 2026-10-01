@@ -4,16 +4,21 @@
   <form hx-post="/action-items/{{ action_item.id }}"
         hx-target="closest .action-item"
         hx-swap="outerHTML">
-    <input type="text"
-           name="text"
-           value="{{ action_item.text }}"
-           aria-label="Action item text"
-           required
-           autofocus>
-    <button type="submit" class="btn-primary primary">Save</button>
-    <button type="button" class="btn-secondary secondary"
-            hx-get="/action-items/{{ action_item.id }}"
-            hx-target="closest .action-item"
-            hx-swap="outerHTML">Cancel</button>
+    <textarea class="edit-card-input"
+              name="text"
+              rows="1"
+              aria-label="Action item text"
+              required
+              autofocus>{{ action_item.text }}</textarea>
+    <div class="card-actions">
+      <button class="btn-secondary secondary btn-cancel-edit"
+              type="button"
+              hx-get="/action-items/{{ action_item.id }}"
+              hx-target="closest .action-item"
+              hx-swap="outerHTML">
+        Cancel
+      </button>
+      <button class="btn-primary primary btn-save-edit" type="submit">Save</button>
+    </div>
   </form>
 </div>

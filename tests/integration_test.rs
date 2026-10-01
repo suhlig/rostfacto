@@ -401,7 +401,7 @@ async fn test_action_item_survives_edit_and_completion() -> WebDriverResult<()> 
         .driver
         .find(By::Css(".action-item.editing form"))
         .await?;
-    let edit_input = edit_form.find(By::Css("input[name='text']")).await?;
+    let edit_input = edit_form.find(By::Css("textarea[name='text']")).await?;
     edit_input.clear().await?;
     edit_input.send_keys("Edited action item").await?;
 

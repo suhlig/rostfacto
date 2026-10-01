@@ -745,8 +745,8 @@
     });
 
     // Keyboard shortcuts on card text inputs (replaces hx-on:keydown on the
-    // add-card and edit-card textareas): Cmd/Ctrl+Enter submits, Escape
-    // cancels an in-progress edit.
+    // add-card and edit-card textareas, which action item editing shares):
+    // Cmd/Ctrl+Enter submits, Escape cancels an in-progress edit.
     document.addEventListener('keydown', function(event) {
       const target = event.target;
       if (!target || !target.matches) return;
