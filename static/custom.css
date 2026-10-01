@@ -387,6 +387,17 @@ label {
   border-color: var(--rf-blue-dark);
 }
 
+/* "I'm done writing" toggle: blue while writing, green once ready. */
+.retro-header-actions .ready-toggle.ready {
+  background-color: var(--rf-green);
+  border-color: var(--rf-green);
+}
+
+.retro-header-actions .ready-toggle.ready:hover {
+  background-color: var(--rf-green-dark);
+  border-color: var(--rf-green-dark);
+}
+
 /* Three-column board */
 .board {
   display: grid;
@@ -1649,6 +1660,22 @@ button.action-item-checkbox:hover {
   .participant-name {
     display: block;
   }
+}
+
+/* Readiness indicator: a check when the participant is done writing, a muted
+   pencil while they are still writing. */
+.participant-ready-badge {
+  margin-left: auto;
+  padding-left: 0.5rem;
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  line-height: 1;
+  color: var(--rf-text-muted);
+}
+
+.participant-ready .participant-ready-badge {
+  color: var(--rf-green-darker);
+  font-weight: 700;
 }
 
 /* Collapsed state: a right-sided handle opens the panel. */

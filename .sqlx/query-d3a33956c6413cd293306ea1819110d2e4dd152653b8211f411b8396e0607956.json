@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE presence SET ready = $3 WHERE retro_id = $1 AND participant_key = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d3a33956c6413cd293306ea1819110d2e4dd152653b8211f411b8396e0607956"
+}

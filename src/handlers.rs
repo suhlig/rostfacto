@@ -5,6 +5,7 @@ use crate::events::EventType;
 use crate::models::{
     apply_author_initials, ActionItem, Archive, Category, Item, Retrospective, Status,
 };
+use crate::presence::ParticipantKey;
 use crate::templates::{
     ActionItemEditTemplate, ActionItemTemplate, ArchiveListEntry, ArchiveModalTemplate,
     ArchiveTemplate, ArchivesTemplate, ErrorTemplate, GitHubTeam, HomeTemplate, ItemCardTemplate,
@@ -23,6 +24,7 @@ use serde::Deserialize;
 use serde_json::json;
 use sqlx::PgPool;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 /// Upper bound for user-supplied card and action item text. Mirrored by the
 /// `*_text_length_check` constraints in migration 024; both must agree.
@@ -562,6 +564,14 @@ pub async fn show_retro(
         || !watch_items.is_empty()
         || !action_items.is_empty();
 
+    // In demo mode the participant id is client-generated and only known to the
+    // browser, so the key is left empty and derived client-side.
+    let participant_key = if state.config.demo_mode() {
+        String::new()
+    } else {
+        format!("user:{}", user.user_id)
+    };
+
     let template = RetroTemplate {
         retro,
         good_items,
@@ -574,9 +584,56 @@ pub async fn show_retro(
         demo_mode: state.config.demo_mode(),
         error_message: None,
         can_archive,
+        participant_key,
     };
 
     Ok(Html(template.render().unwrap()).into_response())
+}
+
+/// Form for the participant readiness toggle.
+#[derive(Debug, Deserialize)]
+pub struct ReadyForm {
+    /// The desired state, sent explicitly ("true"/"false").
+    pub ready: Option<String>,
+    /// Demo-mode participant id (ignored when authenticated).
+    pub participant: Option<String>,
+}
+
+/// `POST /retro/{slug}/ready` — mark the current participant as done writing
+/// cards (or writing again). This is ephemeral presence state, so it emits no
+/// event; the presence poll loop broadcasts the updated roster over SSE.
+pub async fn set_participant_ready(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(slug): Path<String>,
+    Form(form): Form<ReadyForm>,
+) -> Result<Response, HandlerError> {
+    let retro = match require_retro_access(&state, &user, &slug).await? {
+        Some(retro) => retro,
+        None => return Ok(not_found_response(&state, &slug)),
+    };
+
+    let key = if state.config.demo_mode() {
+        match form
+            .participant
+            .as_deref()
+            .and_then(|value| Uuid::parse_str(value).ok())
+        {
+            Some(id) => ParticipantKey::Guest(id),
+            None => return Ok(bad_request(&state, "Missing participant id")),
+        }
+    } else {
+        ParticipantKey::User(user.user_id)
+    };
+
+    let ready = matches!(form.ready.as_deref(), Some("true") | Some("on") | Some("1"));
+
+    if let Err(error) = state.presence.set_ready(retro.id, &key, ready).await {
+        log_database_error("set_participant_ready", &error);
+        return Ok(database_error_response());
+    }
+
+    Ok(StatusCode::NO_CONTENT.into_response())
 }
 
 pub async fn add_item(

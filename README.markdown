@@ -124,6 +124,9 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
+- We've accrued quite some custom JavaScript. Does it make sense to:
+  * Use more HTMX, or
+  * Rewrite them in Rust and then compile WASM from it?
 - Bump HTMX to v4
 - Adopt UI patterns in HTMX v4
 - Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs

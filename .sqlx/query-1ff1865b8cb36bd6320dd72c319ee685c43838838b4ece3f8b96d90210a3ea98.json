@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH prior AS (\n                SELECT name, joined_at, ready\n                FROM presence\n                WHERE retro_id = $1::int4\n                  AND participant_key = $2::text\n                  AND last_seen_at > NOW() - make_interval(secs => $8::float8)\n                ORDER BY joined_at\n                LIMIT 1\n            ),\n            guest_name AS (\n                -- CASE/COALESCE short-circuit: nextval() is only consumed\n                -- when a brand-new guest number is actually needed.\n                SELECT CASE\n                    WHEN $4::bool THEN COALESCE(\n                        (SELECT name FROM prior),\n                        'Guest ' || nextval('presence_guest_number_seq')\n                    )\n                END AS name\n            )\n            INSERT INTO presence\n                (retro_id, participant_key, instance_id, name, avatar_url,\n                 initials, guest, joined_at, ready)\n            SELECT $1::int4,\n                   $2::text,\n                   $3::uuid,\n                   COALESCE(g.name, $5::text),\n                   CASE WHEN $4::bool THEN NULL ELSE $6::text END,\n                   CASE WHEN g.name IS NULL\n                        THEN $7::text\n                        ELSE 'G' || substring(g.name from '[0-9]+$')\n                   END,\n                   $4::bool,\n                   COALESCE((SELECT joined_at FROM prior), NOW()),\n                   COALESCE((SELECT ready FROM prior), FALSE)\n            FROM guest_name g\n            ON CONFLICT (retro_id, participant_key, instance_id) DO UPDATE SET\n                name = EXCLUDED.name,\n                avatar_url = EXCLUDED.avatar_url,\n                initials = EXCLUDED.initials,\n                joined_at = EXCLUDED.joined_at,\n                last_seen_at = NOW()\n                -- `ready` is intentionally not touched: a rejoin (e.g. an SSE\n                -- reconnect) keeps the participant's state.\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Uuid",
+        "Bool",
+        "Text",
+        "Text",
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1ff1865b8cb36bd6320dd72c319ee685c43838838b4ece3f8b96d90210a3ea98"
+}

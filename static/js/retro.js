@@ -175,6 +175,50 @@
       '/retro/' + slug + '/events?participant=' + encodeURIComponent(participantId())
     );
 
+    // The current participant's presence key, used to recognize our own entry
+    // in the roster. In auth mode the server renders it; in demo mode it is
+    // derived from the same localStorage id the SSE connection sends.
+    const selfKey = document.body.dataset.participantKey ||
+      ('guest:' + participantId());
+
+    // Whether we have marked ourselves as done writing. Kept in sync with the
+    // roster so a reload (or another tab) reflects the server's state.
+    let selfReady = false;
+
+    function applyReadyState(ready) {
+      selfReady = ready;
+      const button = document.getElementById('ready-toggle');
+      if (!button) return;
+      button.classList.toggle('ready', ready);
+      button.setAttribute('aria-pressed', ready ? 'true' : 'false');
+      button.title = ready
+        ? 'You are marked as done writing (click to resume)'
+        : 'Let others know you are done writing cards';
+      const label = button.querySelector('.ready-toggle-label');
+      if (label) label.textContent = ready ? 'Ready ✓' : "I'm done writing";
+    }
+
+    document.body.addEventListener('click', function(event) {
+      const button = event.target.closest('#ready-toggle');
+      if (!button) return;
+      const next = !selfReady;
+      // Optimistic: the roster snapshot that follows confirms the state.
+      applyReadyState(next);
+      const body = new URLSearchParams();
+      body.set('ready', next ? 'true' : 'false');
+      body.set('participant', participantId());
+      fetch('/retro/' + slug + '/ready', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString()
+      }).then(function(response) {
+        if (!response.ok) throw new Error('ready update failed: ' + response.status);
+      }).catch(function(error) {
+        console.error('failed to update ready state', error);
+        applyReadyState(!next);
+      });
+    });
+
     // Presence roster: full snapshots, ephemeral (no `id:` line), so there is
     // nothing to deduplicate against the applied-event set. Render from
     // scratch with DOM APIs (never innerHTML): display names are user-supplied.
@@ -186,6 +230,7 @@
       roster.forEach(function(participant) {
         const li = document.createElement('li');
         li.className = 'participant';
+        if (participant.ready) li.classList.add('participant-ready');
         if (participant.avatar_url) {
           const img = document.createElement('img');
           img.className = 'participant-avatar';
@@ -204,7 +249,16 @@
         name.className = 'participant-name';
         name.textContent = participant.name;
         li.appendChild(name);
+        // Readiness indicator: a check when done writing, a pencil otherwise.
+        const badge = document.createElement('span');
+        badge.className = 'participant-ready-badge';
+        badge.textContent = participant.ready ? '✓' : '✎';
+        badge.title = participant.ready ? 'Done writing' : 'Still writing';
+        li.appendChild(badge);
         list.appendChild(li);
+        if (participant.key === selfKey) {
+          applyReadyState(participant.ready);
+        }
       });
       if (count) count.textContent = String(roster.length);
     }

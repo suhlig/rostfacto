@@ -89,6 +89,10 @@ pub struct RetroTemplate {
     pub demo_mode: bool,
     pub error_message: Option<String>,
     pub can_archive: bool,
+    /// The current participant's presence key (`user:{id}`), so the client can
+    /// recognize its own entry in the roster. Empty in demo mode, where the
+    /// client derives `guest:{uuid}` from its localStorage id.
+    pub participant_key: String,
 }
 
 #[derive(Template)]

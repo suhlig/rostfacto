@@ -484,6 +484,85 @@ impl<'a> RetroPage<'a> {
             .await
     }
 
+    /// Ready state per participant, in display order (the `participant-ready`
+    /// class on each entry).
+    pub async fn participant_ready_states(&self) -> WebDriverResult<Vec<bool>> {
+        let entries = self
+            .driver
+            .find_all(By::Css("#participants-list .participant"))
+            .await?;
+        let mut states = Vec::with_capacity(entries.len());
+        for entry in entries {
+            let class = entry.attr("class").await?.unwrap_or_default();
+            states.push(
+                class
+                    .split_whitespace()
+                    .any(|name| name == "participant-ready"),
+            );
+        }
+        Ok(states)
+    }
+
+    /// Whether our own "I'm done writing" toggle is in the ready state.
+    pub async fn self_ready(&self) -> WebDriverResult<bool> {
+        let result = self
+            .driver
+            .execute(
+                "return document.getElementById('ready-toggle').classList.contains('ready');",
+                vec![],
+            )
+            .await?;
+        Ok(result.json().as_bool().unwrap_or(false))
+    }
+
+    /// Click the "I'm done writing" toggle.
+    pub async fn toggle_ready(&self) -> WebDriverResult<()> {
+        self.driver
+            .find(By::Css("#ready-toggle"))
+            .await?
+            .click()
+            .await?;
+        Ok(())
+    }
+
+    /// Wait until our own ready toggle reaches the expected state.
+    pub async fn wait_for_self_ready(&self, ready: bool) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            if self.self_ready().await? == ready {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for own ready state={}", ready);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        }
+    }
+
+    /// Wait until the participant at `index` (display order) has the expected
+    /// ready state. The roster is propagated by the server's poll loop, so this
+    /// can take up to about a second.
+    pub async fn wait_for_participant_ready(
+        &self,
+        index: usize,
+        ready: bool,
+    ) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(15);
+        loop {
+            let states = self.participant_ready_states().await?;
+            if states.get(index).copied() == Some(ready) {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!(
+                    "Timed out waiting for participant {} ready={}, got {:?}",
+                    index, ready, states
+                );
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
     /// Wait until the panel lists exactly `expected` participants. The roster
     /// arrives over SSE, and removals only happen after the server's grace
     /// period (plus up to one keep-alive interval to notice a dead

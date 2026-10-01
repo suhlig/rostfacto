@@ -135,6 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/retros/new", get(handlers::new_retro))
         .route("/retros", post(handlers::create_retro))
         .route("/retro/{slug}", get(handlers::show_retro))
+        .route("/retro/{slug}/ready", post(handlers::set_participant_ready))
         .route("/retro/{slug}/events", get(events::retro_events))
         .route("/retro/{slug}/archives", get(handlers::list_archives))
         .route("/retro/{slug}/archives/{id}", get(handlers::show_archive))

@@ -437,17 +437,19 @@ mod tests {
     #[test]
     fn presence_frame_has_no_event_id() {
         let roster = vec![ParticipantView {
+            key: "guest:00000000-0000-0000-0000-000000000000".into(),
             name: "Guest 1".into(),
             avatar_url: None,
             initials: "G1".into(),
             guest: true,
+            ready: false,
         }];
 
         let frame = presence_frame(&roster).unwrap();
 
         assert_eq!(
             std::str::from_utf8(&frame).unwrap(),
-            "event: PARTICIPANTS\ndata: {\"participants\":[{\"name\":\"Guest 1\",\"avatar_url\":null,\"initials\":\"G1\",\"guest\":true}]}\n\n"
+            "event: PARTICIPANTS\ndata: {\"participants\":[{\"key\":\"guest:00000000-0000-0000-0000-000000000000\",\"name\":\"Guest 1\",\"avatar_url\":null,\"initials\":\"G1\",\"guest\":true,\"ready\":false}]}\n\n"
         );
     }
 }

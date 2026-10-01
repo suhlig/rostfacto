@@ -56,10 +56,15 @@ impl ParticipantKey {
 /// What clients get to see about a participant.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ParticipantView {
+    /// `presence.participant_key` (`user:{id}` / `guest:{uuid}`), so a client
+    /// can recognize its own entry in the roster.
+    pub key: String,
     pub name: String,
     pub avatar_url: Option<String>,
     pub initials: String,
     pub guest: bool,
+    /// Whether the participant has indicated they are done writing cards.
+    pub ready: bool,
 }
 
 /// Full roster snapshot, ordered by join time (first joiner first).
@@ -145,7 +150,7 @@ impl PresenceHub {
         sqlx::query!(
             r#"
             WITH prior AS (
-                SELECT name, joined_at
+                SELECT name, joined_at, ready
                 FROM presence
                 WHERE retro_id = $1::int4
                   AND participant_key = $2::text
@@ -165,7 +170,7 @@ impl PresenceHub {
             )
             INSERT INTO presence
                 (retro_id, participant_key, instance_id, name, avatar_url,
-                 initials, guest, joined_at)
+                 initials, guest, joined_at, ready)
             SELECT $1::int4,
                    $2::text,
                    $3::uuid,
@@ -176,7 +181,8 @@ impl PresenceHub {
                         ELSE 'G' || substring(g.name from '[0-9]+$')
                    END,
                    $4::bool,
-                   COALESCE((SELECT joined_at FROM prior), NOW())
+                   COALESCE((SELECT joined_at FROM prior), NOW()),
+                   COALESCE((SELECT ready FROM prior), FALSE)
             FROM guest_name g
             ON CONFLICT (retro_id, participant_key, instance_id) DO UPDATE SET
                 name = EXCLUDED.name,
@@ -184,6 +190,8 @@ impl PresenceHub {
                 initials = EXCLUDED.initials,
                 joined_at = EXCLUDED.joined_at,
                 last_seen_at = NOW()
+                -- `ready` is intentionally not touched: a rejoin (e.g. an SSE
+                -- reconnect) keeps the participant's state.
             "#,
             retro_id,
             db_key,
@@ -202,6 +210,29 @@ impl PresenceHub {
             .connections
             .entry((retro_id, db_key))
             .or_default() += 1;
+        Ok(())
+    }
+
+    /// Mark a participant as done writing cards (or writing again).
+    ///
+    /// Updates every row of the participant in the retro, not just this
+    /// instance's: the roster collapses a participant's rows with
+    /// `DISTINCT ON`, so a single stale row could otherwise win. Does not
+    /// broadcast; the poll loop picks the change up.
+    pub async fn set_ready(
+        &self,
+        retro_id: i32,
+        key: &ParticipantKey,
+        ready: bool,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "UPDATE presence SET ready = $3 WHERE retro_id = $1 AND participant_key = $2",
+            retro_id,
+            key.as_db_key(),
+            ready,
+        )
+        .execute(&self.inner.pool)
+        .await?;
         Ok(())
     }
 
@@ -340,10 +371,11 @@ impl PresenceHub {
 /// instances collapse onto the earliest), ordered by join time.
 async fn load_roster(pool: &PgPool, retro_id: i32, grace_secs: f64) -> Result<Roster, sqlx::Error> {
     let rows = sqlx::query!(
-        r#"SELECT name as "name!", avatar_url, initials as "initials!", guest as "guest!"
+        r#"SELECT participant_key as "key!", name as "name!", avatar_url,
+                  initials as "initials!", guest as "guest!", ready as "ready!"
            FROM (
                SELECT DISTINCT ON (participant_key)
-                      participant_key, name, avatar_url, initials, guest, joined_at
+                      participant_key, name, avatar_url, initials, guest, ready, joined_at
                FROM presence
                WHERE retro_id = $1
                  AND last_seen_at > NOW() - make_interval(secs => $2::float8)
@@ -359,10 +391,12 @@ async fn load_roster(pool: &PgPool, retro_id: i32, grace_secs: f64) -> Result<Ro
     Ok(rows
         .into_iter()
         .map(|row| ParticipantView {
+            key: row.key,
             name: row.name,
             avatar_url: row.avatar_url,
             initials: row.initials,
             guest: row.guest,
+            ready: row.ready,
         })
         .collect())
 }
@@ -529,10 +563,12 @@ mod tests {
         assert_eq!(
             retro.roster().await,
             vec![ParticipantView {
+                key: "user:1".into(),
                 name: "Ada Lovelace".into(),
                 avatar_url: Some("https://example.test/a.png".into()),
                 initials: "AL".into(),
                 guest: false,
+                ready: false,
             }]
         );
         assert_eq!(
@@ -819,18 +855,85 @@ mod tests {
         retro.cleanup().await;
     }
 
+    #[tokio::test]
+    async fn set_ready_marks_the_participant_and_survives_a_rejoin() {
+        let retro = TestRetro::new().await;
+        let hub = retro.hub();
+        join_user(&hub, retro.id, 1, "Ada Lovelace").await;
+
+        hub.set_ready(retro.id, &user(1), true).await.unwrap();
+        assert!(retro.roster().await[0].ready);
+
+        // A rejoin (e.g. an SSE reconnect) keeps the state.
+        join_user(&hub, retro.id, 1, "Ada Lovelace").await;
+        assert!(retro.roster().await[0].ready);
+
+        hub.set_ready(retro.id, &user(1), false).await.unwrap();
+        assert!(!retro.roster().await[0].ready);
+        retro.cleanup().await;
+    }
+
+    #[tokio::test]
+    async fn set_ready_updates_every_row_of_the_participant() {
+        let retro = TestRetro::new().await;
+        let (a, b) = (retro.hub(), retro.hub());
+        join_user(&a, retro.id, 1, "Ada Lovelace").await;
+        join_user(&b, retro.id, 1, "Ada Lovelace").await;
+
+        // Mark ready through one instance; both rows must reflect it, otherwise
+        // the collapsed roster could pick the stale row.
+        a.set_ready(retro.id, &user(1), true).await.unwrap();
+
+        let ready_rows: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM presence WHERE retro_id = $1 AND participant_key = $2 AND ready",
+        )
+        .bind(retro.id)
+        .bind("user:1")
+        .fetch_one(&retro.pool)
+        .await
+        .unwrap();
+        assert_eq!(ready_rows, 2);
+        assert!(retro.roster().await[0].ready);
+        retro.cleanup().await;
+    }
+
+    #[tokio::test]
+    async fn a_new_instance_inherits_ready_from_a_fresh_row() {
+        let retro = TestRetro::new().await;
+        let (a, b) = (retro.hub(), retro.hub());
+        join_user(&a, retro.id, 1, "Ada Lovelace").await;
+        a.set_ready(retro.id, &user(1), true).await.unwrap();
+
+        // A second connection on another process starts a new row; it must
+        // carry the participant's ready state over.
+        join_user(&b, retro.id, 1, "Ada Lovelace").await;
+
+        let ready_rows: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM presence WHERE retro_id = $1 AND participant_key = $2 AND ready",
+        )
+        .bind(retro.id)
+        .bind("user:1")
+        .fetch_one(&retro.pool)
+        .await
+        .unwrap();
+        assert_eq!(ready_rows, 2);
+        retro.cleanup().await;
+    }
+
     #[test]
     fn participant_view_serializes_to_the_wire_format() {
         let view = ParticipantView {
+            key: "guest:00000000-0000-0000-0000-000000000000".into(),
             name: "Guest 2".into(),
             avatar_url: None,
             initials: "G2".into(),
             guest: true,
+            ready: true,
         };
 
         assert_eq!(
             serde_json::to_string(&view).unwrap(),
-            r#"{"name":"Guest 2","avatar_url":null,"initials":"G2","guest":true}"#
+            r#"{"key":"guest:00000000-0000-0000-0000-000000000000","name":"Guest 2","avatar_url":null,"initials":"G2","guest":true,"ready":true}"#
         );
     }
 }

@@ -1695,6 +1695,76 @@ async fn test_participants_panel_removes_participant_leaving_other_app_instance(
 }
 
 #[tokio::test]
+async fn test_participant_ready_state_syncs_between_browsers() -> WebDriverResult<()> {
+    let _two_browsers = two_browser_permit().await;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser_a = BrowserSession::new(&server.base_url()).await?;
+    let browser_b = BrowserSession::new(&server.base_url()).await?;
+
+    let retros_page = browser_a.retros_page().await?;
+    let retro_a = retros_page.create_retro("Ready Sync").await?;
+    retro_a.wait_for_participant_count(1).await?;
+
+    let retro_b = RetroPage::new(&browser_b.driver, &server.base_url(), &retro_a.slug).await?;
+    retro_a.wait_for_participant_count(2).await?;
+    retro_b.wait_for_participant_count(2).await?;
+
+    // Nobody has indicated they are done writing yet.
+    assert_eq!(
+        retro_a.participant_ready_states().await?,
+        vec![false, false]
+    );
+    assert!(!retro_a.self_ready().await?);
+
+    // A marks themselves done writing.
+    retro_a.toggle_ready().await?;
+    retro_a.wait_for_self_ready(true).await?;
+
+    // Both browsers see A (the first joiner) as ready, B as still writing.
+    retro_a.wait_for_participant_ready(0, true).await?;
+    retro_b.wait_for_participant_ready(0, true).await?;
+    assert_eq!(retro_b.participant_ready_states().await?, vec![true, false]);
+    assert!(!retro_b.self_ready().await?);
+
+    // A resumes writing: the indicator clears everywhere.
+    retro_a.toggle_ready().await?;
+    retro_a.wait_for_self_ready(false).await?;
+    retro_b.wait_for_participant_ready(0, false).await?;
+
+    browser_a.close().await?;
+    browser_b.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_participant_ready_state_is_shared_across_app_instances() -> WebDriverResult<()> {
+    let _two_browsers = two_browser_permit().await;
+    let db = TestDb::new().await;
+    let (server_1, server_2) = TestServer::start_pair(&db.database_url).await;
+    let browser_a = BrowserSession::new(&server_1.base_url()).await?;
+    let browser_b = BrowserSession::new(&server_2.base_url()).await?;
+
+    let retros_page = browser_a.retros_page().await?;
+    let retro_a = retros_page.create_retro("Ready Multi Process").await?;
+    retro_a.wait_for_participant_count(1).await?;
+
+    let retro_b = RetroPage::new(&browser_b.driver, &server_2.base_url(), &retro_a.slug).await?;
+    retro_a.wait_for_participant_count(2).await?;
+    retro_b.wait_for_participant_count(2).await?;
+
+    // B (on instance 2) marks ready; A (on instance 1) sees it through the
+    // shared presence table, propagated by instance 1's poll loop.
+    retro_b.toggle_ready().await?;
+    retro_b.wait_for_self_ready(true).await?;
+    retro_a.wait_for_participant_ready(1, true).await?;
+
+    browser_a.close().await?;
+    browser_b.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_participants_panel_state_is_reflected_in_url() -> WebDriverResult<()> {
     let db = TestDb::new().await;
     let server = TestServer::start(&db.database_url).await;

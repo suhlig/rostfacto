@@ -3,12 +3,16 @@
 
 {% block title %}{{ retro.title }} - Rostfacto{% endblock %}
 
-{% block body_attrs %} data-retro-slug="{{ retro.slug }}"{% endblock %}
+{% block body_attrs %} data-retro-slug="{{ retro.slug }}" data-participant-key="{{ participant_key }}"{% endblock %}
 
 {% block header %}
 <header class="retro-header" data-retro-id="{{ retro.id }}">
   <h1>{{ retro.title }}</h1>
   <div class="retro-header-actions">
+    <button type="button" class="ready-toggle" id="ready-toggle" aria-pressed="false"
+            title="Let others know you are done writing cards">
+      <span class="ready-toggle-label">I'm done writing</span>
+    </button>
     {{ macros::account_menu(retro, true, can_archive, false, true) }}
   </div>
 </header>
