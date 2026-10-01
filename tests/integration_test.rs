@@ -1693,3 +1693,115 @@ async fn test_participants_panel_removes_participant_leaving_other_app_instance(
     browser_b.close().await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn test_participants_panel_state_is_reflected_in_url() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    browser.driver.set_window_rect(0, 0, 1280, 900).await?;
+
+    let retros_page = browser.retros_page().await?;
+    let retro = retros_page.create_retro("Participants Url State").await?;
+
+    // Desktop default: open, and the URL carries no explicit preference yet.
+    assert!(retro.participants_panel_open().await?);
+    assert!(!browser
+        .driver
+        .current_url()
+        .await?
+        .as_str()
+        .contains("participants="));
+
+    // Closing records the state in the URL.
+    retro.close_participants_panel().await?;
+    assert!(!retro.participants_panel_open().await?);
+    assert!(browser
+        .driver
+        .current_url()
+        .await?
+        .as_str()
+        .contains("participants=closed"));
+
+    // Reopening records the open state.
+    retro.open_participants_panel().await?;
+    assert!(retro.participants_panel_open().await?);
+    assert!(browser
+        .driver
+        .current_url()
+        .await?
+        .as_str()
+        .contains("participants=open"));
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_participants_panel_state_deep_link() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    browser.driver.set_window_rect(0, 0, 1280, 900).await?;
+
+    let retros_page = browser.retros_page().await?;
+    let retro = retros_page.create_retro("Participants Deep Link").await?;
+
+    // A link with ?participants=closed opens the board with the panel collapsed,
+    // even on a desktop viewport where the default is open.
+    browser
+        .driver
+        .goto(
+            format!(
+                "{}/retro/{}?participants=closed",
+                server.base_url(),
+                retro.slug
+            )
+            .as_str(),
+        )
+        .await?;
+    retro.wait_for_participants_panel(false).await?;
+
+    browser
+        .driver
+        .goto(
+            format!(
+                "{}/retro/{}?participants=open",
+                server.base_url(),
+                retro.slug
+            )
+            .as_str(),
+        )
+        .await?;
+    retro.wait_for_participants_panel(true).await?;
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_participants_panel_state_back_forward() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    browser.driver.set_window_rect(0, 0, 1280, 900).await?;
+
+    let retros_page = browser.retros_page().await?;
+    let retro = retros_page.create_retro("Participants History").await?;
+
+    assert!(retro.participants_panel_open().await?);
+
+    retro.close_participants_panel().await?;
+    assert!(!retro.participants_panel_open().await?);
+
+    // Back returns to the pre-toggle state (the responsive default: open).
+    browser.driver.back().await?;
+    retro.wait_for_participants_panel(true).await?;
+
+    // Forward re-applies the closed state.
+    browser.driver.forward().await?;
+    retro.wait_for_participants_panel(false).await?;
+
+    browser.close().await?;
+    Ok(())
+}

@@ -874,14 +874,39 @@
       const MIN_WIDTH = 160;
       const MAX_WIDTH = 480;
 
+      // The panel's open/closed state is part of the browser's navigational
+      // state: it is carried in the `participants` query parameter, so the
+      // board is deep-linkable and Back/Forward toggles the panel.
+      const PARTICIPANTS_PARAM = 'participants';
+
       function isOpen() {
         return document.body.classList.contains('participants-open');
       }
 
-      function setOpen(open) {
+      // The state recorded in the URL, or null when the URL carries no explicit
+      // preference (then the responsive default applies).
+      function stateFromUrl() {
+        const value = new URLSearchParams(window.location.search).get(PARTICIPANTS_PARAM);
+        if (value === 'open') return true;
+        if (value === 'closed') return false;
+        return null;
+      }
+
+      function applyOpen(open) {
         document.body.classList.toggle('participants-open', open);
         document.body.classList.toggle('participants-collapsed', !open);
         toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+
+      // User-initiated change: apply it and push a history entry so Back and
+      // Forward navigate between panel states.
+      function setOpen(open) {
+        applyOpen(open);
+        if (stateFromUrl() !== open) {
+          const url = new URL(window.location.href);
+          url.searchParams.set(PARTICIPANTS_PARAM, open ? 'open' : 'closed');
+          history.pushState({ participants: open }, '', url);
+        }
       }
 
       // Keep the reserved page width in sync with the panel's actual width
@@ -898,8 +923,16 @@
       toggle.addEventListener('click', function() { setOpen(true); });
       if (closeButton) closeButton.addEventListener('click', function() { setOpen(false); });
 
-      // Open on desktop, collapsed on narrow screens.
-      setOpen(DESKTOP.matches);
+      // Open on desktop, collapsed on narrow screens, unless the URL carries an
+      // explicit preference (a shared link or a Back/Forward navigation).
+      const initial = stateFromUrl();
+      applyOpen(initial === null ? DESKTOP.matches : initial);
+
+      // Back/Forward restores the panel state recorded in the URL.
+      window.addEventListener('popstate', function() {
+        const state = stateFromUrl();
+        applyOpen(state === null ? DESKTOP.matches : state);
+      });
 
       // Clicking the backdrop of the mobile overlay closes the panel.
       document.addEventListener('click', function(event) {

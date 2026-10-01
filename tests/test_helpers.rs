@@ -525,6 +525,55 @@ impl<'a> RetroPage<'a> {
         Ok(())
     }
 
+    /// Whether the participants panel is currently open (the `participants-open`
+    /// class on `<body>`).
+    pub async fn participants_panel_open(&self) -> WebDriverResult<bool> {
+        let result = self
+            .driver
+            .execute(
+                "return document.body.classList.contains('participants-open');",
+                vec![],
+            )
+            .await?;
+        Ok(result.json().as_bool().unwrap_or(false))
+    }
+
+    /// Open the participants panel via its toggle button.
+    pub async fn open_participants_panel(&self) -> WebDriverResult<()> {
+        self.driver
+            .find(By::Css("#participants-toggle"))
+            .await?
+            .click()
+            .await?;
+        Ok(())
+    }
+
+    /// Close the participants panel via its close button.
+    pub async fn close_participants_panel(&self) -> WebDriverResult<()> {
+        self.driver
+            .find(By::Css("#participants-close"))
+            .await?
+            .click()
+            .await?;
+        Ok(())
+    }
+
+    /// Wait until the participants panel reaches the expected open/closed state.
+    /// Back/Forward applies the state from a `popstate` event, which is
+    /// dispatched asynchronously, so poll instead of asserting immediately.
+    pub async fn wait_for_participants_panel(&self, open: bool) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        loop {
+            if self.participants_panel_open().await? == open {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for participants panel open={}", open);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        }
+    }
+
     pub async fn retro_id(&self) -> WebDriverResult<i32> {
         let header = self.driver.find(By::Css(".retro-header")).await?;
         let id_str = header.attr("data-retro-id").await?.unwrap();
