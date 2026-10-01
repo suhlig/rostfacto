@@ -42,7 +42,11 @@
                 "TIMER_EXTENDED",
                 "TIMER_CANCELLED",
                 "TIMER_ELAPSED",
-                "RETRO_ARCHIVED"
+                "RETRO_ARCHIVED",
+                "ACTION_ITEM_CREATED",
+                "ACTION_ITEM_UPDATED",
+                "ACTION_ITEM_COMPLETED",
+                "ACTION_ITEM_DELETED"
               ]
             }
           }

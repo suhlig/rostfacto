@@ -1442,6 +1442,12 @@ async fn test_sse_syncs_archive_and_all_done_modal_between_clients() -> WebDrive
     let item_id = retro_a.add_card("Good", "Last card").await?;
     retro_b.wait_for_card_with_text("Good", "Last card").await?;
 
+    // An action item is archived along with the cards, so it must clear too.
+    retro_a.add_action_item("Action to archive").await?;
+    retro_b
+        .wait_for_action_item_with_text("Action to archive")
+        .await?;
+
     // A completes the last card: B must see the all-done archive modal too.
     retro_a.click_card(item_id).await?;
     retro_b
@@ -1452,9 +1458,65 @@ async fn test_sse_syncs_archive_and_all_done_modal_between_clients() -> WebDrive
     retro_a.wait_for_archive_modal().await?;
     retro_b.wait_for_archive_modal().await?;
 
-    // A archives from the modal: B's board empties.
+    // A archives from the modal: B's board empties (cards and action items).
     retro_a.archive().await?;
     retro_b.wait_for_card_count("Good", 0).await?;
+    retro_b.wait_for_action_item_count(0).await?;
+
+    browser_a.close().await?;
+    browser_b.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_sse_syncs_action_items_between_clients() -> WebDriverResult<()> {
+    let _two_browsers = two_browser_permit().await;
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser_a = BrowserSession::new(&server.base_url()).await?;
+    let browser_b = BrowserSession::new(&server.base_url()).await?;
+
+    let retros_page = browser_a.retros_page().await?;
+    let retro_a = retros_page.create_retro("SSE Sync Action Items").await?;
+    let slug = retro_a.slug.clone();
+    let retro_b = RetroPage::new(&browser_b.driver, &server.base_url(), &slug).await?;
+
+    // A adds an action item: B sees it via SSE, and A shows exactly one (dedup).
+    retro_a.add_action_item("Action from A").await?;
+    retro_b
+        .wait_for_action_item_with_text("Action from A")
+        .await?;
+    retro_a.wait_for_action_item_count(1).await?;
+    retro_b.wait_for_action_item_count(1).await?;
+
+    // B adds an action item: A sees it via SSE, and B shows exactly one (dedup).
+    retro_b.add_action_item("Action from B").await?;
+    retro_a
+        .wait_for_action_item_with_text("Action from B")
+        .await?;
+    retro_a.wait_for_action_item_count(2).await?;
+    retro_b.wait_for_action_item_count(2).await?;
+
+    // A edits the first action item: B's copy updates in place.
+    retro_a
+        .edit_action_item("Action from A", "Edited action")
+        .await?;
+    retro_b
+        .wait_for_action_item_with_text("Edited action")
+        .await?;
+
+    // B completes it: A sees the completed state.
+    retro_b.complete_action_item("Edited action").await?;
+    retro_a
+        .wait_for_action_item_completed("Edited action")
+        .await?;
+
+    // A deletes it: B's copy disappears.
+    retro_a.delete_action_item("Edited action").await?;
+    retro_b.wait_for_action_item_count(1).await?;
+    retro_b
+        .wait_for_action_item_with_text("Action from B")
+        .await?;
 
     browser_a.close().await?;
     browser_b.close().await?;

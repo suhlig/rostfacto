@@ -124,6 +124,8 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
+- Add participants pane open / closed to navigational state
+  * same for editing a form
 - Bump HTMX to v4
 - Adopt UI patterns in HTMX v4
 - Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs

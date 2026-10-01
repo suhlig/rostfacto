@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT enumlabel FROM pg_enum WHERE enumtypid = 'event_type'::regtype ORDER BY enumlabel",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "enumlabel",
+        "type_info": "Name",
+        "origin": {
+          "Table": {
+            "table": "pg_enum",
+            "name": "enumlabel"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b51bd7c29ab45ad106dd608230bd0b614c8a4280bd5321261a76144cd54c70b0"
+}

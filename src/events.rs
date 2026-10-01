@@ -38,6 +38,10 @@ pub enum EventType {
     TimerCancelled,
     TimerElapsed,
     RetroArchived,
+    ActionItemCreated,
+    ActionItemUpdated,
+    ActionItemCompleted,
+    ActionItemDeleted,
 }
 
 impl Display for EventType {
@@ -53,6 +57,10 @@ impl Display for EventType {
             EventType::TimerCancelled => "TIMER_CANCELLED",
             EventType::TimerElapsed => "TIMER_ELAPSED",
             EventType::RetroArchived => "RETRO_ARCHIVED",
+            EventType::ActionItemCreated => "ACTION_ITEM_CREATED",
+            EventType::ActionItemUpdated => "ACTION_ITEM_UPDATED",
+            EventType::ActionItemCompleted => "ACTION_ITEM_COMPLETED",
+            EventType::ActionItemDeleted => "ACTION_ITEM_DELETED",
         };
         write!(f, "{}", name)
     }

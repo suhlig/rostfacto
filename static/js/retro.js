@@ -281,6 +281,81 @@
       updateLikeCount(data.item_id, data.likes_count);
     });
 
+    // Action items sync like cards, but they live in their own pool/columns.
+    function fetchActionItemHtml(actionItemId, onSuccess) {
+      fetch('/action-items/' + actionItemId, { headers: { Accept: 'text/html' } })
+        .then(function(response) {
+          if (!response.ok) throw new Error('action item fetch failed: ' + response.status);
+          return response.text();
+        })
+        .then(onSuccess)
+        .catch(function(error) {
+          console.error('SSE: failed to fetch action item', actionItemId, error);
+        });
+    }
+
+    function actionItemExists(actionItemId) {
+      return document.querySelector('.action-item[data-action-item-id="' + actionItemId + '"]') !== null;
+    }
+
+    function insertActionItem(html) {
+      const template = document.createElement('template');
+      template.innerHTML = html.trim();
+      const item = template.content.firstElementChild;
+      if (!item || actionItemExists(item.dataset.actionItemId)) return;
+      const pool = document.getElementById('action-items-pool');
+      if (!pool) return;
+      pool.insertBefore(item, pool.firstChild);
+      processWithHtmx(item);
+      // The action-items module re-groups the pool into the dated columns.
+      document.body.dispatchEvent(new CustomEvent('sse:action-item-added'));
+    }
+
+    function replaceActionItem(actionItemId, html) {
+      const current = document.querySelector('.action-item[data-action-item-id="' + actionItemId + '"]');
+      if (!current) return;
+      const template = document.createElement('template');
+      template.innerHTML = html.trim();
+      const replacement = template.content.firstElementChild;
+      if (!replacement) return;
+      current.replaceWith(replacement);
+      processWithHtmx(replacement);
+    }
+
+    source.addEventListener('ACTION_ITEM_CREATED', function(event) {
+      if (appliedEventIds.has(event.lastEventId)) return;
+      const data = parseEvent(event);
+      if (!data) return;
+      fetchActionItemHtml(data.action_item_id, insertActionItem);
+    });
+
+    source.addEventListener('ACTION_ITEM_UPDATED', function(event) {
+      if (appliedEventIds.has(event.lastEventId)) return;
+      const data = parseEvent(event);
+      if (!data) return;
+      const item = document.querySelector('.action-item[data-action-item-id="' + data.action_item_id + '"]');
+      if (!item) return;
+      const text = item.querySelector('.action-item-text');
+      if (text) text.textContent = data.text;
+    });
+
+    source.addEventListener('ACTION_ITEM_COMPLETED', function(event) {
+      if (appliedEventIds.has(event.lastEventId)) return;
+      const data = parseEvent(event);
+      if (!data) return;
+      fetchActionItemHtml(data.action_item_id, function(html) {
+        replaceActionItem(data.action_item_id, html);
+      });
+    });
+
+    source.addEventListener('ACTION_ITEM_DELETED', function(event) {
+      if (appliedEventIds.has(event.lastEventId)) return;
+      const data = parseEvent(event);
+      if (!data) return;
+      const item = document.querySelector('.action-item[data-action-item-id="' + data.action_item_id + '"]');
+      if (item) item.remove();
+    });
+
     // Timer events carry the authoritative deadline; the timer module renders
     // the countdown from it.
     source.addEventListener('TIMER_STARTED', handleTimerPayload);
@@ -306,11 +381,15 @@
     });
 
     // The retro was archived: clear the board and stop all timers (removing
-    // the badges stops their countdowns).
+    // the badges stops their countdowns). Archiving also archives action items,
+    // so clear those too.
     source.addEventListener('RETRO_ARCHIVED', function(event) {
       if (appliedEventIds.has(event.lastEventId)) return;
       document.querySelectorAll('.item-list article.card').forEach(function(card) {
         card.remove();
+      });
+      document.querySelectorAll('.action-item').forEach(function(item) {
+        item.remove();
       });
       const dialog = document.getElementById('archive-modal');
       if (dialog && dialog.open) dialog.close();
@@ -688,7 +767,25 @@
     function groupActionItems() {
       const now = new Date();
       const todayKey = localDateKey(now);
-      const items = Array.from(pool.querySelectorAll('.action-item'));
+      // The HTMX add response and the SSE insert can both add the same item
+      // (the SSE event may arrive before the response's X-Event-Id is
+      // recorded), so keep one node per id: the last in DOM order (the freshest
+      // render), mirroring removeDuplicateCards for cards.
+      const seen = new Set();
+      const latest = new Map();
+      Array.from(section.querySelectorAll('.action-item')).forEach(function(item) {
+        const id = item.dataset.actionItemId;
+        if (seen.has(id)) {
+          const older = latest.get(id);
+          if (older && older !== item) older.remove();
+        }
+        latest.set(id, item);
+        seen.add(id);
+      });
+      // Items live in the columns once grouped, so collect from the whole
+      // section (pool + columns). Reading only the pool would drop every
+      // already-grouped item the next time this runs (e.g. after adding one).
+      const items = Array.from(section.querySelectorAll('.action-item'));
       if (items.length === 0) return;
       const priorDates = items
         .map(item => new Date(item.dataset.createdAt))
@@ -712,6 +809,9 @@
         groupActionItems();
       }
     });
+    // An action item inserted by the SSE sync path lands in the pool; re-group
+    // so it joins the existing (already-grouped) items instead of replacing them.
+    document.body.addEventListener('sse:action-item-added', groupActionItems);
   })();
 
   (function() {

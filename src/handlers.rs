@@ -1469,7 +1469,7 @@ pub async fn add_action_item(
     user: AuthUser,
     Path(retro_id): Path<i32>,
     Form(form): Form<NewActionItem>,
-) -> Result<Html<String>, HandlerError> {
+) -> Result<Response, HandlerError> {
     match require_retro_access_by_id(&state, &user, retro_id).await? {
         Some(_) => {}
         None => return Err(not_found_response(&state, "").into()),
@@ -1487,6 +1487,11 @@ pub async fn add_action_item(
         .into());
     }
 
+    let mut tx = state.pool.begin().await.map_err(|error| {
+        log_database_error("add_action_item_begin_transaction", &error);
+        database_error_response()
+    })?;
+
     let action_item = sqlx::query_as!(
         ActionItem,
         r#"INSERT INTO action_items (retro_id, text)
@@ -1496,14 +1501,41 @@ pub async fn add_action_item(
         retro_id,
         text
     )
-    .fetch_one(&state.pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|error| {
         log_database_error("add_action_item", &error);
         database_error_response()
     })?;
 
-    Ok(Html(ActionItemTemplate { action_item }.render().unwrap()))
+    // The new action item gets exactly one ACTION_ITEM_CREATED event, written
+    // in the same transaction as the INSERT so every client syncs it.
+    let event_id = emit_event(
+        &mut tx,
+        retro_id,
+        EventType::ActionItemCreated as EventType,
+        Some(action_item.id),
+        json!({
+            "action_item_id": action_item.id,
+            "retro_id": retro_id,
+            "text": action_item.text,
+            "completed": false,
+        }),
+    )
+    .await
+    .map_err(|error| {
+        log_database_error("add_action_item_emit_event", &error);
+        database_error_response()
+    })?;
+
+    tx.commit().await.map_err(|error| {
+        log_database_error("add_action_item_commit_transaction", &error);
+        database_error_response()
+    })?;
+
+    let mut response = Html(ActionItemTemplate { action_item }.render().unwrap()).into_response();
+    attach_event_id_header(&mut response, Some(event_id));
+    Ok(response)
 }
 
 pub async fn show_action_item(
@@ -1547,7 +1579,7 @@ pub async fn update_action_item(
     user: AuthUser,
     Path(action_item_id): Path<i32>,
     Form(form): Form<NewActionItem>,
-) -> Result<Html<String>, HandlerError> {
+) -> Result<Response, HandlerError> {
     let existing = load_action_item(&state.pool, action_item_id)
         .await
         .map_err(|error| match error {
@@ -1569,28 +1601,64 @@ pub async fn update_action_item(
         )
         .into());
     }
+
+    let mut tx = state.pool.begin().await.map_err(|error| {
+        log_database_error("update_action_item_begin_transaction", &error);
+        database_error_response()
+    })?;
+
     sqlx::query!(
         "UPDATE action_items SET text = $1 WHERE id = $2",
         text,
         action_item_id
     )
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await
     .map_err(|error| {
         log_database_error("update_action_item", &error);
         database_error_response()
     })?;
+
+    // Only a real text change emits ACTION_ITEM_UPDATED (matching the header,
+    // which must not suppress a future event with a stale id).
+    let event_id = if existing.text != text {
+        Some(
+            emit_event(
+                &mut tx,
+                existing.retro_id,
+                EventType::ActionItemUpdated as EventType,
+                Some(action_item_id),
+                json!({"action_item_id": action_item_id, "text": text}),
+            )
+            .await
+            .map_err(|error| {
+                log_database_error("update_action_item_emit_event", &error);
+                database_error_response()
+            })?,
+        )
+    } else {
+        None
+    };
+
+    tx.commit().await.map_err(|error| {
+        log_database_error("update_action_item_commit_transaction", &error);
+        database_error_response()
+    })?;
+
     let action_item = load_action_item(&state.pool, action_item_id)
         .await
         .map_err(|_| database_error_response())?;
-    Ok(Html(ActionItemTemplate { action_item }.render().unwrap()))
+
+    let mut response = Html(ActionItemTemplate { action_item }.render().unwrap()).into_response();
+    attach_event_id_header(&mut response, event_id);
+    Ok(response)
 }
 
 pub async fn complete_action_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(action_item_id): Path<i32>,
-) -> Result<Html<String>, HandlerError> {
+) -> Result<Response, HandlerError> {
     let existing = load_action_item(&state.pool, action_item_id)
         .await
         .map_err(|error| match error {
@@ -1600,27 +1668,62 @@ pub async fn complete_action_item(
     require_retro_access_by_id(&state, &user, existing.retro_id)
         .await?
         .ok_or_else(|| not_found_page(&state))?;
+
+    let mut tx = state.pool.begin().await.map_err(|error| {
+        log_database_error("complete_action_item_begin_transaction", &error);
+        database_error_response()
+    })?;
+
     sqlx::query!(
         "UPDATE action_items SET completed_at = COALESCE(completed_at, NOW()) WHERE id = $1",
         action_item_id
     )
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await
     .map_err(|error| {
         log_database_error("complete_action_item", &error);
         database_error_response()
     })?;
+
+    // Completing an already-completed item is a no-op, so it emits nothing.
+    let event_id = if existing.completed_at.is_none() {
+        Some(
+            emit_event(
+                &mut tx,
+                existing.retro_id,
+                EventType::ActionItemCompleted as EventType,
+                Some(action_item_id),
+                json!({"action_item_id": action_item_id, "completed": true}),
+            )
+            .await
+            .map_err(|error| {
+                log_database_error("complete_action_item_emit_event", &error);
+                database_error_response()
+            })?,
+        )
+    } else {
+        None
+    };
+
+    tx.commit().await.map_err(|error| {
+        log_database_error("complete_action_item_commit_transaction", &error);
+        database_error_response()
+    })?;
+
     let action_item = load_action_item(&state.pool, action_item_id)
         .await
         .map_err(|_| database_error_response())?;
-    Ok(Html(ActionItemTemplate { action_item }.render().unwrap()))
+
+    let mut response = Html(ActionItemTemplate { action_item }.render().unwrap()).into_response();
+    attach_event_id_header(&mut response, event_id);
+    Ok(response)
 }
 
 pub async fn delete_action_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(action_item_id): Path<i32>,
-) -> Result<StatusCode, HandlerError> {
+) -> Result<Response, HandlerError> {
     let existing = load_action_item(&state.pool, action_item_id)
         .await
         .map_err(|error| match error {
@@ -1630,14 +1733,41 @@ pub async fn delete_action_item(
     require_retro_access_by_id(&state, &user, existing.retro_id)
         .await?
         .ok_or_else(|| not_found_page(&state))?;
+
+    let mut tx = state.pool.begin().await.map_err(|error| {
+        log_database_error("delete_action_item_begin_transaction", &error);
+        database_error_response()
+    })?;
+
     sqlx::query!("DELETE FROM action_items WHERE id = $1", action_item_id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await
         .map_err(|error| {
             log_database_error("delete_action_item", &error);
             database_error_response()
         })?;
-    Ok(StatusCode::OK)
+
+    let event_id = emit_event(
+        &mut tx,
+        existing.retro_id,
+        EventType::ActionItemDeleted as EventType,
+        Some(action_item_id),
+        json!({"action_item_id": action_item_id}),
+    )
+    .await
+    .map_err(|error| {
+        log_database_error("delete_action_item_emit_event", &error);
+        database_error_response()
+    })?;
+
+    tx.commit().await.map_err(|error| {
+        log_database_error("delete_action_item_commit_transaction", &error);
+        database_error_response()
+    })?;
+
+    let mut response = StatusCode::OK.into_response();
+    attach_event_id_header(&mut response, Some(event_id));
+    Ok(response)
 }
 
 pub async fn archive_retro(

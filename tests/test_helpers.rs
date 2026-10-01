@@ -585,6 +585,208 @@ impl<'a> RetroPage<'a> {
         Ok(id)
     }
 
+    /// Add an action item through the board form and wait for it to appear in
+    /// the grouped columns.
+    pub async fn add_action_item(&self, text: &str) -> WebDriverResult<()> {
+        let form = self.driver.find(By::Css("form.action-items-form")).await?;
+        let input = form.find(By::Css("input[name='text']")).await?;
+        input.clear().await?;
+        input.send_keys(text).await?;
+        form.find(By::Css("button[type='submit']"))
+            .await?
+            .click()
+            .await?;
+        self.wait_for_action_item_with_text(text).await
+    }
+
+    /// Texts of the action items currently shown in the grouped columns.
+    /// Items replaced mid-read by an SSE re-render are skipped; callers poll.
+    pub async fn action_item_texts(&self) -> WebDriverResult<Vec<String>> {
+        let items = self
+            .driver
+            .find_all(By::Css(".action-column .action-item"))
+            .await?;
+        let mut texts = Vec::new();
+        for item in items {
+            let span = match item.find(By::Css(".action-item-text")).await {
+                Ok(span) => span,
+                Err(error)
+                    if matches!(
+                        *error,
+                        WebDriverErrorInner::NoSuchElement(..)
+                            | WebDriverErrorInner::StaleElementReference(..)
+                    ) =>
+                {
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            match span.text().await {
+                Ok(text) => texts.push(text),
+                Err(error) if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(texts)
+    }
+
+    /// Wait until the grouped columns contain exactly `expected` action items.
+    pub async fn wait_for_action_item_count(&self, expected: usize) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
+        loop {
+            let count = self
+                .driver
+                .find_all(By::Css(".action-column .action-item"))
+                .await?
+                .len();
+            if count == expected {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!(
+                    "Timed out waiting for {} action items, got {}",
+                    expected, count
+                );
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Wait until an action item with exactly `text` is shown.
+    pub async fn wait_for_action_item_with_text(&self, text: &str) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
+        loop {
+            if self.action_item_texts().await?.iter().any(|t| t == text) {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for action item '{}'", text);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Wait until the action item with `text` carries the `completed` class.
+    pub async fn wait_for_action_item_completed(&self, text: &str) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
+        loop {
+            let items = self
+                .driver
+                .find_all(By::Css(".action-column .action-item.completed"))
+                .await?;
+            for item in items {
+                if let Ok(span) = item.find(By::Css(".action-item-text")).await {
+                    if let Ok(span_text) = span.text().await {
+                        if span_text == text {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for action item '{}' to complete", text);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Find the action item whose text matches, polling until it appears.
+    async fn find_action_item_by_text(&self, text: &str) -> WebDriverResult<WebElement> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
+        loop {
+            let items = self
+                .driver
+                .find_all(By::Css(".action-column .action-item"))
+                .await?;
+            for item in items {
+                if let Ok(span) = item.find(By::Css(".action-item-text")).await {
+                    if let Ok(span_text) = span.text().await {
+                        if span_text == text {
+                            return Ok(item);
+                        }
+                    }
+                }
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out finding action item '{}'", text);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Edit the action item with `old_text` to `new_text` via the inline form.
+    pub async fn edit_action_item(&self, old_text: &str, new_text: &str) -> WebDriverResult<()> {
+        let item = self.find_action_item_by_text(old_text).await?;
+        item.find(By::Css(".action-item-edit"))
+            .await?
+            .click()
+            .await?;
+
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
+        let input = loop {
+            if let Ok(input) = self
+                .driver
+                .find(By::Css(".action-item.editing textarea[name='text']"))
+                .await
+            {
+                break input;
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for the action item edit textarea");
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        };
+        input.clear().await?;
+        input.send_keys(new_text).await?;
+        self.driver
+            .find(By::Css(".action-item.editing .btn-save-edit"))
+            .await?
+            .click()
+            .await?;
+        self.wait_for_action_item_with_text(new_text).await
+    }
+
+    /// Complete the action item with `text` via its checkbox.
+    pub async fn complete_action_item(&self, text: &str) -> WebDriverResult<()> {
+        let item = self.find_action_item_by_text(text).await?;
+        item.find(By::Css(".action-item-checkbox"))
+            .await?
+            .click()
+            .await?;
+        self.wait_for_action_item_completed(text).await
+    }
+
+    /// Delete the action item with `text` via its confirmation dialog.
+    pub async fn delete_action_item(&self, text: &str) -> WebDriverResult<()> {
+        let item = self.find_action_item_by_text(text).await?;
+        item.scroll_into_view().await?;
+        // The delete button is hidden until the item is hovered.
+        self.driver
+            .action_chain()
+            .move_to_element_center(&item)
+            .perform()
+            .await?;
+        item.find(By::Css(".action-item-delete"))
+            .await?
+            .click()
+            .await?;
+        self.driver
+            .find(By::Css(".action-item-delete-dialog[open] .btn-primary"))
+            .await?
+            .click()
+            .await?;
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
+        loop {
+            if !self.action_item_texts().await?.iter().any(|t| t == text) {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for action item '{}' to be deleted", text);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
     /// Click an element matching `selector`, re-finding it when a render
     /// replaces it between the find and the click (SSE re-fetches swap cards
     /// and buttons under load). `what` names the element in the timeout panic.

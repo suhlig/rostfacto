@@ -78,6 +78,33 @@ async fn status_enum_includes_archived_after_migrations() {
 }
 
 #[tokio::test]
+async fn event_enum_includes_action_item_types_after_migrations() {
+    with_fresh_migrated_database("action_item_events", |pool| async move {
+        let values: Vec<String> = sqlx::query_scalar!(
+            "SELECT enumlabel FROM pg_enum WHERE enumtypid = 'event_type'::regtype ORDER BY enumlabel"
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("Failed to query event_type enum values");
+
+        for expected in [
+            "ACTION_ITEM_CREATED",
+            "ACTION_ITEM_UPDATED",
+            "ACTION_ITEM_COMPLETED",
+            "ACTION_ITEM_DELETED",
+        ] {
+            assert!(
+                values.iter().any(|v| v == expected),
+                "event_type enum should contain {}, got: {:?}",
+                expected,
+                values
+            );
+        }
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn items_retro_category_status_index_exists() {
     with_fresh_migrated_database("index", |pool| async move {
         let row = sqlx::query!(

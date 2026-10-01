@@ -173,6 +173,46 @@ async fn latest_event_id(ctx: &TestContext, item_id: i32, event_type: &str) -> i
     .expect("Expected an events row")
 }
 
+fn parse_action_item_id(html: &str) -> i32 {
+    let marker = "data-action-item-id=\"";
+    let start = html
+        .find(marker)
+        .expect("action item should carry data-action-item-id")
+        + marker.len();
+    let end = html[start..]
+        .find('"')
+        .expect("action item id should be quoted")
+        + start;
+    html[start..end]
+        .parse()
+        .expect("action item id should be numeric")
+}
+
+async fn add_action_item(ctx: &TestContext, retro_id: i32, text: &str) -> (i32, Option<i64>) {
+    let response = ctx
+        .client
+        .post(format!("{}/retro/{}/action-items", ctx.base_url, retro_id))
+        .form(&[("text", text)])
+        .send()
+        .await
+        .expect("Failed to add action item");
+    assert_eq!(
+        response.status(),
+        reqwest::StatusCode::OK,
+        "adding an action item should succeed"
+    );
+    let event_id = response
+        .headers()
+        .get("x-event-id")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse().ok());
+    let html = response
+        .text()
+        .await
+        .expect("Action item response should be HTML");
+    (parse_action_item_id(&html), event_id)
+}
+
 #[tokio::test]
 async fn sse_streams_live_events_to_connected_clients() {
     let ctx = setup().await;
@@ -588,4 +628,102 @@ async fn archive_emits_single_retro_archived_event() {
         nothing.is_err(),
         "archiving an empty retro should not emit another RETRO_ARCHIVED"
     );
+}
+
+#[tokio::test]
+async fn action_item_mutations_emit_events() {
+    let ctx = setup().await;
+    let retro_id = create_retro(&ctx, "action-item-events").await;
+
+    // Create: the response carries the matching X-Event-Id.
+    let (action_item_id, created_event_id) = add_action_item(&ctx, retro_id, "First action").await;
+    let created_event_id = created_event_id.expect("add should carry X-Event-Id");
+    assert_eq!(
+        created_event_id,
+        latest_event_id(&ctx, action_item_id, "ACTION_ITEM_CREATED").await
+    );
+
+    // Update: only a real text change emits ACTION_ITEM_UPDATED.
+    let response = ctx
+        .client
+        .post(format!("{}/action-items/{}", ctx.base_url, action_item_id))
+        .form(&[("text", "Edited action")])
+        .send()
+        .await
+        .expect("Failed to update action item");
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    let event_id: i64 = response
+        .headers()
+        .get("x-event-id")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse().ok())
+        .expect("update response should carry X-Event-Id");
+    assert_eq!(
+        event_id,
+        latest_event_id(&ctx, action_item_id, "ACTION_ITEM_UPDATED").await
+    );
+
+    // Complete: emits ACTION_ITEM_COMPLETED.
+    let response = ctx
+        .client
+        .post(format!(
+            "{}/action-items/{}/complete",
+            ctx.base_url, action_item_id
+        ))
+        .send()
+        .await
+        .expect("Failed to complete action item");
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    let event_id: i64 = response
+        .headers()
+        .get("x-event-id")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse().ok())
+        .expect("complete response should carry X-Event-Id");
+    assert_eq!(
+        event_id,
+        latest_event_id(&ctx, action_item_id, "ACTION_ITEM_COMPLETED").await
+    );
+
+    // Delete: emits ACTION_ITEM_DELETED.
+    let response = ctx
+        .client
+        .delete(format!("{}/action-items/{}", ctx.base_url, action_item_id))
+        .send()
+        .await
+        .expect("Failed to delete action item");
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    let event_id: i64 = response
+        .headers()
+        .get("x-event-id")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse().ok())
+        .expect("delete response should carry X-Event-Id");
+    assert_eq!(
+        event_id,
+        latest_event_id(&ctx, action_item_id, "ACTION_ITEM_DELETED").await
+    );
+}
+
+#[tokio::test]
+async fn action_item_events_stream_over_sse() {
+    let ctx = setup().await;
+    let retro_id = create_retro(&ctx, "action-item-sse").await;
+
+    let response = ctx
+        .client
+        .get(format!("{}/retro/action-item-sse/events", ctx.base_url))
+        .send()
+        .await
+        .expect("Failed to open SSE stream");
+    let mut stream = response.bytes_stream();
+    let mut buffer = String::new();
+
+    let (action_item_id, _) = add_action_item(&ctx, retro_id, "Streamed action").await;
+    let frame = wait_for_sse_event(&mut stream, &mut buffer, "ACTION_ITEM_CREATED").await;
+    assert_eq!(
+        frame.data["action_item_id"].as_i64(),
+        Some(action_item_id as i64)
+    );
+    assert_eq!(frame.data["text"].as_str(), Some("Streamed action"));
 }
