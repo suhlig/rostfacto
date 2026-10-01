@@ -1383,7 +1383,11 @@ pub async fn start_item_timer(
 }
 
 /// Extend a running timer by two minutes (restarting it if it already
-/// elapsed).
+/// elapsed). The new deadline is `GREATEST(old_deadline, NOW()) + 2 minutes`,
+/// so the added time always counts from the moment the button is pressed: an
+/// extend of a timer that has been over for longer than two minutes yields a
+/// fresh countdown instead of leaving the deadline in the past (which the
+/// sweep would immediately mark elapsed again).
 pub async fn extend_item_timer(
     State(state): State<AppState>,
     user: AuthUser,
@@ -1398,8 +1402,26 @@ pub async fn extend_item_timer(
 
     let extended = sqlx::query_as!(
         TimerRow,
+        // `timer_ends_at` is generated as `timer_started_at +
+        // timer_duration_seconds`, so a plain `duration + 120` cannot move the
+        // deadline past NOW() once the timer is more than two minutes overdue
+        // (the sweep re-marks it elapsed at once). Compare the derived deadline
+        // against NOW() and, when it has already passed, restart the countdown
+        // from NOW(): the added time runs from the button press, never from a
+        // deadline that is already in the past. A still-running timer keeps its
+        // start (and accumulates its duration), so the two behave identically on
+        // the wire (the deadline is `GREATEST(old_deadline, NOW()) + 2 min`).
         r#"UPDATE items
-           SET timer_duration_seconds = timer_duration_seconds + 120,
+           SET timer_started_at = CASE
+                   WHEN timer_started_at + (timer_duration_seconds * INTERVAL '1 second') <= NOW()
+                       THEN NOW()
+                   ELSE timer_started_at
+               END,
+               timer_duration_seconds = CASE
+                   WHEN timer_started_at + (timer_duration_seconds * INTERVAL '1 second') <= NOW()
+                       THEN 120
+                   ELSE timer_duration_seconds + 120
+               END,
                timer_elapsed_at = NULL
            WHERE id = $1 AND timer_started_at IS NOT NULL
            RETURNING timer_started_at as "timer_started_at!", timer_duration_seconds as "timer_duration_seconds!""#,

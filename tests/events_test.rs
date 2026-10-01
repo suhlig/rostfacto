@@ -569,23 +569,123 @@ async fn timer_sweep_marks_short_timers_elapsed() {
     let frame = wait_for_sse_event(&mut stream, &mut buffer, "TIMER_ELAPSED").await;
     assert_eq!(frame.data["item_id"].as_i64(), Some(item_id as i64));
 
-    // Extending an elapsed timer restarts it (clears the elapsed marker).
+    // Extending an elapsed timer restarts it: a fresh two-minute countdown
+    // (clears the elapsed marker, moves the deadline into the future).
     ctx.client
         .post(format!("{}/items/{}/timer/extend", ctx.base_url, item_id))
         .send()
         .await
         .expect("Failed to extend elapsed timer");
     let frame = wait_for_sse_event(&mut stream, &mut buffer, "TIMER_EXTENDED").await;
-    assert_eq!(frame.data["duration_seconds"].as_i64(), Some(122));
+    assert_eq!(frame.data["duration_seconds"].as_i64(), Some(120));
 
+    let row = sqlx::query!(
+        "SELECT timer_elapsed_at, timer_ends_at FROM items WHERE id = $1",
+        item_id
+    )
+    .fetch_one(&ctx.pool)
+    .await
+    .expect("Failed to read timer columns after extend");
+    assert!(
+        row.timer_elapsed_at.is_none(),
+        "extending should clear the elapsed marker"
+    );
+    let remaining =
+        row.timer_ends_at.expect("timer_ends_at should be computed") - chrono::Utc::now();
+    assert!(
+        remaining > chrono::Duration::seconds(100) && remaining <= chrono::Duration::seconds(125),
+        "extending an elapsed timer should restart it at ~2 minutes from now, got {remaining:?}"
+    );
+}
+
+#[tokio::test]
+async fn extending_a_long_overdue_timer_restarts_it_from_now() {
+    let ctx = setup().await;
+    let retro_id = create_retro(&ctx, "timer-overdue-http").await;
+    let (item_id, _) = add_item(&ctx, "Good", retro_id, "Overdue timer").await;
+
+    let response = ctx
+        .client
+        .get(format!("{}/retro/timer-overdue-http/events", ctx.base_url))
+        .send()
+        .await
+        .expect("Failed to open SSE stream");
+    let mut stream = response.bytes_stream();
+    let mut buffer = String::new();
+
+    ctx.client
+        .post(format!(
+            "{}/items/{}/status?action=highlight",
+            ctx.base_url, item_id
+        ))
+        .send()
+        .await
+        .expect("Failed to highlight item");
+    wait_for_sse_event(&mut stream, &mut buffer, "ITEM_STATUS_CHANGED").await;
+
+    ctx.client
+        .post(format!("{}/items/{}/timer/start", ctx.base_url, item_id))
+        .form(&[("duration", "300")])
+        .send()
+        .await
+        .expect("Failed to start timer");
+    wait_for_sse_event(&mut stream, &mut buffer, "TIMER_STARTED").await;
+
+    // Simulate a timer that expired more than two minutes ago: backdate the
+    // start so the derived deadline is well in the past. Raw SQL bypasses the
+    // app's event emitting, so the SSE stream stays clean.
+    sqlx::query!(
+        "UPDATE items SET timer_started_at = NOW() - INTERVAL '10 minutes' WHERE id = $1",
+        item_id
+    )
+    .execute(&ctx.pool)
+    .await
+    .expect("Failed to backdate the timer");
+
+    // Let the sweep mark it elapsed, as it would for a real overdue timer.
+    wait_for_sse_event(&mut stream, &mut buffer, "TIMER_ELAPSED").await;
+
+    // Pressing +2 must give a fresh two-minute countdown. Before the fix the
+    // deadline stayed in the past (>2 minutes overdue, so +120s was not
+    // enough), and the sweep instantly expired it again.
+    let response = ctx
+        .client
+        .post(format!("{}/items/{}/timer/extend", ctx.base_url, item_id))
+        .send()
+        .await
+        .expect("Failed to extend overdue timer");
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    let frame = wait_for_sse_event(&mut stream, &mut buffer, "TIMER_EXTENDED").await;
+    assert_eq!(frame.data["duration_seconds"].as_i64(), Some(120));
+
+    let row = sqlx::query!(
+        "SELECT timer_elapsed_at, timer_ends_at FROM items WHERE id = $1",
+        item_id
+    )
+    .fetch_one(&ctx.pool)
+    .await
+    .expect("Failed to read timer columns after extend");
+    assert!(
+        row.timer_elapsed_at.is_none(),
+        "extending should clear the elapsed marker"
+    );
+    let remaining =
+        row.timer_ends_at.expect("timer_ends_at should be computed") - chrono::Utc::now();
+    assert!(
+        remaining > chrono::Duration::seconds(100) && remaining <= chrono::Duration::seconds(125),
+        "extending an overdue timer should restart it at ~2 minutes from now, got {remaining:?}"
+    );
+
+    // Several sweep cycles must not immediately expire it again.
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
     let elapsed: Option<chrono::DateTime<chrono::Utc>> =
         sqlx::query_scalar!("SELECT timer_elapsed_at FROM items WHERE id = $1", item_id)
             .fetch_one(&ctx.pool)
             .await
-            .expect("Failed to read elapsed_at after extend");
+            .expect("Failed to re-read elapsed_at");
     assert!(
         elapsed.is_none(),
-        "extending should clear the elapsed marker"
+        "the extended timer should still be running after a few sweep cycles"
     );
 }
 

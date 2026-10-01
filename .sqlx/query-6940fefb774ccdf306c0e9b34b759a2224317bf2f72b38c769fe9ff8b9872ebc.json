@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE items SET timer_started_at = NOW() - INTERVAL '10 minutes' WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6940fefb774ccdf306c0e9b34b759a2224317bf2f72b38c769fe9ff8b9872ebc"
+}

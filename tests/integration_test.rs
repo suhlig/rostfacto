@@ -1427,6 +1427,65 @@ async fn test_sse_syncs_timers_between_clients() -> WebDriverResult<()> {
 }
 
 #[tokio::test]
+async fn test_extend_restarts_a_long_overdue_timer() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+
+    let retros_page = browser.retros_page().await?;
+    let retro = retros_page.create_retro("Overdue Timer Extend").await?;
+    let item_id = retro.add_card("Good", "overdue card").await?;
+
+    // Short auto-start duration so the badge reaches 0:00 quickly.
+    retro
+        .driver
+        .execute("document.body.dataset.timerDefaultSeconds = '2'", vec![])
+        .await?;
+    retro.click_card(item_id).await?;
+    retro.wait_for_timer_text(item_id, "0:00").await?;
+    retro.wait_for_extend_button_visible(item_id).await?;
+
+    // Make the timer overdue by more than the two minutes that +2 adds: with
+    // the old `duration + 120` extend the deadline stayed in the past, so the
+    // sweep instantly expired it again and the button looked broken.
+    let pool = sqlx::PgPool::connect(&db.database_url)
+        .await
+        .expect("Failed to connect to test DB");
+    sqlx::query("UPDATE items SET timer_started_at = NOW() - INTERVAL '10 minutes' WHERE id = $1")
+        .bind(item_id)
+        .execute(&pool)
+        .await
+        .expect("Failed to backdate the timer");
+    drop(pool);
+
+    // Pressing +2 must give a fresh, running countdown from the press rather
+    // than leaving the badge stuck at 0:00.
+    retro.click_extend(item_id).await?;
+    let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+    loop {
+        let text = retro.timer_text(item_id).await?;
+        let remaining = parse_timer(&text);
+        if remaining > 0 {
+            assert!(
+                remaining <= 120,
+                "extending an overdue timer should restart it at ~2 minutes, got {}",
+                text
+            );
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the +2 min button did not restart the overdue timer (stuck at {})",
+            text
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_sse_syncs_archive_and_all_done_modal_between_clients() -> WebDriverResult<()> {
     let _two_browsers = two_browser_permit().await;
     let db = TestDb::new().await;
