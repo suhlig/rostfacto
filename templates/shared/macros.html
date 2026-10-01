@@ -79,8 +79,17 @@
           hx-target="closest .card"
           hx-swap="outerHTML">
     <span class="card-text">{{ item.text }}</span>
-    <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span>
   </button>
+{% endmacro %}
+
+{% macro author_badge(item) %}
+  <span class="card-author" title="{{ item.author_name }}">
+    {% if let Some(avatar_url) = item.author_avatar_url %}
+      <img class="card-author-avatar" src="{{ avatar_url }}" alt="{{ item.author_name }}">
+    {% else %}
+      <span class="card-author-initials">{{ item.author_initials }}</span>
+    {% endif %}
+  </span>
 {% endmacro %}
 
 {% macro card_actions(item) %}
@@ -107,10 +116,10 @@
   <div class="card-content">
     <p>
       <span class="card-text">{{ item.text }}</span>
-      <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span>
     </p>
     <span class="completed-check">✓</span>
   </div>
+  {{ author_badge(item) }}
 </article>
 {% endmacro %}
 

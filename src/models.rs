@@ -43,6 +43,7 @@ pub struct Item {
     pub status: Status,
     pub author_id: i32,
     pub author_name: String,
+    pub author_avatar_url: Option<String>,
     pub author_initials: String,
     pub likes_count: i64,
     pub archive_id: Option<i32>,

@@ -609,7 +609,33 @@ button.add-card-submit:hover {
 }
 
 .card-author {
-  color: var(--rf-text-muted);
+  flex-shrink: 0;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.card-author-avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card-author-initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-color: var(--rf-blue);
+  color: #fff;
+  font-size: 0.7rem;
   font-weight: 700;
 }
 
@@ -712,7 +738,7 @@ button.add-card-submit:hover {
 .card.highlighted {
   cursor: default;
   border: 2px solid var(--rf-green);
-  padding-top: 3rem;
+  padding-top: 4rem;
 }
 
 .card.highlighted:hover {

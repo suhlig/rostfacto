@@ -26,14 +26,16 @@
         {{ macros::card_text_edit_button(item, false) }}
         {{ macros::card_actions(item) }}
       </div>
+      {{ macros::author_badge(item) }}
     </article>
   {% when Status::Completed %}
     <article class="card completed" tabindex="0" data-item-id="{{ item.id }}" data-updated-at="{{ item.updated_at.timestamp_millis() }}">
       {{ macros::like_button(item) }}
       <div class="card-content">
-        <p><span class="card-text">{{ item.text }}</span> <span class="card-author" title="{{ item.author_name }}">[{{ item.author_initials }}]</span></p>
+        <p><span class="card-text">{{ item.text }}</span></p>
         <span class="completed-check">✓</span>
       </div>
+      {{ macros::author_badge(item) }}
     </article>
   {% else %}
     <article class="card"
@@ -51,5 +53,6 @@
           <div class="error-message">{{ message }}</div>
         {% endif %}
       </div>
+      {{ macros::author_badge(item) }}
     </article>
 {% endmatch %}
