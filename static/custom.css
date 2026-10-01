@@ -1721,7 +1721,7 @@ button.action-item-checkbox:hover {
   }
 }
 
-/* Explicit open/closed states, set by retro.js. The base rules above default
+/* Explicit open/closed states, set by participants.js. The base rules above default
    to open on desktop and collapsed on narrow screens. */
 body.participants-open .participants-panel {
   transform: translateX(0);

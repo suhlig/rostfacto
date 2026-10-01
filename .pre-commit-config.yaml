@@ -46,3 +46,17 @@ repos:
         language: script
         pass_filenames: false
         files: ^(src/.*\.rs|migrations/.*)$
+
+      - id: deno-fmt
+        name: deno fmt
+        entry: deno fmt --check
+        language: system
+        pass_filenames: false
+        files: ^static/js/.*\.js$
+
+      - id: deno-lint
+        name: deno lint
+        entry: deno lint
+        language: system
+        pass_filenames: false
+        files: ^static/js/.*\.js$
