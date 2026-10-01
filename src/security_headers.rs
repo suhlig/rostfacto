@@ -31,7 +31,7 @@ pub fn content_security_policy(config: &Config) -> HeaderValue {
 
     let policy = format!(
         "default-src 'self'; \
-         script-src 'self' https://cdn.jsdelivr.net; \
+         script-src 'self' https://cdnjs.cloudflare.com; \
          style-src 'self' https://fonts.googleapis.com; \
          font-src 'self' https://fonts.gstatic.com; \
          img-src {img_src}; \

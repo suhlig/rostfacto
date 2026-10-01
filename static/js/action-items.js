@@ -66,8 +66,9 @@ function groupActionItems() {
 
 if (section) {
   document.addEventListener('DOMContentLoaded', groupActionItems);
-  document.body.addEventListener('htmx:afterSwap', function (event) {
-    if (event.detail && event.detail.target === pool) {
+  document.body.addEventListener('htmx:after:swap', function (event) {
+    const ctx = event.detail && event.detail.ctx;
+    if (ctx && ctx.target === pool) {
       groupActionItems();
     }
   });

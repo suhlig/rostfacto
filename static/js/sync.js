@@ -11,11 +11,13 @@ const appliedEventIds = new Set();
 const MAX_APPLIED_IDS = 200;
 
 // Remember the ids of events our own mutations produced, so the matching
-// SSE events are not applied twice.
-document.body.addEventListener('htmx:afterRequest', function (event) {
-  const xhr = event.detail && event.detail.xhr;
-  if (!xhr) return;
-  const eventId = xhr.getResponseHeader('X-Event-Id');
+// SSE events are not applied twice. htmx 4 uses fetch(), so response headers
+// live on the request context rather than on an XHR object.
+document.body.addEventListener('htmx:after:request', function (event) {
+  const ctx = event.detail && event.detail.ctx;
+  const headers = ctx && ctx.response && ctx.response.headers;
+  if (!headers) return;
+  const eventId = headers.get('X-Event-Id');
   if (!eventId) return;
   appliedEventIds.add(eventId);
   while (appliedEventIds.size > MAX_APPLIED_IDS) {
@@ -53,7 +55,7 @@ function removeDuplicateCards() {
     });
   });
 }
-document.body.addEventListener('htmx:afterSwap', removeDuplicateCards);
+document.body.addEventListener('htmx:after:swap', removeDuplicateCards);
 
 function cardExists(itemId) {
   return document.querySelector('article.card[data-item-id="' + itemId + '"]') !== null;
@@ -75,9 +77,9 @@ function notifyCardSwapped() {
   document.body.dispatchEvent(new CustomEvent('sse:card-swapped'));
 }
 
-// htmx 2.0 binds trigger handlers directly on elements when it processes
-// them, so cards inserted via SSE (not via an HTMX swap) must be handed to
-// htmx explicitly or their buttons stay inert.
+// htmx binds trigger handlers directly on elements when it processes them,
+// so cards inserted via SSE (not via an HTMX swap) must be handed to htmx
+// explicitly or their buttons stay inert.
 function processWithHtmx(elt) {
   if (window.htmx && window.htmx.process) {
     window.htmx.process(elt);

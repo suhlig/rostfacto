@@ -14,14 +14,17 @@ function installClickGuards() {
   });
 }
 installClickGuards();
-document.body.addEventListener('htmx:afterSettle', installClickGuards);
+document.body.addEventListener('htmx:after:settle', installClickGuards);
 document.body.addEventListener('sse:card-swapped', installClickGuards);
 
 // Reset add-card and action-item forms after a successful submission
 // (replaces hx-on::after-request on those forms).
-document.body.addEventListener('htmx:afterRequest', function (event) {
-  const elt = event.detail && event.detail.elt;
-  if (!elt || !elt.matches || !event.detail.successful) return;
+document.body.addEventListener('htmx:after:request', function (event) {
+  const ctx = event.detail && event.detail.ctx;
+  const elt = ctx && ctx.sourceElement;
+  if (!elt || !elt.matches) return;
+  const status = ctx.response && ctx.response.status;
+  if (typeof status === 'number' && status >= 400) return;
   if (elt.matches('form.add-card-form, form.action-items-form')) {
     elt.reset();
   }

@@ -22,9 +22,12 @@
 
   // htmx delete forms (retro rows, action items): close their confirmation
   // dialog after a successful request.
-  document.body.addEventListener('htmx:afterRequest', function (event) {
-    const elt = event.detail && event.detail.elt;
-    if (!elt || !elt.matches || !event.detail.successful) return;
+  document.body.addEventListener('htmx:after:request', function (event) {
+    const ctx = event.detail && event.detail.ctx;
+    const elt = ctx && ctx.sourceElement;
+    if (!elt || !elt.matches) return;
+    const status = ctx.response && ctx.response.status;
+    if (typeof status === 'number' && status >= 400) return;
     if (elt.matches('form[hx-delete]')) {
       const dialog = elt.closest('dialog');
       if (dialog && dialog.open) dialog.close();
@@ -84,7 +87,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', updateArchiveLink);
-    document.body.addEventListener('htmx:afterSettle', updateArchiveLink);
+    document.body.addEventListener('htmx:after:settle', updateArchiveLink);
     updateArchiveLink();
   });
 })();

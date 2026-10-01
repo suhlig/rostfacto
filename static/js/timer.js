@@ -172,15 +172,17 @@ function extendTimerRequest(itemId) {
 
 // A timer is started by the client that highlighted the card, so only
 // htmx-driven swaps (our own actions) auto-start; SSE swaps never do.
-// afterRequest fires after the swap (and again on a parent because the
-// request element is detached), so look up the highlighted card in the DOM
-// rather than using the request element.
-document.body.addEventListener('htmx:afterRequest', function (event) {
-  const detail = event.detail;
-  if (!detail || !detail.successful) return;
-  const path = (detail.pathInfo && detail.pathInfo.requestPath) || '';
-  if (path.indexOf('action=highlight') === -1) return;
-  const elt = (detail.requestConfig && detail.requestConfig.elt) || detail.elt;
+// htmx:after:swap fires after the request's swap, so the highlighted card is
+// already in the DOM (the request element itself may have been replaced by
+// then), so look up the highlighted card in the DOM rather than using it.
+document.body.addEventListener('htmx:after:swap', function (event) {
+  const ctx = event.detail && event.detail.ctx;
+  if (!ctx) return;
+  const status = ctx.response && ctx.response.status;
+  if (typeof status === 'number' && status >= 400) return;
+  const action = (ctx.request && ctx.request.action) || '';
+  if (action.indexOf('action=highlight') === -1) return;
+  const elt = ctx.sourceElement;
   const itemId = elt && elt.dataset ? elt.dataset.itemId : null;
   if (!itemId) return;
   const card = document.querySelector('article.card.highlighted[data-item-id="' + itemId + '"]');
@@ -213,27 +215,25 @@ document.body.addEventListener('sse:timer-reset', function (event) {
 // request itself is the reliable cycle boundary on this client: a deadline
 // left over from the previous cycle must not block the auto-start below.
 // The same hook arms the auto-start fallback (see below).
-document.body.addEventListener('htmx:beforeRequest', function (event) {
-  const elt = (event.detail &&
-    (event.detail.requestConfig && event.detail.requestConfig.elt || event.detail.elt)) || null;
+document.body.addEventListener('htmx:before:request', function (event) {
+  const ctx = event.detail && event.detail.ctx;
+  const elt = (ctx && ctx.sourceElement) || null;
   const itemId = elt && elt.dataset ? elt.dataset.itemId : null;
   if (itemId) timerDeadlines.delete(itemId);
-  const path = (event.detail && event.detail.requestConfig && event.detail.requestConfig.path) ||
-    '';
-  if (path.indexOf('action=highlight') === -1) return;
+  const action = (ctx && ctx.request && ctx.request.action) || '';
+  if (action.indexOf('action=highlight') === -1) return;
   if (itemId) armHighlightFallback(String(itemId));
 });
 
-// The auto-start normally fires from htmx:afterRequest, but htmx 2.0.10
-// drops that event when the SSE re-fetch for the same status change
-// replaces the request element before the highlight response lands: the
-// surviving-ancestor re-trigger walks the element's (now unreachable)
-// ancestors, finds none, and never dispatches. The timer would then never
-// start, so this fallback arms itself when the highlight request goes out
-// (htmx:beforeRequest always fires) and starts the timer if the badge
-// still has no deadline. The deadline is server-authoritative and the
-// start is guarded by pendingTimerPosts, so a racing fast-path start
-// cannot double-start the timer.
+// The auto-start normally fires from htmx:after:swap, but that event is
+// dispatched on the request element; should the SSE re-fetch for the same
+// status change detach it before the highlight response lands, the event no
+// longer reaches a document.body listener. The timer would then never start,
+// so this fallback arms itself when the highlight request goes out
+// (htmx:before:request fires while the element is still connected) and starts
+// the timer if the badge still has no deadline. The deadline is
+// server-authoritative and the start is guarded by pendingTimerPosts, so a
+// racing fast-path start cannot double-start the timer.
 const pendingTimerPosts = new Map(); // item id (string) -> true while a POST is in flight
 const highlightFallbacks = new Map(); // item id (string) -> interval id
 function armHighlightFallback(key) {
@@ -290,7 +290,7 @@ document.body.addEventListener('sse:timer-elapsed', function (event) {
 });
 
 document.addEventListener('DOMContentLoaded', renderAllTimers);
-document.body.addEventListener('htmx:afterSettle', renderAllTimers);
+document.body.addEventListener('htmx:after:settle', renderAllTimers);
 document.body.addEventListener('sse:card-swapped', renderAllTimers);
 document.body.addEventListener('click', function (e) {
   const button = e.target.closest('.timer-extend');

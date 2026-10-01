@@ -1366,7 +1366,7 @@ impl<'a> RetroPage<'a> {
     pub async fn click_card(&self, id: i32) -> WebDriverResult<()> {
         // An SSE re-fetch (or a late-arriving add-card HTMX swap) can replace
         // the card between the find and the click (same race as
-        // click_with_retry), so re-find on a stale reference. htmx 2.x drops
+        // click_with_retry), so re-find on a stale reference. htmx drops
         // click triggers on elements that no longer are in the document, and
         // a JS click on such a node succeeds silently, so after clicking a
         // clickable card we confirm the highlight request actually fired and
