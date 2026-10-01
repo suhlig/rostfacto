@@ -403,6 +403,13 @@ label {
   align-items: center;
 }
 
+/* Mobile: stack the board columns into a single column. */
+@media (max-width: 899px) {
+  .board {
+    grid-template-columns: 1fr;
+  }
+}
+
 .column-happy {
   background-color: var(--rf-green);
 }
@@ -1052,7 +1059,7 @@ section.action-items .action-item:focus-within .action-item-delete {
   display: none;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 899px) {
   .action-columns {
     grid-template-columns: 1fr;
     gap: 1rem;
@@ -1531,34 +1538,102 @@ section.action-items .action-item:focus-within .action-item-delete {
   }
 }
 
-/* Participants (presence) panel */
+/* Participants (presence) panel. The panel starts at its content width and
+   can be dragged wider or narrower from its left edge. */
 .participants-panel {
   position: fixed;
   top: 0;
   right: 0;
   bottom: 0;
-  width: 220px;
-  max-width: 80vw;
-  padding: 1rem;
+  width: fit-content;
+  min-width: 10rem;
+  max-width: min(80vw, 26rem);
   background-color: var(--rf-cream);
   border-left: 1px solid var(--rf-beige);
-  overflow-y: auto;
+  overflow: hidden;
   transform: translateX(100%);
   transition: transform 0.2s ease;
   z-index: 30;
 }
 
-.participants-panel.open {
-  transform: translateX(0);
+.participants-scroll {
+  height: 100%;
+  overflow-y: auto;
+  padding: 1rem 1rem 1rem 1.25rem;
+  box-sizing: border-box;
+}
+
+.participants-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .participants-title {
-  margin-bottom: 0.75rem;
+  margin: 0;
   font-size: 0.875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.02em;
   color: var(--rf-text-muted);
+}
+
+.participants-close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--rf-button-radius);
+  background: transparent;
+  color: var(--rf-text-muted);
+  cursor: pointer;
+}
+
+.participants-close:hover {
+  background-color: var(--rf-beige);
+  color: var(--rf-text-dark);
+}
+
+.participants-close svg {
+  fill: currentColor;
+}
+
+.participants-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 1;
+}
+
+.participants-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background-color: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.participants-resize-handle:hover::after,
+.participants-resize-handle:focus-visible::after {
+  background-color: var(--rf-blue);
+}
+
+.participants-resize-handle:focus-visible {
+  outline: none;
 }
 
 .participants-list {
@@ -1570,6 +1645,7 @@ section.action-items .action-item:focus-within .action-item-delete {
 .participant {
   display: flex;
   align-items: center;
+  min-width: 0;
 }
 
 .participant-avatar,
@@ -1594,20 +1670,42 @@ section.action-items .action-item:focus-within .action-item-delete {
   font-weight: 700;
 }
 
+/* Names sit to the right of the avatar, but only when the viewport leaves
+   room for them; on smaller screens the avatars stand alone. */
+.participant-name {
+  display: none;
+  margin-left: 0.625rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9375rem;
+  color: var(--rf-text-dark);
+}
+
+@media (min-width: 1100px) {
+  .participant-name {
+    display: block;
+  }
+}
+
+/* Collapsed state: a right-sided handle opens the panel. */
 .participants-toggle {
   position: fixed;
-  right: 1rem;
-  bottom: 1rem;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 31;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.5rem;
+  height: 3rem;
   padding: 0;
   border: none;
-  border-radius: 50%;
+  border-radius: 8px 0 0 8px;
   background-color: var(--rf-blue);
+  color: #fff;
   cursor: pointer;
 }
 
@@ -1615,23 +1713,66 @@ section.action-items .action-item:focus-within .action-item-delete {
   background-color: var(--rf-blue-dark);
 }
 
-.participants-toggle img {
-  width: 1.5rem;
-  height: 1.5rem;
+.participants-toggle svg {
+  fill: currentColor;
 }
 
-/* Desktop: the panel is always visible on the right edge; reserve its width
-   so the header, board, and footer never slide under it. */
-@media (min-width: 900px) {
-  body[data-retro-slug] {
-    padding-right: 220px;
+/* People icon on desktop, hamburger on narrow screens. */
+.participants-toggle-icon-menu {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .participants-toggle-icon-people {
+    display: none;
   }
 
+  .participants-toggle-icon-menu {
+    display: block;
+  }
+}
+
+/* Explicit open/closed states, set by retro.js. The base rules above default
+   to open on desktop and collapsed on narrow screens. */
+body.participants-open .participants-panel {
+  transform: translateX(0);
+}
+
+body.participants-open .participants-toggle {
+  display: none;
+}
+
+body.participants-collapsed .participants-panel {
+  transform: translateX(100%);
+}
+
+body.participants-collapsed .participants-toggle {
+  display: flex;
+}
+
+/* Desktop: dock the panel and reserve its width so the header, board, and
+   footer never slide under it. */
+@media (min-width: 900px) {
   .participants-panel {
     transform: none;
   }
 
   .participants-toggle {
     display: none;
+  }
+
+  body[data-retro-slug]:not(.participants-collapsed) {
+    padding-right: var(--participants-width, 15rem);
+  }
+}
+
+/* Mobile: the panel is an overlay over a dimmed backdrop. */
+@media (max-width: 899px) {
+  body.participants-open::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-color: rgba(15, 26, 28, 0.35);
+    z-index: 29;
   }
 }

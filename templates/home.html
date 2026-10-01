@@ -76,7 +76,7 @@
       <figure class="carousel-slide" role="group" aria-roledescription="slide" aria-label="3 of 6" hidden>
         <img src="/static/screenshots/highlight.png"
              alt="A card highlighted for discussion, showing the five-minute timer"
-             width="1265" height="555">
+             width="1265" height="571">
         <figcaption>
           <strong>Highlight to discuss</strong>
           <span>One card at a time, with a server-authoritative five-minute timer everyone can see.</span>
@@ -148,6 +148,12 @@
         <strong>Real-time sync you can trust.</strong>
         Every change lands in a durable event log in Postgres and is pushed to all connected clients over
         server-sent events; a client that reconnects replays everything it missed.
+      </li>
+      <li>
+        <strong>See who's in the room.</strong>
+        A live participants panel shows everyone currently on the board; presence lives in Postgres, so it
+        stays correct even when Rostfacto runs as several processes behind a load balancer and never
+        flickers on reconnects.
       </li>
       <li>
         <strong>A timer everyone agrees on.</strong>

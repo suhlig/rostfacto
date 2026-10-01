@@ -505,6 +505,26 @@ impl<'a> RetroPage<'a> {
         }
     }
 
+    /// Collapse the participants panel so the board spans the full width, and
+    /// hide the collapsed-state toggle. The screenshot capture uses this to
+    /// keep the docked panel from reserving space on the right (which would
+    /// shrink the board) and to keep the fixed toggle from sitting on top of
+    /// the now full-width board.
+    pub async fn collapse_participants_panel(&self) -> WebDriverResult<()> {
+        self.driver
+            .find(By::Css("#participants-close"))
+            .await?
+            .click()
+            .await?;
+        self.driver
+            .execute(
+                "document.getElementById('participants-toggle').style.display = 'none';",
+                vec![],
+            )
+            .await?;
+        Ok(())
+    }
+
     pub async fn retro_id(&self) -> WebDriverResult<i32> {
         let header = self.driver.find(By::Css(".retro-header")).await?;
         let id_str = header.attr("data-retro-id").await?.unwrap();

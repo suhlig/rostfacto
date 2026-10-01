@@ -61,6 +61,10 @@ async fn capture_home_page_screenshots() -> WebDriverResult<()> {
         .create_retro_with_slug("Retro: Launch of the new checkout", "landing-demo")
         .await?;
 
+    // Collapse the participants panel so the board spans the full width in the
+    // screenshots; the docked panel would otherwise reserve space on the right.
+    retro.collapse_participants_panel().await?;
+
     // Seed the board with cards in every column.
     let _good_b = retro
         .add_card("Good", "Deployment was smooth thanks to the runbook")

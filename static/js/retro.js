@@ -200,6 +200,10 @@
           span.title = participant.name;
           li.appendChild(span);
         }
+        const name = document.createElement('span');
+        name.className = 'participant-name';
+        name.textContent = participant.name;
+        li.appendChild(name);
         list.appendChild(li);
       });
       if (count) count.textContent = String(roster.length);
@@ -757,14 +761,109 @@
       }
     });
 
-    // Participants panel toggle (narrow screens): the panel is an overlay that
-    // slides in from the right. Delegated listener, like the dialog buttons.
-    document.addEventListener('click', function(event) {
-      const toggle = event.target.closest && event.target.closest('#participants-toggle');
-      if (!toggle) return;
+    // Participants panel: open/close, drag-to-resize, and the reserved page
+    // width. The panel is docked on desktop and an overlay on narrow screens.
+    (function() {
       const panel = document.getElementById('participants-panel');
-      if (!panel) return;
-      const open = panel.classList.toggle('open');
-      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
+      const toggle = document.getElementById('participants-toggle');
+      const closeButton = document.getElementById('participants-close');
+      const handle = document.getElementById('participants-resize-handle');
+      if (!panel || !toggle) return;
+
+      const DESKTOP = window.matchMedia('(min-width: 900px)');
+      const MIN_WIDTH = 160;
+      const MAX_WIDTH = 480;
+
+      function isOpen() {
+        return document.body.classList.contains('participants-open');
+      }
+
+      function setOpen(open) {
+        document.body.classList.toggle('participants-open', open);
+        document.body.classList.toggle('participants-collapsed', !open);
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+
+      // Keep the reserved page width in sync with the panel's actual width
+      // (it starts at its content width and changes as the roster or the
+      // drag handle changes it).
+      if (window.ResizeObserver) {
+        const observer = new ResizeObserver(function() {
+          document.body.style.setProperty('--participants-width', panel.offsetWidth + 'px');
+          if (handle) handle.setAttribute('aria-valuenow', String(panel.offsetWidth));
+        });
+        observer.observe(panel);
+      }
+
+      toggle.addEventListener('click', function() { setOpen(true); });
+      if (closeButton) closeButton.addEventListener('click', function() { setOpen(false); });
+
+      // Open on desktop, collapsed on narrow screens.
+      setOpen(DESKTOP.matches);
+
+      // Clicking the backdrop of the mobile overlay closes the panel.
+      document.addEventListener('click', function(event) {
+        if (!isOpen() || DESKTOP.matches) return;
+        if (panel.contains(event.target) || toggle.contains(event.target)) return;
+        setOpen(false);
+      });
+
+      document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && isOpen() && !DESKTOP.matches) setOpen(false);
+      });
+
+      if (!handle) return;
+
+      function clampWidth(width) {
+        const max = Math.min(MAX_WIDTH, Math.round(window.innerWidth * 0.8));
+        return Math.max(MIN_WIDTH, Math.min(max, width));
+      }
+
+      function applyWidth(width) {
+        panel.style.width = clampWidth(width) + 'px';
+      }
+
+      let startX = 0;
+      let startWidth = 0;
+      let dragging = false;
+
+      handle.addEventListener('pointerdown', function(event) {
+        dragging = true;
+        startX = event.clientX;
+        startWidth = panel.offsetWidth;
+        try {
+          handle.setPointerCapture(event.pointerId);
+        } catch (error) {
+          // Capture is best-effort; dragging still works while over the handle.
+        }
+        event.preventDefault();
+      });
+
+      handle.addEventListener('pointermove', function(event) {
+        if (!dragging) return;
+        // Dragging left widens the panel.
+        applyWidth(startWidth + (startX - event.clientX));
+      });
+
+      function stopDragging(event) {
+        dragging = false;
+        if (handle.hasPointerCapture(event.pointerId)) {
+          handle.releasePointerCapture(event.pointerId);
+        }
+      }
+
+      handle.addEventListener('pointerup', stopDragging);
+      handle.addEventListener('pointercancel', stopDragging);
+
+      // Keyboard resizing for the focusable separator.
+      handle.addEventListener('keydown', function(event) {
+        if (event.key === 'ArrowLeft') {
+          applyWidth(panel.offsetWidth + 16);
+          event.preventDefault();
+        } else if (event.key === 'ArrowRight') {
+          applyWidth(panel.offsetWidth - 16);
+          event.preventDefault();
+        }
+      });
+    })();
   })();

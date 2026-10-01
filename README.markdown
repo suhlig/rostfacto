@@ -12,6 +12,7 @@ Rostfacto keeps the retro flow Postfacto made popular — cards, highlighting, t
 - **One binary, one dependency.** Rostfacto is written in Rust and ships as a single static binary — all you need besides it is PostgreSQL. No Ruby on Rails, no Node.js build step, no Redis.
 - **Sign in with GitHub, access via teams.** Instead of per-retro passwords and an admin dashboard, sign-in uses GitHub (or GitHub Enterprise), admins are a GitHub team, and every retro belongs to a team whose members can see and edit it.
 - **Real-time sync you can trust.** Every change lands in a durable event log in Postgres and is pushed to all connected clients over server-sent events; a client that reconnects replays everything it missed.
+- **See who's in the room.** A live participants panel shows everyone currently on the board; presence lives in Postgres, so it stays correct even when Rostfacto runs as several processes behind a load balancer and never flickers on reconnects.
 - **A timer everyone agrees on.** The five-minute highlight countdown is server-authoritative: the deadline lives in the database, so every participant sees the same time, and it can be extended by two minutes.
 - **No analytics, no tracking.** Rostfacto ships without analytics or tracking scripts — your retrospectives stay on your server.
 
@@ -88,7 +89,7 @@ When you create the OAuth App, set the callback URL to:
 Multiple clients on the same retro stay in sync via server-sent events (SSE):
 
 - The board subscribes to `GET /retro/{slug}/events`; every mutation (card added, status changed, liked, edited, timer changed, retro archived) is pushed to all connected clients immediately.
-- Postgres is the hub: database triggers write every event to an `events` table and `NOTIFY` a channel that a background task fans out to the connected browsers. The event log is durable, so a client that reconnects catches up on everything it missed (`Last-Event-ID` replay).
+- Postgres is the hub: each mutation writes its event to an `events` table in the same transaction and `NOTIFY`s a channel that a background task fans out to the connected browsers. The event log is durable, so a client that reconnects catches up on everything it missed (`Last-Event-ID` replay).
 - A client's own mutations are deduplicated, so the HTMX response and the SSE event for the same change are applied exactly once.
 - The highlight timer is **server-authoritative**: highlighting a card starts a five-minute countdown in the database, the +2 min button extends it, and a background sweep marks it elapsed so every client sees `0:00` at the same time. The countdown ticks locally, but the deadline always comes from the server.
 - Archiving a retro (or completing the last card, via the all-done modal) clears the board and stops all timers on every connected client.
@@ -127,7 +128,6 @@ SHOW_BROWSER=1 cargo test --test integration_test
 - Adopt UI patterns in HTMX v4
 - Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs
 - Allow adding a card anonymously
-- Mobile version
 - Limit growth of the `events` table
 - Clean archived retros after e.g. a year
 - Periodic cleanup of sessions
