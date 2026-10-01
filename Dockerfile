@@ -1,5 +1,6 @@
 # Build stage: compile with the checked-in sqlx offline query cache (.sqlx),
-# so no database is needed. Askama templates are compiled into the binary.
+# so no database is needed. Askama templates and the static assets are
+# compiled into the binary.
 # Base images are pinned by digest so a rebuilt image is reproducible and a
 # compromised tag cannot change what ships. The builder base tracks the
 # toolchain pinned in rust-toolchain.toml; bump both together.
@@ -15,8 +16,10 @@ RUN cargo install sqlx-cli --version 0.9.0 --no-default-features --features rust
 
 COPY Cargo.toml Cargo.lock ./
 COPY .sqlx .sqlx
-COPY src src
 COPY templates templates
+# Embedded at compile time by rust-embed (see src/assets.rs).
+COPY static static
+COPY src src
 
 RUN cargo build --release
 
@@ -34,7 +37,7 @@ WORKDIR /app
 ENTRYPOINT ["sqlx"]
 CMD ["migrate", "run"]
 
-# Runtime stage: just the binary, static assets, and CA roots (for the GitHub API).
+# Runtime stage: just the binary and CA roots (for the GitHub API).
 FROM debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
 
 LABEL org.opencontainers.image.source="https://github.com/suhlig/rostfacto" \
@@ -49,8 +52,6 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY --from=builder /app/target/release/rostfacto /usr/local/bin/rostfacto
-# Served from disk at runtime, relative to the working directory
-COPY static static
 
 USER rostfacto
 EXPOSE 3000

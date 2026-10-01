@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Static assets (`static/`) are embedded into the binary with `rust-embed` and served from `/static/*` by `src/assets.rs` with the correct content type and an ETag (conditional requests get a 304). A release build is now genuinely self-contained: the release tarballs, which ship only the binary, and the container image no longer need a `static/` directory next to the executable. Debug builds still read the assets from disk, so the CSS/JS edit-and-reload workflow is unchanged.
 - Events are now emitted by the application instead of database triggers: each mutation writes its `events` row (and `NOTIFY`s the `rostfacto_events` channel) in the same transaction via the `emit_event` helper, and migration 025 drops the trigger machinery. The SSE contract (event ids, payloads, replay, `X-Event-Id` dedup) is unchanged. See `adr/0001-database.markdown`.
 - When duplicate renders of the same card appear (the HTMX add response and the SSE re-fetch arriving in either order), the freshest render now wins: a late-arriving add-card response used to replace a card the user had just highlighted with its pre-highlight render.
 - The retro board's JavaScript is split into focused ES modules (`sync.js`, `timer.js`, `participants.js`, `action-items.js`, `shortcuts.js`, `ui.js`, `identity.js`) loaded by the `retro.js` entry point; they communicate through `sse:*` `CustomEvent`s on `<body>` instead of one large IIFE. Behavior is unchanged.

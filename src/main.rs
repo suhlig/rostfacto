@@ -14,7 +14,6 @@ use tokio::sync::watch;
 use tower::Layer;
 use tower_http::{
     normalize_path::{NormalizePath, NormalizePathLayer},
-    services::ServeDir,
     trace::{DefaultOnResponse, TraceLayer},
 };
 
@@ -47,6 +46,7 @@ pub struct AppState {
     pub csp: HeaderValue,
 }
 
+mod assets;
 mod auth;
 mod config;
 mod csrf;
@@ -172,7 +172,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/auth/login", get(auth::login))
         .route("/auth/callback", get(auth::callback))
         .route("/auth/logout", post(auth::logout))
-        .nest_service("/static", ServeDir::new("static"))
+        // Static assets are embedded in the binary (see `assets`), so a release
+        // build is self-contained; the wildcard captures the path below /static.
+        .route("/static/{*path}", get(assets::serve))
         .fallback(handlers::not_found)
         // CSRF defense-in-depth for cookie-authenticated mutations: rejects
         // state-changing requests from foreign origins.

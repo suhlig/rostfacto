@@ -10,6 +10,7 @@ A Rust web app for running team retrospectives (inspired by the archived Postfac
 - Web framework: Axum 0.8.
 - DB access: sqlx 0.9 with compile-time checked queries against PostgreSQL.
 - Templating: Askama 0.16 (Jinja-like HTML templates under `templates/`).
+- Static assets: `rust-embed` compiles `static/` into the binary (non-debug builds embed; debug builds read from disk).
 - Frontend: HTMX 4.0.0 for partial updates, custom CSS (`static/custom.css`) for styling.
 - CLI args: clap.
 - Tests: `thirtyfour` 0.37 (WebDriver/Selenium) integration tests that drive Firefox via geckodriver.
@@ -51,7 +52,7 @@ Then open `http://127.0.0.1:3111/retros` (create a retro there; in demo mode you
 - **Why the `env -u ...`**: the user's shell normally exports `GITHUB_ADMIN_ORG`, `GITHUB_CLIENT_ID`, etc. Explicit GitHub auth config always wins over `DEMO_MODE=1` (see `Config::from_env`), so without unsetting them the instance silently runs with real GitHub auth and every request redirects (303) to github.com. Check the log: demo mode prints `GITHUB_ADMIN_ORG is not set: running in unsecured demo mode`; if it says `GitHub authentication is enabled`, a variable leaked through.
 - **Why the `perl ... setsid` wrapper**: the agent terminal kills the whole process group when a tool call returns, so a plain `&` or `nohup` server is gone by the next call (the log ends in `shutdown signal received`). `setsid` detaches it into its own session so it survives.
 - **Run the prebuilt binary, not `cargo run`**: a `cargo-watch` session usually holds the `target/` build lock, so `cargo run` blocks (and silently produces an empty log when backgrounded). `cargo build` first; it is fast when nothing changed.
-- **Template and CSS changes**: `static/` files are served from disk, so reload the page. Askama templates are compiled in, so after a template edit run `touch src/main.rs && cargo build`, stop the demo server, and start it again.
+- **Template and CSS changes**: Askama templates are compiled into the binary, so after a template edit run `touch src/main.rs && cargo build`, stop the demo server, and start it again. The `static/` assets are embedded too, but only in non-debug builds: the debug binary the demo server runs reads them from disk (from the `static/` path recorded at compile time), so CSS/JS edits still just need a page reload.
 - **Stop it** when you are done: `pkill -f 'rostfacto --bind-address 127.0.0.1:3111'`.
 - Do not put `$VAR`, `$(...)` or `$?` in terminal commands the agent tool runs; it refuses to approve them. Use literal values, as above.
 
@@ -79,10 +80,11 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 - `src/github.rs` — GitHub API helpers (get user, check team membership, list org teams).
 - `src/models.rs` — `Retrospective`, `Item`, `Category`, `Status` and author-initials logic.
 - `src/templates.rs` — Askama template structs for each page.
+- `src/assets.rs` — the embedded `static/` tree (`rust-embed`): serves `/static/*` with the right content type and an ETag. Non-debug builds embed the assets; debug builds read them from disk.
 - `templates/` — Askama HTML templates (no inline scripts or event handlers; CSP forbids them).
 - `static/js/` — `site.js` (dialogs, account menu, delete-dialog close) and `home.js` (carousel) are classic scripts; the retro board is split into ES modules loaded by the `retro.js` entry point: `sync.js` (the single `EventSource`, event dedup, card/action-item sync), `timer.js` (server-authoritative countdown), `participants.js` (roster, ready toggle, panel UI), `action-items.js` (dated column grouping), `shortcuts.js` (keyboard shortcuts), `ui.js` (inline-handler replacements), plus `identity.js` (per-browser id).
 - `migrations/` — sqlx migrations (PostgreSQL enum types, tables, constraints).
-- `static/` — CSS, SVG icons (`participants.svg`), favicon.
+- `static/` — CSS, JS modules, SVG icons (`participants.svg`), favicon, and the home-page carousel screenshots (`static/screenshots/`, linked from `home.html` and `README.markdown`). Compiled into the binary by `rust-embed` (see `src/assets.rs`).
 - `tests/` — WebDriver integration tests plus migration tests and shared helpers.
 
 ## Authentication & authorization
@@ -136,7 +138,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 | `/auth/login` | GET | Start GitHub OAuth login |
 | `/auth/callback` | GET | GitHub OAuth callback |
 | `/auth/logout` | POST | Sign out and clear session |
-| `/static/*` | GET | Static files |
+| `/static/*` | GET | Embedded static files (correct content type + ETag) |
 
 ## Database schema
 
@@ -220,6 +222,7 @@ If the database is not available, you can also use `cargo sqlx prepare` to updat
 
 - `sqlx` macros are compile-time checked against a live database. Any schema change must be reflected in the DB or in `sqlx` prepare data; otherwise compilation fails with "set `DATABASE_URL` to use query macros online". Use `DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev`.
 - Askama templates are embedded and type-checked. The struct fields in `src/templates.rs` must match the template variables. Template-only changes do not trigger a rebuild by themselves — `touch src/main.rs` (or `cargo clean -p rostfacto`) before `cargo build`/`cargo run` if only templates changed.
+- `static/` is embedded by `rust-embed` in non-debug builds (each file via `include_bytes!`, so Cargo *does* rebuild when a static file changes — unlike the Askama templates above). A release binary is therefore self-contained: the release tarballs (which ship only the binary) and the container image need no `static/` directory next to the executable. Debug builds read the files from disk instead, from the `static/` path recorded at compile time (so the working directory does not matter).
 - Askama blocks cannot be nested: `{% block %}` overrides must sit at the top level of the template (a block inside `{% block content %}` renders empty).
 - `models.rs` implements `Display` for `Category` so that `to_string()` returns uppercase (`GOOD`/`BAD`/`WATCH`) to match the DB enum. The same file also defines `url_segment()`, `display_label()`, `column_class()`, `icon()`, and `items_container_id()` helpers.
 - The `AuthUser` extractor reads cached admin/team data from the session; it does **not** call the GitHub API on every request. Live API calls happen only during the OAuth callback.
