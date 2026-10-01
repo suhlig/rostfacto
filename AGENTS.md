@@ -32,6 +32,29 @@ cargo run
 
 Default bind address is `0.0.0.0:3000` (can override with `--bind-address`).
 
+### Demo server for agents (layout / functionality checks)
+
+To look at the UI or try a feature in a browser, start a throwaway **demo-mode** instance on the dedicated port **3111**. Do not use port 3000: the user usually has their own dev server there (often `cargo watch -x run`, typically with real GitHub auth, so you cannot sign in to it), and it must not be touched or restarted.
+
+```bash
+cargo build   # skip if target/debug/rostfacto is already current
+env -u GITHUB_ADMIN_ORG -u GITHUB_ADMIN_TEAM_SLUG -u GITHUB_CLIENT_ID -u GITHUB_CLIENT_SECRET \
+    -u GITHUB_USER_ORG -u GITHUB_ENTERPRISE_URL -u GITHUB_APP_OWNER \
+    DATABASE_URL=postgres://rostfacto@localhost/rostfacto-dev DEMO_MODE=1 PUBLIC_URL=http://127.0.0.1:3111 \
+    perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' \
+    target/debug/rostfacto --bind-address 127.0.0.1:3111 > /tmp/rostfacto-demo.log 2>&1 < /dev/null &
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3111/retros   # expect 200
+```
+
+Then open `http://127.0.0.1:3111/retros` (create a retro there; in demo mode you are an admin and the team field accepts anything).
+
+- **Why the `env -u ...`**: the user's shell normally exports `GITHUB_ADMIN_ORG`, `GITHUB_CLIENT_ID`, etc. Explicit GitHub auth config always wins over `DEMO_MODE=1` (see `Config::from_env`), so without unsetting them the instance silently runs with real GitHub auth and every request redirects (303) to github.com. Check the log: demo mode prints `GITHUB_ADMIN_ORG is not set: running in unsecured demo mode`; if it says `GitHub authentication is enabled`, a variable leaked through.
+- **Why the `perl ... setsid` wrapper**: the agent terminal kills the whole process group when a tool call returns, so a plain `&` or `nohup` server is gone by the next call (the log ends in `shutdown signal received`). `setsid` detaches it into its own session so it survives.
+- **Run the prebuilt binary, not `cargo run`**: a `cargo-watch` session usually holds the `target/` build lock, so `cargo run` blocks (and silently produces an empty log when backgrounded). `cargo build` first; it is fast when nothing changed.
+- **Template and CSS changes**: `static/` files are served from disk, so reload the page. Askama templates are compiled in, so after a template edit run `touch src/main.rs && cargo build`, stop the demo server, and start it again.
+- **Stop it** when you are done: `pkill -f 'rostfacto --bind-address 127.0.0.1:3111'`.
+- Do not put `$VAR`, `$(...)` or `$?` in terminal commands the agent tool runs; it refuses to approve them. Use literal values, as above.
+
 ## Validation prerequisites
 
 `cargo check`, `cargo test`, and `cargo run` all require sqlx to verify queries against a live PostgreSQL database.
