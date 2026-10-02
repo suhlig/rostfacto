@@ -126,7 +126,6 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 ## Backlog
 
-- Remove the silly "Like all good tools, this is a rewrite in Rust." sentence.
 - Adopt UI patterns in HTMX v4
 - Limit growth of the `events` table
 - Clean archived retros after e.g. a year

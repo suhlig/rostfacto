@@ -34,19 +34,29 @@
     }
   });
 
-  // Account menu open/close (replaces the per-menu inline script).
-  document.querySelectorAll('.account-menu').forEach(function (menu) {
-    const button = menu.querySelector('button');
+  // Dropdown menus: the account menu on retro pages and the site menu in the
+  // page header. Toggle on the trigger button, close on outside click or
+  // Escape (replaces the per-menu inline script).
+  document.querySelectorAll('.account-menu, .site-menu').forEach(function (menu) {
+    const button = menu.querySelector(':scope > button');
     if (!button) return;
+
+    function setOpen(open) {
+      menu.classList.toggle('is-open', open);
+      button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
 
     menu.addEventListener('click', function (event) {
       event.stopPropagation();
     });
     button.addEventListener('click', function () {
-      menu.classList.toggle('is-open');
+      setOpen(!menu.classList.contains('is-open'));
     });
     document.addEventListener('click', function () {
-      menu.classList.remove('is-open');
+      setOpen(false);
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') setOpen(false);
     });
   });
 

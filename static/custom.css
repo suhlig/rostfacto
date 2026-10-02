@@ -212,14 +212,10 @@ label {
 .page-header nav {
   display: flex;
   justify-content: center;
-  gap: 1.5rem;
+  align-items: center;
+  gap: 1rem;
   flex-wrap: wrap;
   margin-top: 1rem;
-}
-
-.page-header nav ul {
-  display: flex;
-  gap: 1.5rem;
 }
 
 .page-header nav a {
@@ -231,6 +227,133 @@ label {
   padding: 0.5rem 1.25rem;
   font-size: 0.95rem;
   text-decoration: none;
+}
+
+/* Site menu: navigation and account actions bundled into one dropdown, so
+   anonymous and authenticated actions no longer sit side by side. */
+.site-menu {
+  position: relative;
+}
+
+.site-menu-toggle {
+  gap: 0.5rem;
+  background-color: var(--rf-blue);
+  border-color: var(--rf-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 0.875rem;
+}
+
+.site-menu-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.site-menu-list {
+  display: none;
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  min-width: 220px;
+  padding: 0.5rem 0;
+  background: #fff;
+  border-radius: var(--rf-card-radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  list-style: none;
+  text-align: left;
+  z-index: 100;
+}
+
+.site-menu.is-open .site-menu-list {
+  display: block;
+}
+
+.site-menu-list li {
+  padding: 0;
+}
+
+.site-menu-list a,
+.site-menu-list .logout-button {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: var(--rf-blue);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.site-menu-list a:hover,
+.site-menu-list .logout-button:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+  text-decoration: none;
+}
+
+.site-menu-divider {
+  height: 1px;
+  margin: 0.5rem 0;
+  background-color: rgba(0, 0, 0, 0.08);
+}
+
+.site-menu-list .site-menu-account {
+  padding: 0.5rem 1rem;
+}
+
+.site-menu-account-label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--rf-text-muted);
+}
+
+.site-menu-username {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--rf-text-dark);
+}
+
+.site-menu-list .logout-form {
+  display: block;
+}
+
+/* Source link: the GitHub repository, set apart from the menu so it reads as
+   the entry point for technical information. */
+.page-header nav .source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #fff;
+  border: 1px solid rgba(15, 26, 28, 0.18);
+  border-radius: var(--rf-button-radius);
+  color: var(--rf-text-dark);
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.page-header nav .source-link:hover {
+  border-color: var(--rf-text-dark);
+  text-decoration: none;
+}
+
+.source-link-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
 }
 
 /* Page actions */
