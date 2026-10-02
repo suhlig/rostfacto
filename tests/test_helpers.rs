@@ -391,7 +391,10 @@ impl<'a> RetrosPage<'a> {
             .await?;
         let title_input = self.driver.find(By::Css("input[name='title']")).await?;
         title_input.send_keys(title).await?;
+        // Typing the title auto-fills the slug; clear it so the explicit slug
+        // is not appended to the generated one.
         let slug_input = self.driver.find(By::Css("input[name='slug']")).await?;
+        slug_input.clear().await?;
         slug_input.send_keys(slug).await?;
         self.driver
             .find(By::Css(".new-retro-form button[type='submit']"))

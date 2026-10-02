@@ -333,6 +333,25 @@ label {
   margin-top: 1rem;
 }
 
+/* Validation error shown in the form after a rejected submission. */
+.form-error {
+  color: var(--rf-red);
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+/* Live slug availability warning, swapped in next to the slug field. */
+.slug-status {
+  display: block;
+}
+
+.slug-warning {
+  display: inline-block;
+  margin-top: 0.25rem;
+  color: var(--rf-red);
+  font-weight: 700;
+}
+
 /* Warning shown when an org's teams could not be listed at login. */
 .team-listing-warning {
   background-color: var(--rf-yellow);

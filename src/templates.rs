@@ -49,6 +49,14 @@ pub struct NewRetroTemplate {
     pub app_owner: String,
     pub demo_mode: bool,
     pub user: Option<AuthUser>,
+    /// Validation error to show in the form (e.g. a slug that is already in
+    /// use). `None` on a fresh GET of the form.
+    pub error_message: Option<String>,
+    /// Submitted values, echoed back so a rejected submission does not lose the
+    /// user's input.
+    pub title_value: String,
+    pub slug_value: String,
+    pub team_slug_value: String,
 }
 
 #[derive(Template)]

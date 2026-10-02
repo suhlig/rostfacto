@@ -43,6 +43,14 @@ async fn fetch_status(driver: &WebDriver, base_url: &str, path: &str) -> WebDriv
     Ok(result.json().as_u64().unwrap())
 }
 
+/// Fetch a path and return the response body as text.
+async fn fetch_text(driver: &WebDriver, base_url: &str, path: &str) -> WebDriverResult<String> {
+    driver.goto(base_url).await?;
+    let script = format!(r#"return fetch('{}').then(r => r.text());"#, path);
+    let result = driver.execute(&script, vec![]).await?;
+    Ok(result.json().as_str().unwrap().to_string())
+}
+
 #[tokio::test]
 async fn test_home_page() -> WebDriverResult<()> {
     let db = TestDb::new().await;
@@ -919,8 +927,42 @@ async fn test_create_retro_validation_duplicate_slug() -> WebDriverResult<()> {
         &retro_page.slug,
     )
     .await?;
-    assert_eq!(status, 500);
+    // The clash is reported in the form (with the submitted values preserved),
+    // not on a standalone 500 error page.
+    assert_eq!(status, 409);
     assert!(text.contains("Slug is already in use"));
+    assert!(text.contains("new-retro-form"));
+    assert!(text.contains("value=\"Another\""));
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_slug_check_reports_taken_slugs() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page
+        .create_retro_with_slug("Slug Check", "slug-check-taken")
+        .await?;
+
+    let taken = fetch_text(
+        &browser.driver,
+        &server.base_url(),
+        &format!("/retros/slug-check?slug={}", retro_page.slug),
+    )
+    .await?;
+    assert!(taken.contains("Slug is already in use"));
+
+    let free = fetch_text(
+        &browser.driver,
+        &server.base_url(),
+        "/retros/slug-check?slug=slug-check-free",
+    )
+    .await?;
+    assert!(free.is_empty());
 
     browser.close().await?;
     Ok(())

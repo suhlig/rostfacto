@@ -133,6 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(handlers::home))
         .route("/retros", get(handlers::list_retros))
         .route("/retros/new", get(handlers::new_retro))
+        .route("/retros/slug-check", get(handlers::slug_check))
         .route("/retros", post(handlers::create_retro))
         .route("/retro/{slug}", get(handlers::show_retro))
         .route("/retro/{slug}/ready", post(handlers::set_participant_ready))

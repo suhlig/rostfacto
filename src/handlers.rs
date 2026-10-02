@@ -302,14 +302,17 @@ pub async fn list_retros(
     Ok(Html(template.render().unwrap()))
 }
 
-pub async fn new_retro(
-    State(state): State<AppState>,
+/// Build the new-retro form template. Shared by the initial GET and the
+/// re-render after a rejected submission, so the user's input is preserved
+/// instead of being replaced by a generic error page.
+fn new_retro_template(
+    state: &AppState,
     user: AuthUser,
-) -> Result<Html<String>, HandlerError> {
-    if !user.is_admin {
-        return Err(forbidden(&state, "Only admins can create retrospectives").into());
-    }
-
+    error_message: Option<String>,
+    title_value: String,
+    slug_value: String,
+    team_slug_value: String,
+) -> NewRetroTemplate {
     let teams = user
         .teams
         .iter()
@@ -318,7 +321,7 @@ pub async fn new_retro(
         })
         .collect();
 
-    let template = NewRetroTemplate {
+    NewRetroTemplate {
         is_admin: user.is_admin,
         teams,
         team_listing_errors: user.team_listing_errors.clone(),
@@ -326,8 +329,92 @@ pub async fn new_retro(
         app_owner: state.config.github_app_owner.clone().unwrap_or_default(),
         demo_mode: state.config.demo_mode(),
         user: Some(user),
-    };
+        error_message,
+        title_value,
+        slug_value,
+        team_slug_value,
+    }
+}
+
+/// Re-render the new-retro form with a validation error and the submitted
+/// values, so a rejected submission stays on the form (with the error shown)
+/// instead of navigating to a standalone error page.
+fn new_retro_error_response(
+    state: &AppState,
+    user: AuthUser,
+    status: StatusCode,
+    message: &str,
+    title: &str,
+    slug: &str,
+    team_slug: &str,
+) -> Response {
+    let template = new_retro_template(
+        state,
+        user,
+        Some(message.to_string()),
+        title.to_string(),
+        slug.to_string(),
+        team_slug.to_string(),
+    );
+    (status, Html(template.render().unwrap())).into_response()
+}
+
+pub async fn new_retro(
+    State(state): State<AppState>,
+    user: AuthUser,
+) -> Result<Html<String>, HandlerError> {
+    if !user.is_admin {
+        return Err(forbidden(&state, "Only admins can create retrospectives").into());
+    }
+
+    let template = new_retro_template(
+        &state,
+        user,
+        None,
+        String::new(),
+        String::new(),
+        String::new(),
+    );
     Ok(Html(template.render().unwrap()))
+}
+
+/// Availability check for the new-retro form's slug field. Returns an HTML
+/// fragment (empty when the slug is free) for htmx to swap in next to the
+/// field, so a clash is flagged while the user types rather than only on
+/// submit.
+pub async fn slug_check(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Query(query): Query<SlugCheck>,
+) -> Response {
+    if !user.is_admin {
+        return forbidden(&state, "Only admins can create retrospectives");
+    }
+
+    let slug = query.slug.as_deref().unwrap_or("").trim();
+    if slug.is_empty() {
+        return Html(String::new()).into_response();
+    }
+
+    let taken = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM retrospectives WHERE slug = $1)",
+        slug
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|error| {
+        log_database_error("slug_check", &error);
+        database_error_response()
+    });
+
+    match taken {
+        Ok(Some(true)) => {
+            Html(r#"<span class="slug-warning">Slug is already in use</span>"#.to_string())
+                .into_response()
+        }
+        Ok(_) => Html(String::new()).into_response(),
+        Err(response) => response,
+    }
 }
 
 pub async fn create_retro(
@@ -339,40 +426,89 @@ pub async fn create_retro(
         return forbidden(&state, "Only admins can create retrospectives");
     }
 
+    // Echoed back when a submission is rejected so the form is not cleared.
+    let submitted_title = form.title.clone();
+    let submitted_slug = form.slug.clone();
+    let submitted_team_slug = form.team_slug.clone().unwrap_or_default();
+
     if form.slug.is_empty() {
-        return bad_request(&state, "Slug is required");
+        return new_retro_error_response(
+            &state,
+            user,
+            StatusCode::BAD_REQUEST,
+            "Slug is required",
+            &submitted_title,
+            &submitted_slug,
+            &submitted_team_slug,
+        );
     }
     if form.slug.len() > 255 {
-        return bad_request(&state, "Slug must be 255 characters or less");
+        return new_retro_error_response(
+            &state,
+            user,
+            StatusCode::BAD_REQUEST,
+            "Slug must be 255 characters or less",
+            &submitted_title,
+            &submitted_slug,
+            &submitted_team_slug,
+        );
     }
     if !form
         .slug
         .chars()
         .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
     {
-        return bad_request(
+        return new_retro_error_response(
             &state,
+            user,
+            StatusCode::BAD_REQUEST,
             "Slug can only contain lowercase letters, numbers, and dashes",
+            &submitted_title,
+            &submitted_slug,
+            &submitted_team_slug,
         );
     }
 
     let title = form.title.trim();
     if title.is_empty() {
-        return bad_request(&state, "Title is required");
+        return new_retro_error_response(
+            &state,
+            user,
+            StatusCode::BAD_REQUEST,
+            "Title is required",
+            &submitted_title,
+            &submitted_slug,
+            &submitted_team_slug,
+        );
     }
     if title.chars().count() > MAX_RETRO_TITLE_LENGTH {
-        return bad_request(
+        return new_retro_error_response(
             &state,
+            user,
+            StatusCode::BAD_REQUEST,
             &format!("Title must be {MAX_RETRO_TITLE_LENGTH} characters or less"),
+            &submitted_title,
+            &submitted_slug,
+            &submitted_team_slug,
         );
     }
 
     let team_slug = if state.config.demo_mode() {
-        form.team_slug.unwrap_or_else(|| "demo".to_string())
+        form.team_slug.clone().unwrap_or_else(|| "demo".to_string())
     } else {
-        match form.team_slug {
+        match form.team_slug.clone() {
             Some(s) if !s.is_empty() => s,
-            _ => return bad_request(&state, "Team is required"),
+            _ => {
+                return new_retro_error_response(
+                    &state,
+                    user,
+                    StatusCode::BAD_REQUEST,
+                    "Team is required",
+                    &submitted_title,
+                    &submitted_slug,
+                    &submitted_team_slug,
+                )
+            }
         }
     };
 
@@ -394,19 +530,15 @@ pub async fn create_retro(
                 .and_then(|database_error| database_error.constraint())
                 == Some("retrospectives_slug_key")
             {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Html(
-                        ErrorTemplate {
-                            code: "500",
-                            message: "Slug is already in use".to_string(),
-                            demo_mode: state.config.demo_mode(),
-                        }
-                        .render()
-                        .unwrap(),
-                    ),
-                )
-                    .into_response();
+                return new_retro_error_response(
+                    &state,
+                    user,
+                    StatusCode::CONFLICT,
+                    "Slug is already in use",
+                    &submitted_title,
+                    &submitted_slug,
+                    &submitted_team_slug,
+                );
             }
             log_database_error("create_retro", &error);
             return database_error_response();
@@ -2283,6 +2415,11 @@ pub struct NewRetro {
     title: String,
     slug: String,
     team_slug: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct SlugCheck {
+    slug: Option<String>,
 }
 
 #[derive(Deserialize)]

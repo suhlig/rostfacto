@@ -23,14 +23,24 @@
 {% block content %}
 <div class="container">
   <form method="POST" action="/retros" class="new-retro-form">
+    {% if let Some(message) = error_message %}
+    <div class="form-error" role="alert">{{ message }}</div>
+    {% endif %}
+
     <label for="title">Title</label>
-    <input type="text" id="title" name="title" required>
+    <input type="text" id="title" name="title" required value="{{ title_value }}">
 
     <label for="slug">Slug</label>
     <input type="text" id="slug" name="slug" required
            pattern="[a-z0-9-]+"
            maxlength="255"
-           aria-describedby="slug-help">
+           value="{{ slug_value }}"
+           aria-describedby="slug-help slug-status"
+           hx-get="/retros/slug-check"
+           hx-trigger="input changed delay:300ms"
+           hx-target="#slug-status"
+           hx-swap="innerHTML">
+    <span id="slug-status" class="slug-status" role="status" aria-live="polite"></span>
     <small id="slug-help">
       Lowercase letters, numbers and dashes only; up to 255 characters
     </small>
@@ -56,7 +66,7 @@
       <select id="team_slug" name="team_slug" required>
         <option value="">Select a team</option>
         {% for team in teams %}
-        <option value="{{ team.slug }}">{{ team.slug }}</option>
+        <option value="{{ team.slug }}"{% if team.slug == team_slug_value %} selected{% endif %}>{{ team.slug }}</option>
         {% endfor %}
       </select>
       <small>Only members of this team will be able to view or change this retrospective.</small>
@@ -72,4 +82,8 @@
     <button type="submit" class="btn-primary">Create Retrospective</button>
   </form>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/new-retro.js" defer></script>
 {% endblock %}

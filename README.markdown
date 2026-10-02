@@ -124,12 +124,17 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 # TODO
 
+## Backlog
+
+- Remove the silly "Like all good tools, this is a rewrite in Rust." sentence.
 - Adopt UI patterns in HTMX v4
-- Auto-fill the retro slug from the title while typing; avoid clashes with existing slugs
-- Allow adding a card anonymously
 - Limit growth of the `events` table
 - Clean archived retros after e.g. a year
 - Periodic cleanup of sessions
+
+## Maybe
+
+- Allow adding a card anonymously
 
 # License
 
