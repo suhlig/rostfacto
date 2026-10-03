@@ -64,7 +64,7 @@ impl<'a> RetrosPage<'a> {
             .take(255)
             .collect::<String>();
         self.submit_new_retro(&test_title, &slug).await?;
-        RetroPage::new(self.driver, &self.base_url, &slug).await
+        RetroPage::from_redirect(self.driver, &self.base_url, &slug).await
     }
 
     pub async fn create_retro_with_slug(
@@ -73,7 +73,7 @@ impl<'a> RetrosPage<'a> {
         slug: &str,
     ) -> WebDriverResult<RetroPage<'_>> {
         self.submit_new_retro(title, slug).await?;
-        RetroPage::new(self.driver, &self.base_url, slug).await
+        RetroPage::from_redirect(self.driver, &self.base_url, slug).await
     }
 }
 
@@ -89,6 +89,38 @@ impl<'a> RetroPage<'a> {
         driver
             .goto(format!("{}/retro/{}", base_url, slug).as_str())
             .await?;
+        Self::from_loaded_page(driver, base_url, slug).await
+    }
+
+    /// Build a `RetroPage` from the page the browser is already on, without
+    /// navigating. Used after the new-retro form's redirect so the board is
+    /// loaded exactly once: a second load would briefly drop the presence
+    /// connection, and a gap longer than the grace period would burn a fresh
+    /// guest number (making the roster numbering nondeterministic).
+    pub async fn from_redirect(
+        driver: &'a WebDriver,
+        base_url: &str,
+        slug: &str,
+    ) -> WebDriverResult<Self> {
+        // The form submission redirects here; wait for the board to render.
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(15);
+        loop {
+            if driver.find(By::Css("#good-items")).await.is_ok() {
+                break;
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("Timed out waiting for the retro board to load after creating it");
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        }
+        Self::from_loaded_page(driver, base_url, slug).await
+    }
+
+    async fn from_loaded_page(
+        driver: &'a WebDriver,
+        base_url: &str,
+        slug: &str,
+    ) -> WebDriverResult<Self> {
         // Get the actual title from the page
         let title_element = driver.find(By::Css("h1")).await?;
         let title = title_element.text().await?;
