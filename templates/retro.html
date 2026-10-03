@@ -66,11 +66,13 @@
         hx-post="/retro/{{ retro.id }}/action-items"
         hx-target="#action-items-pool"
         hx-swap="afterbegin"
+        hx-status:400="target:#action-items-error swap:innerHTML"
         hx-disable="find .action-items-submit"
         hx-browser-indicator="true"
         hx-pending="#pending-action-item-template">
     <input type="text" name="text" class="action-items-input" placeholder="Add an action item" required>
     <button type="submit" class="action-items-submit">Add</button>
+    <div class="inline-error-slot" id="action-items-error"></div>
   </form>
   <div id="action-items-pool" class="action-items-pool" aria-hidden="true">
     {% for action_item in action_items %}

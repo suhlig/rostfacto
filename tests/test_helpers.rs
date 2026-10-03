@@ -1346,6 +1346,48 @@ impl<'a> RetroPage<'a> {
         }
     }
 
+    /// Wait until the form's inline error slot `#<slot_id>` shows `expected`.
+    ///
+    /// The slot is filled by the HTMX response to a rejected form submission
+    /// (`hx-status:400`), which can lag the click under load; poll instead of
+    /// asserting immediately.
+    pub async fn wait_for_inline_error(
+        &self,
+        slot_id: &str,
+        expected: &str,
+    ) -> WebDriverResult<()> {
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
+        loop {
+            let message = match self
+                .driver
+                .find(By::Css(format!("#{} .inline-error", slot_id).as_str()))
+                .await
+            {
+                Ok(error) => match error.text().await {
+                    Ok(text) => Some(text),
+                    Err(error)
+                        if matches!(*error, WebDriverErrorInner::StaleElementReference(..)) =>
+                    {
+                        None
+                    }
+                    Err(error) => return Err(error),
+                },
+                Err(error) if matches!(*error, WebDriverErrorInner::NoSuchElement(..)) => None,
+                Err(error) => return Err(error),
+            };
+            if message.as_deref() == Some(expected) {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!(
+                    "Timed out waiting for inline error '{}' in #{}, got {:?}",
+                    expected, slot_id, message
+                );
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
     /// Wait until the all-done archive modal is open (SSE delivery is
     /// asynchronous).
     pub async fn wait_for_archive_modal(&self) -> WebDriverResult<()> {

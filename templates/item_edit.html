@@ -2,6 +2,7 @@
   <form hx-post="/items/{{ item.id }}"
         hx-target="closest .card"
         hx-swap="outerHTML"
+        hx-status:400="target:#item-error-{{ item.id }} swap:innerHTML"
         hx-disable="find .btn-save-edit"
         hx-browser-indicator="true">
     <textarea class="edit-card-input"
@@ -10,6 +11,7 @@
               aria-label="Card text"
               required
               autofocus>{{ item.text }}</textarea>
+    <div class="inline-error-slot" id="item-error-{{ item.id }}"></div>
     <div class="card-actions">
       <button class="btn-secondary secondary btn-cancel-edit"
               type="button"

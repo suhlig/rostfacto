@@ -268,6 +268,40 @@ async fn test_create_cards() -> WebDriverResult<()> {
 }
 
 #[tokio::test]
+async fn test_inline_validation_error_on_card_add() -> WebDriverResult<()> {
+    let db = TestDb::new().await;
+    let server = TestServer::start(&db.database_url).await;
+    let browser = BrowserSession::new(&server.base_url()).await?;
+    let retros_page = browser.retros_page().await?;
+    let retro_page = retros_page.create_retro("Inline Error Test").await?;
+
+    // Whitespace-only text passes the textarea's `required` but fails the
+    // server's trim check. The 400 is swapped into the form's error slot by
+    // `hx-status:400`; the global noSwap would otherwise drop it silently.
+    let form = retro_page
+        .driver
+        .find(By::Css("form[hx-target='#good-items']"))
+        .await?;
+    form.find(By::Tag("textarea"))
+        .await?
+        .send_keys("   ")
+        .await?;
+    form.find(By::Css("button[type='submit']"))
+        .await?
+        .click()
+        .await?;
+
+    retro_page
+        .wait_for_inline_error("good-items-error", "Card text is required")
+        .await?;
+    // The rejected submission added no card.
+    retro_page.wait_for_card_count("Good", 0).await?;
+
+    browser.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_delete_action_item_with_custom_confirmation_dialog() -> WebDriverResult<()> {
     let db = TestDb::new().await;
     let server = TestServer::start(&db.database_url).await;

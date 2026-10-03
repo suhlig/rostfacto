@@ -1930,3 +1930,11 @@ body.participants-collapsed .participants-toggle {
   font-style: italic;
   opacity: 0.6;
 }
+
+/* Inline validation error, swapped into a form's `.inline-error-slot` by
+   `hx-status:400`. */
+.inline-error {
+  color: var(--rf-red-darker);
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}

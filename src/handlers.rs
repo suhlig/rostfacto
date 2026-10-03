@@ -8,14 +8,15 @@ use crate::models::{
 use crate::presence::ParticipantKey;
 use crate::templates::{
     ActionItemEditTemplate, ActionItemTemplate, ArchiveListEntry, ArchiveModalTemplate,
-    ArchiveTemplate, ArchivesTemplate, ErrorTemplate, GitHubTeam, HomeTemplate, ItemCardTemplate,
-    ItemEditTemplate, NewRetroTemplate, RetroTemplate, RetrosTemplate,
+    ArchiveTemplate, ArchivesTemplate, ErrorTemplate, GitHubTeam, HomeTemplate,
+    InlineErrorTemplate, ItemCardTemplate, ItemEditTemplate, NewRetroTemplate, RetroTemplate,
+    RetrosTemplate,
 };
 use crate::AppState;
 use askama::Template;
 use axum::{
     extract::{Path, Query, State},
-    http::{header::HeaderName, request::Parts, HeaderValue, StatusCode},
+    http::{header::HeaderName, request::Parts, HeaderMap, HeaderValue, StatusCode},
     response::{Html, IntoResponse, Response},
     Form,
 };
@@ -145,6 +146,28 @@ fn bad_request(state: &AppState, message: &str) -> Response {
         demo_mode: state.config.demo_mode(),
     };
     (StatusCode::BAD_REQUEST, Html(template.render().unwrap())).into_response()
+}
+
+/// Whether the request came from htmx, which sends `HX-Request: true`.
+fn is_htmx_request(headers: &HeaderMap) -> bool {
+    headers
+        .get("hx-request")
+        .and_then(|value| value.to_str().ok())
+        == Some("true")
+}
+
+/// A validation error response. An htmx request gets a small inline fragment
+/// that the form's `hx-status:400` swaps into its error slot; any other request
+/// gets the full error page.
+fn validation_error(state: &AppState, headers: &HeaderMap, message: &str) -> Response {
+    if is_htmx_request(headers) {
+        let template = InlineErrorTemplate {
+            message: message.to_string(),
+        };
+        (StatusCode::BAD_REQUEST, Html(template.render().unwrap())).into_response()
+    } else {
+        bad_request(state, message)
+    }
 }
 
 async fn load_retro(pool: &PgPool, slug: &str) -> Result<Option<Retrospective>, sqlx::Error> {
@@ -772,6 +795,7 @@ pub async fn add_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path((category, retro_id)): Path<(Category, i32)>,
+    headers: HeaderMap,
     Form(form): Form<NewItem>,
 ) -> Result<Response, HandlerError> {
     match require_retro_access_by_id(&state, &user, retro_id).await? {
@@ -783,11 +807,12 @@ pub async fn add_item(
 
     let text = form.text.trim();
     if text.is_empty() {
-        return Err(bad_request(&state, "Card text is required").into());
+        return Err(validation_error(&state, &headers, "Card text is required").into());
     }
     if text.chars().count() > MAX_ITEM_TEXT_LENGTH {
-        return Err(bad_request(
+        return Err(validation_error(
             &state,
+            &headers,
             &format!("Card text must be {MAX_ITEM_TEXT_LENGTH} characters or less"),
         )
         .into());
@@ -1160,6 +1185,7 @@ pub async fn update_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(item_id): Path<i32>,
+    headers: HeaderMap,
     Form(form): Form<NewItem>,
 ) -> Result<Response, HandlerError> {
     let mut conn = state.pool.acquire().await.map_err(|error| {
@@ -1183,11 +1209,12 @@ pub async fn update_item(
 
     let text = form.text.trim();
     if text.is_empty() {
-        return Err(bad_request(&state, "Card text is required").into());
+        return Err(validation_error(&state, &headers, "Card text is required").into());
     }
     if text.chars().count() > MAX_ITEM_TEXT_LENGTH {
-        return Err(bad_request(
+        return Err(validation_error(
             &state,
+            &headers,
             &format!("Card text must be {MAX_ITEM_TEXT_LENGTH} characters or less"),
         )
         .into());
@@ -1679,6 +1706,7 @@ pub async fn add_action_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(retro_id): Path<i32>,
+    headers: HeaderMap,
     Form(form): Form<NewActionItem>,
 ) -> Result<Response, HandlerError> {
     match require_retro_access_by_id(&state, &user, retro_id).await? {
@@ -1688,11 +1716,12 @@ pub async fn add_action_item(
 
     let text = form.text.trim();
     if text.is_empty() {
-        return Err(bad_request(&state, "Action item text is required").into());
+        return Err(validation_error(&state, &headers, "Action item text is required").into());
     }
     if text.chars().count() > MAX_ITEM_TEXT_LENGTH {
-        return Err(bad_request(
+        return Err(validation_error(
             &state,
+            &headers,
             &format!("Action item text must be {MAX_ITEM_TEXT_LENGTH} characters or less"),
         )
         .into());
@@ -1789,6 +1818,7 @@ pub async fn update_action_item(
     State(state): State<AppState>,
     user: AuthUser,
     Path(action_item_id): Path<i32>,
+    headers: HeaderMap,
     Form(form): Form<NewActionItem>,
 ) -> Result<Response, HandlerError> {
     let existing = load_action_item(&state.pool, action_item_id)
@@ -1803,11 +1833,12 @@ pub async fn update_action_item(
 
     let text = form.text.trim();
     if text.is_empty() {
-        return Err(bad_request(&state, "Action item text is required").into());
+        return Err(validation_error(&state, &headers, "Action item text is required").into());
     }
     if text.chars().count() > MAX_ITEM_TEXT_LENGTH {
-        return Err(bad_request(
+        return Err(validation_error(
             &state,
+            &headers,
             &format!("Action item text must be {MAX_ITEM_TEXT_LENGTH} characters or less"),
         )
         .into());

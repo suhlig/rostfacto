@@ -28,6 +28,12 @@ pub struct ActionItemEditTemplate {
 }
 
 #[derive(Template)]
+#[template(path = "inline_error.html")]
+pub struct InlineErrorTemplate {
+    pub message: String,
+}
+
+#[derive(Template)]
 #[template(path = "archive_modal.html")]
 pub struct ArchiveModalTemplate {
     pub item: Item,

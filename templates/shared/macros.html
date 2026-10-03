@@ -189,11 +189,13 @@
         hx-post="/items/{{ category.url_segment() }}/{{ retro_id }}"
         hx-target="#{{ target_id }}"
         hx-swap="afterbegin"
+        hx-status:400="target:#{{ target_id }}-error swap:innerHTML"
         hx-disable="find .add-card-submit"
         hx-browser-indicator="true"
         hx-pending="#pending-card-template">
     <textarea name="text" class="add-card-input" rows="1" placeholder="{{ placeholder }}" required></textarea>
     <button class="add-card-submit" type="submit">Add</button>
+    <div class="inline-error-slot" id="{{ target_id }}-error"></div>
   </form>
 {% endmacro %}
 

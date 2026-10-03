@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - Request elements carry `hx-disable` to disable the triggering control while a request is in flight, guarding against double submits.
 - The `hx-pending` and `hx-browser-indicator` htmx 4 extensions: the add-card and add-action-item forms show a "Sending…" placeholder while the request is in flight, and requests show the browser's tab spinner (Chromium only).
 - A Deno unit test for the Invoker Commands fallback (`tests/js/dialog_commands_test.js`), run with `deno test tests/js/` and enforced by pre-commit and CI.
+- Inline validation errors: a rejected card or action-item add/edit (e.g. whitespace-only text) now shows the server's message next to the form via `hx-status:400`, instead of silently doing nothing. htmx requests get a small fragment (`templates/inline_error.html`); other requests keep the full error page.
 
 ### Changed
 

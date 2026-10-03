@@ -391,6 +391,48 @@ async fn sse_for_missing_retro_returns_404() {
     assert_eq!(response.status(), reqwest::StatusCode::NOT_FOUND);
 }
 
+/// Validation errors are inline fragments for htmx requests (so `hx-status:400`
+/// can swap them into the form) and full pages otherwise.
+#[tokio::test]
+async fn validation_errors_are_inline_fragments_for_htmx_requests() {
+    let ctx = setup().await;
+    let retro_id = create_retro(&ctx, "inline-error").await;
+    let url = format!("{}/items/Good/{}", ctx.base_url, retro_id);
+
+    let response = ctx
+        .client
+        .post(&url)
+        .header("HX-Request", "true")
+        .form(&[("text", "   ")])
+        .send()
+        .await
+        .expect("Failed to send htmx request");
+    assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
+    let body = response.text().await.expect("body");
+    assert!(
+        body.contains("class=\"inline-error\""),
+        "htmx validation errors should be inline fragments, got: {body}"
+    );
+    assert!(
+        !body.contains("<!DOCTYPE html>"),
+        "htmx validation errors must not be full pages"
+    );
+
+    let response = ctx
+        .client
+        .post(&url)
+        .form(&[("text", "   ")])
+        .send()
+        .await
+        .expect("Failed to send plain request");
+    assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
+    let body = response.text().await.expect("body");
+    assert!(
+        body.contains("<!DOCTYPE html>"),
+        "non-htmx validation errors should be full pages"
+    );
+}
+
 #[tokio::test]
 async fn timer_endpoints_update_the_db_and_emit_events() {
     let ctx = setup().await;
