@@ -1,11 +1,11 @@
 {
   "fmt": {
-    "include": ["static/js/"],
+    "include": ["static/js/", "tests/js/"],
     "singleQuote": true,
     "lineWidth": 100
   },
   "lint": {
-    "include": ["static/js/"],
+    "include": ["static/js/", "tests/js/"],
     "rules": {
       "exclude": ["no-window", "no-window-prefix"]
     }

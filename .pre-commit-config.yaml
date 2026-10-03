@@ -60,3 +60,10 @@ repos:
         language: system
         pass_filenames: false
         files: ^static/js/.*\.js$
+
+      - id: deno-test
+        name: deno test
+        entry: deno test tests/js/
+        language: system
+        pass_filenames: false
+        files: ^(static/js/.*\.js|tests/js/.*\.js)$

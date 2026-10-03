@@ -23,6 +23,8 @@ jobs:
         run: deno fmt --check
       - name: Lint JS
         run: deno lint
+      - name: Test JS
+        run: deno test tests/js/
   audit:
     runs-on: ubuntu-latest
     permissions:
