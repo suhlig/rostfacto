@@ -13,6 +13,10 @@ All notable changes to this project will be documented in this file.
 - The participants panel's open/closed state is part of the browser's navigational state: it is carried in the `participants` query parameter (`?participants=open`/`?participants=closed`), so a board URL is deep-linkable and Back/Forward toggles the panel. A URL without the parameter falls back to the responsive default (open on desktop, collapsed on narrow screens).
 - The new-retro form auto-fills the slug from the title while typing (stopping once the slug is edited by hand) and flags a slug that is already in use next to the field via `GET /retros/slug-check`.
 - Deno-based formatting and linting for `static/js/` (`deno fmt`, `deno lint`, configured by `deno.json`), enforced by pre-commit and CI. No bundler or Node.js build step is involved.
+- Dialogs are opened and closed declaratively with the Invoker Commands API (`command="show-modal"`/`command="close"` + `commandfor`, plus `closedby="any"`), replacing the `data-open-dialog`/`data-close-dialog` delegated handler. A feature-detected fallback in `dialog-commands.js` (imported by `site.js`) emulates the commands on Firefox < 144 and Safari < 26.2.
+- Request elements carry `hx-disable` to disable the triggering control while a request is in flight, guarding against double submits.
+- The `hx-pending` and `hx-browser-indicator` htmx 4 extensions: the add-card and add-action-item forms show a "Sending…" placeholder while the request is in flight, and requests show the browser's tab spinner (Chromium only).
+- A Deno unit test for the Invoker Commands fallback (`tests/js/dialog_commands_test.js`), run with `deno test tests/js/` and enforced by pre-commit and CI.
 
 ### Changed
 
@@ -23,6 +27,9 @@ All notable changes to this project will be documented in this file.
 - The retro board's JavaScript is split into focused ES modules (`sync.js`, `timer.js`, `participants.js`, `action-items.js`, `shortcuts.js`, `ui.js`, `identity.js`) loaded by the `retro.js` entry point; they communicate through `sse:*` `CustomEvent`s on `<body>` instead of one large IIFE. Behavior is unchanged.
 - The browser tests confirm that a card click actually fired its highlight request (htmx silently drops clicks on cards replaced mid-click by an SSE re-fetch) and re-dispatch the click otherwise.
 - Bumped HTMX from 2.0.10 to 4.0.0. The board's JavaScript now listens for the renamed htmx 4 events (`htmx:before:request`, `htmx:after:request`, `htmx:after:swap`, `htmx:after:settle`) and reads the `X-Event-Id` response header from the fetch-based request context (`event.detail.ctx.response.headers`) instead of an XHR object. `base.html` sets `includeIndicatorCSS: false` and `noSwap: [204, 304, "4xx", "5xx"]`, since htmx 4 swaps error responses by default and would otherwise paste a full error page into a card. The bundle is now served from cdnjs (cdnjs.cloudflare.com), the CDN whose URL and SRI hash Renovate's `html` manager can update automatically, instead of jsDelivr; the CSP `script-src` allowlist was updated to match.
+- The all-done archive prompt is now returned as an `<hx-partial>` that swaps the existing `#archive-modal` `outerHTML`, instead of emitting a second dialog with a duplicate id.
+- The slug availability check uses the `next span` extended selector rather than the `#slug-status` id (the id is kept for `aria-describedby`).
+- `site.js` is now an ES module (loaded with `type="module"`) that imports the dialog fallback from the new `dialog-commands.js` module, so the fallback can be unit-tested.
 
 ## [1.1.0] - 2025-05-02
 

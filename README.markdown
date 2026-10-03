@@ -126,7 +126,6 @@ SHOW_BROWSER=1 cargo test --test integration_test
 
 ## Backlog
 
-- Adopt UI patterns in HTMX v4
 - Limit growth of the `events` table
 - Clean archived retros after e.g. a year
 - Periodic cleanup of sessions

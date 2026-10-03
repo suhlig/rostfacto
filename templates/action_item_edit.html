@@ -3,7 +3,9 @@
      data-created-at="{{ action_item.created_at.to_rfc3339() }}">
   <form hx-post="/action-items/{{ action_item.id }}"
         hx-target="closest .action-item"
-        hx-swap="outerHTML">
+        hx-swap="outerHTML"
+        hx-disable="find .btn-save-edit"
+        hx-browser-indicator="true">
     <textarea class="edit-card-input"
               name="text"
               rows="1"

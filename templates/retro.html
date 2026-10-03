@@ -53,12 +53,22 @@
   </svg>
 </button>
 
+<template id="pending-card-template">
+  <article class="card pending"><div class="card-content"><p class="card-text">Sending…</p></div></article>
+</template>
+<template id="pending-action-item-template">
+  <div class="action-item-pending"><span class="action-item-text">Sending…</span></div>
+</template>
+
 <section class="action-items">
   <h3 class="action-items-title">Action Items</h3>
   <form class="action-items-form"
         hx-post="/retro/{{ retro.id }}/action-items"
         hx-target="#action-items-pool"
-        hx-swap="afterbegin">
+        hx-swap="afterbegin"
+        hx-disable="find .action-items-submit"
+        hx-browser-indicator="true"
+        hx-pending="#pending-action-item-template">
     <input type="text" name="text" class="action-items-input" placeholder="Add an action item" required>
     <button type="submit" class="action-items-submit">Add</button>
   </form>
@@ -85,7 +95,7 @@
 
 {% include "archive_modal_dialog.html" %}
 
-<dialog id="keyboard-help" class="keyboard-help-dialog">
+<dialog id="keyboard-help" class="keyboard-help-dialog" closedby="any">
   <article>
     <h3>Keyboard shortcuts</h3>
     <table class="keyboard-help-table">
@@ -98,7 +108,7 @@
         <tr><td><kbd>?</kbd></td><td>Show this help</td></tr>
       </tbody>
     </table>
-    <button type="button" class="secondary" data-close-dialog>Close</button>
+    <button type="button" class="secondary" command="close" commandfor="keyboard-help">Close</button>
   </article>
 </dialog>
 {% endblock %}

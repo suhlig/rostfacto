@@ -13,9 +13,11 @@
          indicator CSS. htmx 4 swaps every response by default, but the app
          renders full pages for errors; keep 4xx/5xx bodies from being swapped
          into a target element. -->
-    <meta name="htmx-config" content='{"includeIndicatorCSS":false,"noSwap":[204,304,"4xx","5xx"]}'>
+    <meta name="htmx-config" content='{"includeIndicatorCSS":false,"noSwap":[204,304,"4xx","5xx"],"extensions":"hx-pending,browser-indicator"}'>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/4.0.0/htmx.min.js" integrity="sha512-pAQj/PHCBl3lDbT3W4E+1rI8AMxbeaYo4zUvJg6hBPDXawzo6MR5cI5yVvw11LQ0kcvNxiRF2PtIH3zzsw899Q==" crossorigin="anonymous"></script>
-    <script src="/static/js/site.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/4.0.0/ext/hx-pending.min.js" integrity="sha512-xMrBkKWV5fgGhk7ANe13n7QB7ntDYQ8n8U4pcwQZRb+tTiskHQqfnm6EaztmgJtCUe9uoDc/8oplpi74Mcf7dA==" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/4.0.0/ext/hx-browser-indicator.min.js" integrity="sha512-HCKRsmuLDg9bxkI2uv7lp/M20MFN//sV1taB597HwGjKWOaj/xT/wzwQOwLv9mW1SOyGVp2aPQBTNBiaExXP7A==" crossorigin="anonymous"></script>
+    <script type="module" src="/static/js/site.js"></script>
 </head>
 <body{% block body_attrs %}{% endblock %}>
     {% if demo_mode %}

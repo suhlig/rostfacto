@@ -1907,3 +1907,26 @@ body.participants-collapsed .participants-toggle {
     z-index: 29;
   }
 }
+
+/* htmx pending placeholder (hx-pending extension). The extension wraps the
+   template content in a `.hx-pending` div carrying `style="all: initial"`, so
+   style the inner placeholder element (which keeps its own classes), not the
+   wrapper. */
+.card.pending {
+  background: #fff;
+  color: var(--rf-text-muted);
+  font-family: var(--font-family);
+  font-style: italic;
+  opacity: 0.6;
+  box-shadow: none;
+  border: 1px dashed var(--rf-beige);
+  cursor: default;
+}
+
+.action-item-pending {
+  padding: 0.5rem 0.75rem;
+  color: var(--rf-text-muted);
+  font-family: var(--font-family);
+  font-style: italic;
+  opacity: 0.6;
+}

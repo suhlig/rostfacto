@@ -62,14 +62,14 @@
         {% endif %}
         {% if show_archive_action %}
           <li>
-            <dialog id="archive-confirm-{{ retro.id }}" class="archive-confirm-dialog">
+            <dialog id="archive-confirm-{{ retro.id }}" class="archive-confirm-dialog" closedby="any">
               <article>
                 <h3>Archive this retro?</h3>
                 <p id="archive-confirm-message-{{ retro.id }}">Are you sure you want to archive all cards?</p>
                 <form method="POST" action="/retro/{{ retro.id }}/archive">
                   <fieldset class="grid">
                     <legend class="visually-hidden">Archive actions</legend>
-                    <button type="button" class="btn-cancel secondary" data-close-dialog>Cancel</button>
+                    <button type="button" class="btn-cancel secondary" command="close" commandfor="archive-confirm-{{ retro.id }}">Cancel</button>
                     <button type="submit" class="btn-archive primary">Archive</button>
                   </fieldset>
                 </form>
@@ -100,7 +100,9 @@
           aria-label="Like"
           hx-post="/items/{{ item.id }}/like"
           hx-target="closest .card"
-          hx-swap="outerHTML">
+          hx-swap="outerHTML"
+          hx-disable="this"
+          hx-browser-indicator="true">
     <svg class="heart-icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
     </svg>
@@ -114,7 +116,9 @@
           aria-label="Edit card text"
           hx-get="/items/{{ item.id }}/edit"
           hx-target="closest .card"
-          hx-swap="outerHTML">
+          hx-swap="outerHTML"
+          hx-disable="this"
+          hx-browser-indicator="true">
     <span class="card-text">{{ item.text }}</span>
   </button>
 {% endmacro %}
@@ -135,14 +139,18 @@
             class="btn-secondary secondary"
             hx-post="/items/{{ item.id }}/status?action=cancel"
             hx-target="closest .card"
-            hx-swap="outerHTML">
+            hx-swap="outerHTML"
+            hx-disable="this"
+            hx-browser-indicator="true">
       Cancel
     </button>
     <button type="button"
             class="btn-primary primary"
             hx-post="/items/{{ item.id }}/status?action=complete"
             hx-target="closest .card"
-            hx-swap="outerHTML">
+            hx-swap="outerHTML"
+            hx-disable="this"
+            hx-browser-indicator="true">
       Done
     </button>
   </div>
@@ -168,7 +176,7 @@
       <form method="POST" action="/retro/{{ retro_id }}/archive">
         <fieldset class="grid">
           <legend class="visually-hidden">Archive actions</legend>
-          <button type="button" class="btn-cancel secondary" formmethod="dialog" data-close-dialog>Cancel</button>
+          <button type="button" class="btn-cancel secondary" formmethod="dialog" command="close" commandfor="archive-modal">Cancel</button>
           <button type="submit" class="btn-archive primary" formmethod="post">Archive</button>
         </fieldset>
       </form>
@@ -180,7 +188,10 @@
   <form class="add-card-form"
         hx-post="/items/{{ category.url_segment() }}/{{ retro_id }}"
         hx-target="#{{ target_id }}"
-        hx-swap="afterbegin">
+        hx-swap="afterbegin"
+        hx-disable="find .add-card-submit"
+        hx-browser-indicator="true"
+        hx-pending="#pending-card-template">
     <textarea name="text" class="add-card-input" rows="1" placeholder="{{ placeholder }}" required></textarea>
     <button class="add-card-submit" type="submit">Add</button>
   </form>

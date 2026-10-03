@@ -2,102 +2,89 @@
 // templates so the pages can run under a strict Content-Security-Policy
 // (no unsafe-inline), so all dialog and menu wiring lives here.
 
-(function () {
-  // Dialog open/close buttons: any element with data-open-dialog or
-  // data-close-dialog. The value of data-open-dialog is the dialog's id;
-  // data-close-dialog closes the closest ancestor <dialog>.
-  document.addEventListener('click', function (event) {
-    const opener = event.target.closest('[data-open-dialog]');
-    if (opener) {
-      const dialog = document.getElementById(opener.getAttribute('data-open-dialog'));
-      if (dialog && typeof dialog.showModal === 'function') dialog.showModal();
-      return;
-    }
-    const closer = event.target.closest('[data-close-dialog]');
-    if (closer) {
-      const dialog = closer.closest('dialog');
-      if (dialog) dialog.close();
-    }
+import { installDialogCommandFallback } from './dialog-commands.js';
+
+// Declarative dialogs use the Invoker Commands API (command/commandfor);
+// emulate it on browsers that lack it (Firefox < 144, Safari < 26.2).
+installDialogCommandFallback(window, document);
+
+// htmx delete forms (retro rows, action items): close their confirmation
+// dialog after a successful request.
+document.body.addEventListener('htmx:after:request', function (event) {
+  const ctx = event.detail && event.detail.ctx;
+  const elt = ctx && ctx.sourceElement;
+  if (!elt || !elt.matches) return;
+  const status = ctx.response && ctx.response.status;
+  if (typeof status === 'number' && status >= 400) return;
+  if (elt.matches('form[hx-delete]')) {
+    const dialog = elt.closest('dialog');
+    if (dialog && dialog.open) dialog.close();
+  }
+});
+
+// Dropdown menus: the account menu on retro pages and the site menu in the
+// page header. Toggle on the trigger button, close on outside click or
+// Escape (replaces the per-menu inline script).
+document.querySelectorAll('.account-menu, .site-menu').forEach(function (menu) {
+  const button = menu.querySelector(':scope > button');
+  if (!button) return;
+
+  function setOpen(open) {
+    menu.classList.toggle('is-open', open);
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  menu.addEventListener('click', function (event) {
+    event.stopPropagation();
   });
-
-  // htmx delete forms (retro rows, action items): close their confirmation
-  // dialog after a successful request.
-  document.body.addEventListener('htmx:after:request', function (event) {
-    const ctx = event.detail && event.detail.ctx;
-    const elt = ctx && ctx.sourceElement;
-    if (!elt || !elt.matches) return;
-    const status = ctx.response && ctx.response.status;
-    if (typeof status === 'number' && status >= 400) return;
-    if (elt.matches('form[hx-delete]')) {
-      const dialog = elt.closest('dialog');
-      if (dialog && dialog.open) dialog.close();
-    }
+  button.addEventListener('click', function () {
+    setOpen(!menu.classList.contains('is-open'));
   });
-
-  // Dropdown menus: the account menu on retro pages and the site menu in the
-  // page header. Toggle on the trigger button, close on outside click or
-  // Escape (replaces the per-menu inline script).
-  document.querySelectorAll('.account-menu, .site-menu').forEach(function (menu) {
-    const button = menu.querySelector(':scope > button');
-    if (!button) return;
-
-    function setOpen(open) {
-      menu.classList.toggle('is-open', open);
-      button.setAttribute('aria-expanded', open ? 'true' : 'false');
-    }
-
-    menu.addEventListener('click', function (event) {
-      event.stopPropagation();
-    });
-    button.addEventListener('click', function () {
-      setOpen(!menu.classList.contains('is-open'));
-    });
-    document.addEventListener('click', function () {
-      setOpen(false);
-    });
-    document.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape') setOpen(false);
-    });
+  document.addEventListener('click', function () {
+    setOpen(false);
   });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') setOpen(false);
+  });
+});
 
-  // Archive this retro: confirm when unaddressed cards remain, otherwise
-  // submit the direct archive form (replaces the inline openArchiveMenuDialog
-  // script).
-  function openArchiveMenuDialog(event, retroId) {
+// Archive this retro: confirm when unaddressed cards remain, otherwise
+// submit the direct archive form (replaces the inline openArchiveMenuDialog
+// script).
+function openArchiveMenuDialog(event, retroId) {
+  event.preventDefault();
+  const unaddressed = document.querySelectorAll('article.card:not(.completed)');
+  if (unaddressed.length > 0) {
+    const dialog = document.getElementById('archive-confirm-' + retroId);
+    const message = document.getElementById('archive-confirm-message-' + retroId);
+    message.textContent = 'There ' + (unaddressed.length === 1 ? 'is' : 'are') + ' ' +
+      unaddressed.length + ' unaddressed card' + (unaddressed.length === 1 ? '' : 's') +
+      '. Are you sure you want to archive them?';
+    dialog.showModal();
+  } else {
+    document.getElementById('archive-direct-form-' + retroId).submit();
+  }
+}
+
+document.querySelectorAll('[data-archive-menu-retro]').forEach(function (link) {
+  const retroId = link.getAttribute('data-archive-menu-retro');
+
+  link.addEventListener('click', function (event) {
     event.preventDefault();
-    const unaddressed = document.querySelectorAll('article.card:not(.completed)');
-    if (unaddressed.length > 0) {
-      const dialog = document.getElementById('archive-confirm-' + retroId);
-      const message = document.getElementById('archive-confirm-message-' + retroId);
-      message.textContent = 'There ' + (unaddressed.length === 1 ? 'is' : 'are') + ' ' +
-        unaddressed.length + ' unaddressed card' + (unaddressed.length === 1 ? '' : 's') +
-        '. Are you sure you want to archive them?';
-      dialog.showModal();
+    if (link.classList.contains('disabled')) return;
+    openArchiveMenuDialog(event, retroId);
+  });
+
+  function updateArchiveLink() {
+    const hasCards = document.querySelectorAll('article.card').length > 0;
+    if (hasCards) {
+      link.classList.remove('disabled');
     } else {
-      document.getElementById('archive-direct-form-' + retroId).submit();
+      link.classList.add('disabled');
     }
   }
 
-  document.querySelectorAll('[data-archive-menu-retro]').forEach(function (link) {
-    const retroId = link.getAttribute('data-archive-menu-retro');
-
-    link.addEventListener('click', function (event) {
-      event.preventDefault();
-      if (link.classList.contains('disabled')) return;
-      openArchiveMenuDialog(event, retroId);
-    });
-
-    function updateArchiveLink() {
-      const hasCards = document.querySelectorAll('article.card').length > 0;
-      if (hasCards) {
-        link.classList.remove('disabled');
-      } else {
-        link.classList.add('disabled');
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', updateArchiveLink);
-    document.body.addEventListener('htmx:after:settle', updateArchiveLink);
-    updateArchiveLink();
-  });
-})();
+  document.addEventListener('DOMContentLoaded', updateArchiveLink);
+  document.body.addEventListener('htmx:after:settle', updateArchiveLink);
+  updateArchiveLink();
+});

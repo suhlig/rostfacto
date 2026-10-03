@@ -1,7 +1,9 @@
 <article class="card editing" data-item-id="{{ item.id }}" data-updated-at="{{ item.updated_at.timestamp_millis() }}">
   <form hx-post="/items/{{ item.id }}"
         hx-target="closest .card"
-        hx-swap="outerHTML">
+        hx-swap="outerHTML"
+        hx-disable="find .btn-save-edit"
+        hx-browser-indicator="true">
     <textarea class="edit-card-input"
               name="text"
               rows="3"

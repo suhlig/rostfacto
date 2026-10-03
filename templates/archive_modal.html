@@ -2,4 +2,6 @@
 
 {% include "item_card.html" %}
 
-{{ macros::archive_dialog(item.retro_id, true) }}
+<hx-partial hx-target="#archive-modal" hx-swap="outerHTML">
+  {{ macros::archive_dialog(item.retro_id, true) }}
+</hx-partial>
