@@ -96,7 +96,7 @@ Multiple clients on the same retro stay in sync via server-sent events (SSE):
 
 # Test
 
-The integration tests live in `tests/integration_test.rs` and use `thirtyfour` to drive Firefox via geckodriver. They start their own instance of the app on a random port, so you can keep your dev server running on port 3000.
+The integration tests live in `tests/integration_test.rs` (with the test functions grouped by feature area under `tests/integration_test/`) and use `thirtyfour` to drive Firefox via geckodriver. They start their own instance of the app on a random port, so you can keep your dev server running on port 3000.
 
 ## Prerequisites
 

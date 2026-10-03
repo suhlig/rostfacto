@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                  i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                  i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                  u.avatar_url as \"author_avatar_url?\",\n                  ''::text as \"author_initials!\",\n                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as \"likes_count!\",\n                  i.archive_id as \"archive_id: _\", i.archived_at as \"archived_at: _\",\n                  i.timer_started_at as \"timer_started_at: _\", i.timer_duration_seconds as \"timer_duration_seconds: _\",\n                  i.timer_ends_at as \"timer_ends_at: _\", i.timer_elapsed_at as \"timer_elapsed_at: _\",\n                  i.updated_at as \"updated_at!\"\n           FROM items i\n           JOIN users u ON u.id = i.created_by\n           WHERE i.retro_id = $1\n           AND i.category = 'WATCH'\n           AND i.archive_id IS NULL\n           ORDER BY i.created_at ASC",
+  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                      i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                      i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                      u.avatar_url as \"author_avatar_url?\",\n                      ''::text as \"author_initials!\",\n                      (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as \"likes_count!\",\n                      i.archive_id as \"archive_id: _\", i.archived_at as \"archived_at: _\",\n                      i.timer_started_at as \"timer_started_at: _\", i.timer_duration_seconds as \"timer_duration_seconds: _\",\n                      i.timer_ends_at as \"timer_ends_at: _\", i.timer_elapsed_at as \"timer_elapsed_at: _\",\n                      i.updated_at as \"updated_at!\"\n               FROM items i\n               JOIN users u ON u.id = i.created_by\n               WHERE i.retro_id = $1\n           AND i.category = 'BAD'\n           AND i.archive_id IS NULL\n           ORDER BY i.created_at ASC",
   "describe": {
     "columns": [
       {
@@ -241,5 +241,5 @@
       false
     ]
   },
-  "hash": "2f4b1e1c89fc58c075a74848e6f224a712819052221521bf3ad3e1052af1a4da"
+  "hash": "33fdc79df7f30808de049c55b01c4fca0e7b977a7555aa3c19b2aa8fd54168b6"
 }

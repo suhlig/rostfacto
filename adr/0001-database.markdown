@@ -46,7 +46,7 @@ need rewriting for SQLite.
 
 As part of this decision we also simplified the event machinery: events are now
 written by the application inside the same transaction as each mutation
-(`emit_event` in `src/handlers.rs`) instead of by database triggers, and
+(`emit_event` in `src/handlers/emit.rs`) instead of by database triggers, and
 migration 025 drops the trigger functions. This removed the most intricate
 plpgsql in the codebase and the duplicate "what will the trigger emit"
 reasoning in the handlers, while keeping the same observable SSE contract.

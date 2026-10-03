@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                  i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                  i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                  u.avatar_url as \"author_avatar_url?\",\n                  ''::text as \"author_initials!\",\n                  (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as \"likes_count!\",\n                  i.archive_id as \"archive_id: _\", i.archived_at as \"archived_at: _\",\n                  i.timer_started_at as \"timer_started_at: _\", i.timer_duration_seconds as \"timer_duration_seconds: _\",\n                  i.timer_ends_at as \"timer_ends_at: _\", i.timer_elapsed_at as \"timer_elapsed_at: _\",\n                  i.updated_at as \"updated_at!\"\n           FROM items i\n           JOIN users u ON u.id = i.created_by\n           WHERE i.retro_id = (SELECT retro_id FROM items WHERE id = $1)",
+  "query": "SELECT i.id as \"id!\", i.retro_id as \"retro_id!\", i.text as \"text!\",\n                      i.category as \"category: _\", i.created_at as \"created_at!\", i.status as \"status: _\",\n                      i.created_by as \"author_id!\", u.display_name as \"author_name!\",\n                      u.avatar_url as \"author_avatar_url?\",\n                      ''::text as \"author_initials!\",\n                      (SELECT COUNT(*) FROM likes WHERE item_id = i.id) as \"likes_count!\",\n                      i.archive_id as \"archive_id: _\", i.archived_at as \"archived_at: _\",\n                      i.timer_started_at as \"timer_started_at: _\", i.timer_duration_seconds as \"timer_duration_seconds: _\",\n                      i.timer_ends_at as \"timer_ends_at: _\", i.timer_elapsed_at as \"timer_elapsed_at: _\",\n                      i.updated_at as \"updated_at!\"\n               FROM items i\n               JOIN users u ON u.id = i.created_by\n               WHERE i.archive_id = $1\n           AND i.category = 'BAD'\n           ORDER BY i.created_at ASC",
   "describe": {
     "columns": [
       {
@@ -241,5 +241,5 @@
       false
     ]
   },
-  "hash": "07150a34dfd88b6486d5aac082eceadab80efdf587edd955d5048fd4a168927f"
+  "hash": "6a467fd90646baeb21cd4067c82c1ac4233dc8e2b200b2682ab1e071550347da"
 }
