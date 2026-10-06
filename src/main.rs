@@ -24,6 +24,7 @@ const MAX_BODY_BYTES: usize = 64 * 1024;
 
 /// Command line arguments
 #[derive(Parser)]
+#[command(version)]
 struct Args {
     /// Bind address in format IP:PORT
     #[clap(long, default_value = "0.0.0.0:3000")]
@@ -266,4 +267,18 @@ async fn shutdown_signal(shutdown_tx: watch::Sender<bool>) {
     tracing::info!("shutdown signal received, draining connections");
     // End the SSE streams so the graceful shutdown can actually complete.
     let _ = shutdown_tx.send(true);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    /// `--version` reports the crate version (bumped by hand at release time),
+    /// so a running deployment can be traced back to a build.
+    #[test]
+    fn version_flag_reports_the_crate_version() {
+        let version = Args::command().get_version().map(str::to_owned);
+        assert_eq!(version.as_deref(), Some(env!("CARGO_PKG_VERSION")));
+    }
 }

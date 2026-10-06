@@ -1,7 +1,23 @@
 name: Release
 on: {push: {tags: ["v*"]}}
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # A release is cut by pushing a `vX.Y.Z` tag, but the crate version in
+      # Cargo.toml is bumped by hand ("Prepare release vX.Y.Z"). Those two have
+      # drifted before (v2.0.0 was tagged while Cargo.toml still said 1.1.0), so
+      # refuse to build a release whose tag and crate version disagree.
+      - name: Check that the tag matches the crate version
+        run: |
+          declared="$(awk -F'"' '/^version = /{print $2; exit}' Cargo.toml)"
+          if [ "v$declared" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match Cargo.toml version v$declared"
+            exit 1
+          fi
   build:
+    needs: check
     strategy:
       matrix:
         include:
