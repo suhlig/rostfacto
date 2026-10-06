@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10.5 8.5 33.5 47" width="33.5" height="47" role="img" aria-label="Rostfacto">
+  <title>Rostfacto</title>
+  <!-- One stroke per board column, in board order: Good (stem), Watch (bowl),
+       Bad (leg). Drawn leg-first so the stem masks the joints. -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="9">
+    <path d="M16 33 L38 50" stroke="#D25948"/>
+    <path d="M16 14 H29.5 A9 9 0 0 1 29.5 32 H16" stroke="#F5C94C"/>
+    <path d="M16 50 V14" stroke="#70BDB1"/>
+  </g>
+</svg>

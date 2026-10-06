@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Rostfacto">
+  <title>Rostfacto</title>
+  <rect width="64" height="64" rx="14" fill="#0F1A1C"/>
+  <g transform="translate(2.93 -2.13) scale(1.0667)" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="9">
+    <path d="M16 33 L38 50" stroke="#D25948"/>
+    <path d="M16 14 H29.5 A9 9 0 0 1 29.5 32 H16" stroke="#F5C94C"/>
+    <path d="M16 50 V14" stroke="#70BDB1"/>
+  </g>
+</svg>

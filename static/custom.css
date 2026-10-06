@@ -203,6 +203,18 @@ label {
   font-weight: 700;
 }
 
+/* Brand lockup: the three-column R mark beside the wordmark on the home hero. */
+.page-header h1.brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25em;
+}
+
+.brand-mark {
+  width: auto;
+  height: 1em;
+}
+
 .page-header p {
   margin: 0.25rem 0 0;
   font-size: 1.1rem;
@@ -1193,6 +1205,17 @@ button.action-item-checkbox:hover {
   font-weight: 700;
   font-size: 0.875rem;
   margin: 0 0.75rem;
+}
+
+.site-footer .footer-brand {
+  display: inline-flex;
+  margin: 0 0.35rem 0 0;
+  text-decoration: none;
+}
+
+.footer-mark {
+  height: 1.25rem;
+  width: auto;
 }
 
 /* Archive modal */
