@@ -1,12 +1,12 @@
 # Rostfacto
 
-[Postfacto](https://github.com/vmware-archive/postfacto) was a self-hosted retro tool aimed at helping teams run great retrospectives, remotely or in presence. This project aims to revive it, but in Rust.
+[Postfacto](https://github.com/vmware-archive/postfacto) (with a P) was a self-hosted retro tool aimed at helping teams run great retrospectives, remotely or in presence. This project aims to revive it, but in Rust.
 
 ![Rostfacto Board](static/screenshots/board.png)
 
 # What's different to Postfacto
 
-Rostfacto keeps the retro flow Postfacto made popular — cards, highlighting, timers, action items — and rebuilds it from scratch:
+Rostfacto (with an R) keeps the retro flow that Postfacto (with a P) made popular — cards, highlighting, timers, action items — and rebuilds it from scratch:
 
 - **It's actively maintained.** Postfacto is archived; Rostfacto is developed in the open, released on a regular basis, and covered by an end-to-end test suite.
 - **One binary, one dependency.** Rostfacto is written in Rust and ships as a single static binary — all you need besides it is PostgreSQL. No Ruby on Rails, no Node.js build step, no Redis.
