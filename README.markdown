@@ -143,4 +143,4 @@ the Free Software Foundation, either version 3 of the License, or
 
 See the [LICENSE](LICENSE) file for full license text.
 
-The concept and some of the artwork was inspired by [Postfacto](https://github.com/vmware-archive/postfacto), reproduced under the GNU Affero General Public License.
+The concept and some of the artwork was inspired by [Postfacto](https://github.com/vmware-archive/postfacto) (with a P), reproduced under the GNU Affero General Public License.

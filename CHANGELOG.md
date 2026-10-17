@@ -41,6 +41,7 @@ All notable changes to this project will be documented in this file.
 - The all-done archive prompt is now returned as an `<hx-partial>` that swaps the existing `#archive-modal` `outerHTML`, instead of emitting a second dialog with a duplicate id.
 - The slug availability check uses the `next span` extended selector rather than the `#slug-status` id (the id is kept for `aria-describedby`).
 - `site.js` is now an ES module (loaded with `type="module"`) that imports the dialog fallback from the new `dialog-commands.js` module, so the fallback can be unit-tested.
+- The README and the landing page now make the difference between the similarly named Postfacto and Rostfacto explicit, labelling them "with a P" and "with an R" where they are introduced or compared.
 
 ### Fixed
 
