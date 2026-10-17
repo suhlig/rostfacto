@@ -1,0 +1,18 @@
+# Configuration for `cargo audit`, run by the `audit` job in CI
+# (.github/workflows/ci.yml via rustsec/audit-check).
+#
+# Ignored advisories must be re-evaluated whenever their underlying cause can
+# actually be fixed (e.g. after a dependency upgrade lifts a version pin).
+
+[advisories]
+# zip 8.x is required by thirtyfour ^8 (the manager feature, a dev-only
+# dependency used to unpack browser-extension archives) and all three
+# advisories below are only fixed in zip 9.0.0. They describe attacks that
+# require extracting an attacker-controlled archive through
+# ZipArchive::extract(), which rostfacto never does. Drop these entries when
+# thirtyfour moves to zip 9.
+ignore = [
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
+]
