@@ -28,6 +28,6 @@ bytes = "1"
 uuid = { version = "1.26.1", features = ["v4"] }
 
 [dev-dependencies]
-thirtyfour = "0.37"
+thirtyfour = "0.38"
 portpicker = "0.1"
 futures-util = "0.3"
