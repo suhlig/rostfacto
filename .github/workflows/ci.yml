@@ -66,19 +66,19 @@ jobs:
         run: sqlx migrate run
       - name: Install Firefox and geckodriver
         run: |
-          # Ubuntu's `firefox` package is a snap transitional package whose
-          # preinst script fails on the hosted runners (snapd cannot run in
-          # these containers), so install the deb from Mozilla's apt repo
-          # instead. The pin makes apt prefer it over Ubuntu's 1:1snap1 package.
-          sudo install -d -m 0755 /etc/apt/keyrings
-          wget -q https://packages.mozilla.org/apt/repo-signing-key.gpg -O- | sudo tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null
-          echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" | sudo tee /etc/apt/sources.list.d/mozilla.list > /dev/null
-          printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' | sudo tee /etc/apt/preferences.d/mozilla > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y firefox
+          # Ubuntu's `firefox` package is a snap transitional package that the
+          # hosted images may already ship. apt then refuses to replace it
+          # ("packages were downgraded", exit 100), and where it is missing its
+          # preinst script fails. Use Mozilla's official tarball instead: no
+          # dpkg/snap involvement, and /usr/local/bin comes first in PATH.
+          wget -q "https://download.mozilla.org/?product=firefox-latest-ssl&os=linux64&lang=en-US" -O firefox.tar.xz
+          sudo tar -xJf firefox.tar.xz -C /opt
+          sudo ln -sf /opt/firefox/firefox /usr/local/bin/firefox
+          firefox --version
           wget -q "https://github.com/mozilla/geckodriver/releases/download/v0.35.0/geckodriver-v0.35.0-linux64.tar.gz"
           tar -xzf geckodriver-v0.35.0-linux64.tar.gz
           sudo mv geckodriver /usr/local/bin/
+          geckodriver --version
       - name: Run unit tests
         run: cargo test --bins
       - name: Run integration tests
