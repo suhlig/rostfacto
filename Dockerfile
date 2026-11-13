@@ -4,7 +4,7 @@
 # Base images are pinned by digest so a rebuilt image is reproducible and a
 # compromised tag cannot change what ships. The builder base tracks the
 # toolchain pinned in rust-toolchain.toml; bump both together.
-FROM rust:1.99.1-slim-trixie@sha256:b8e062b1c3a80183df83d9ba187cadd2b5ab84bc78d453dbfeb2fccd5f982247 AS builder
+FROM rust:1.99.1-slim-trixie@sha256:f6c4a35d21dbb3c89d7a8d056c193e94fc09037f2b58dd858b09c39a47dd02d7 AS builder
 
 WORKDIR /app
 ENV SQLX_OFFLINE=true
