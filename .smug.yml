@@ -1,0 +1,21 @@
+# Migrated from .tmuxinator.yml (tmuxinator -> smug).
+#
+# Notes:
+# - tmuxinator's pane titles (watcher, shell) have no smug equivalent.
+# - The raw layout string was captured at 250x100 and is applied verbatim, as
+#   tmuxinator did.
+# - root was ~/workspace/rostfacto in the tmuxinator config, which no longer
+#   exists; the checkout lives at ~/git/github.com/suhlig/rostfacto.
+session: rostfacto
+attach: true
+root: ~/git/github.com/suhlig/rostfacto
+
+windows:
+  - name: editor
+    layout: 'c84c,250x100,0,0[250x49,0,0,182,250x50,0,50{125x50,0,50,190,124x50,126,50[124x25,126,50,191,124x24,126,76,192]}]'
+    commands:
+      - cargo watch -x run
+    panes:
+      - type: vertical
+        commands:
+          - zsh
