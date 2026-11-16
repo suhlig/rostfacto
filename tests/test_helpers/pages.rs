@@ -2,6 +2,17 @@
 
 use thirtyfour::{error::WebDriverErrorInner, prelude::*};
 
+/// A roster entry as rendered in the participants panel.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+pub struct ParticipantEntry {
+    /// Display name, taken from the avatar/initials `title` attribute.
+    #[serde(default)]
+    pub name: String,
+    /// Whether the participant has marked themselves done writing.
+    #[serde(default)]
+    pub ready: bool,
+}
+
 pub struct HomePage<'a> {
     pub driver: &'a WebDriver,
 }
@@ -132,30 +143,49 @@ impl<'a> RetroPage<'a> {
         })
     }
 
+    /// The roster in display order, read in a single script execution.
+    ///
+    /// The panel is re-rendered from scratch (`renderParticipants` in
+    /// `participants.js`) whenever a `PARTICIPANTS` frame arrives, which
+    /// detaches every entry node. Reading the entries one attribute at a time
+    /// would race with such a re-render and fail with a stale element
+    /// reference, so the snapshot is taken inside one script instead.
+    pub async fn participants(&self) -> WebDriverResult<Vec<ParticipantEntry>> {
+        let result = self
+            .driver
+            .execute(
+                r#"return Array.from(
+                    document.querySelectorAll('#participants-list .participant'),
+                ).map(function (entry) {
+                    const avatar = entry.querySelector(
+                        '.participant-avatar, .participant-initials',
+                    );
+                    return {
+                        // The avatar/initials element's title carries the name.
+                        name: (avatar && avatar.getAttribute('title')) || '',
+                        ready: entry.classList.contains('participant-ready'),
+                    };
+                });"#,
+                vec![],
+            )
+            .await?;
+        result.convert()
+    }
+
     /// Number of avatars currently rendered in the participants panel.
     pub async fn participant_count(&self) -> WebDriverResult<usize> {
-        Ok(self
-            .driver
-            .find_all(By::Css("#participants-list .participant"))
-            .await?
-            .len())
+        Ok(self.participants().await?.len())
     }
 
     /// Participant names in display order (read from the `title` attributes,
     /// which carry the hover tooltip).
     pub async fn participant_names(&self) -> WebDriverResult<Vec<String>> {
-        let entries = self
-            .driver
-            .find_all(By::Css(
-                "#participants-list .participant .participant-avatar, \
-                 #participants-list .participant .participant-initials",
-            ))
-            .await?;
-        let mut names = Vec::with_capacity(entries.len());
-        for entry in entries {
-            names.push(entry.attr("title").await?.unwrap_or_default());
-        }
-        Ok(names)
+        Ok(self
+            .participants()
+            .await?
+            .into_iter()
+            .map(|participant| participant.name)
+            .collect())
     }
 
     /// Text of the `Participants (N)` counter in the panel heading.
@@ -170,20 +200,12 @@ impl<'a> RetroPage<'a> {
     /// Ready state per participant, in display order (the `participant-ready`
     /// class on each entry).
     pub async fn participant_ready_states(&self) -> WebDriverResult<Vec<bool>> {
-        let entries = self
-            .driver
-            .find_all(By::Css("#participants-list .participant"))
-            .await?;
-        let mut states = Vec::with_capacity(entries.len());
-        for entry in entries {
-            let class = entry.attr("class").await?.unwrap_or_default();
-            states.push(
-                class
-                    .split_whitespace()
-                    .any(|name| name == "participant-ready"),
-            );
-        }
-        Ok(states)
+        Ok(self
+            .participants()
+            .await?
+            .into_iter()
+            .map(|participant| participant.ready)
+            .collect())
     }
 
     /// Whether our own "I'm done writing" toggle is in the ready state.
@@ -325,12 +347,27 @@ impl<'a> RetroPage<'a> {
     /// dispatched asynchronously, so poll instead of asserting immediately.
     pub async fn wait_for_participants_panel(&self, open: bool) -> WebDriverResult<()> {
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(10);
+        let mut last_seen: String;
         loop {
-            if self.participants_panel_open().await? == open {
-                return Ok(());
+            match self.participants_panel_open().await {
+                Ok(seen) if seen == open => return Ok(()),
+                Ok(seen) => last_seen = format!("panel open={}", seen),
+                // A Back/Forward traversal can swap the document out while we
+                // poll (the script then runs against a detached page), so treat
+                // a failed script execution as "not there yet".
+                Err(error) => last_seen = error.to_string(),
             }
             if tokio::time::Instant::now() >= deadline {
-                panic!("Timed out waiting for participants panel open={}", open);
+                let url = self
+                    .driver
+                    .current_url()
+                    .await
+                    .map(|url| url.to_string())
+                    .unwrap_or_default();
+                panic!(
+                    "Timed out waiting for participants panel open={} at {} ({})",
+                    open, url, last_seen
+                );
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }
