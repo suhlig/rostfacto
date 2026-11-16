@@ -75,8 +75,12 @@ jobs:
           sudo tar -xJf firefox.tar.xz -C /opt
           sudo ln -sf /opt/firefox/firefox /usr/local/bin/firefox
           firefox --version
-          wget -q "https://github.com/mozilla/geckodriver/releases/download/v0.35.0/geckodriver-v0.35.0-linux64.tar.gz"
-          tar -xzf geckodriver-v0.35.0-linux64.tar.gz
+          # Keep the driver close to the Firefox release installed above (and to
+          # what `brew install geckodriver` gives developers locally): a driver
+          # that lags Firefox by many releases is a likely source of the
+          # history-traversal and session stalls the suite sees on CI.
+          wget -q "https://github.com/mozilla/geckodriver/releases/download/v0.37.1/geckodriver-v0.37.1-linux64.tar.gz"
+          tar -xzf geckodriver-v0.37.1-linux64.tar.gz
           sudo mv geckodriver /usr/local/bin/
           geckodriver --version
       - name: Run unit tests
