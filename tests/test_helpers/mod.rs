@@ -3,9 +3,31 @@
 use portpicker::pick_unused_port;
 use std::process::{Child, Command};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex as StdMutex;
 use thirtyfour::{common::capabilities::firefox::FirefoxPreferences, prelude::*};
 use tokio::sync::{Mutex, Semaphore, SemaphorePermit};
 use url::Url;
+
+// Ports handed out in this process so far. `pick_unused_port` binds port 0,
+// notes the port and releases it again, so two picks can return the same
+// number: an app server and a geckodriver would then compete for it, and
+// WebDriver requests would reach the app instead of the driver (observed as
+// `UnknownResponse(404, <the app's error page>)`). Hand out every port once.
+static TAKEN_PORTS: StdMutex<Vec<u16>> = StdMutex::new(Vec::new());
+
+/// Pick a port no server or driver in this process has used yet.
+fn pick_port() -> u16 {
+    loop {
+        let port = pick_unused_port().expect("No ports available");
+        let mut taken = TAKEN_PORTS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if !taken.contains(&port) {
+            taken.push(port);
+            return port;
+        }
+    }
+}
 
 // Firefox becomes unstable when multiple browser instances run concurrently.
 // Limit the suite to one Firefox at a time, matching thirtyfour's own test
@@ -203,7 +225,7 @@ impl TestServer {
     }
 
     pub async fn start(database_url: &str) -> Self {
-        let port = pick_unused_port().expect("No ports available");
+        let port = pick_port();
 
         // Run the binary cargo already built for this test run instead of
         // spawning `cargo run`: the latter rebuilds the app (and the
@@ -311,7 +333,7 @@ impl BrowserSession {
 
     pub async fn new(base_url: &str) -> WebDriverResult<Self> {
         let permit = FIREFOX_LOCK.acquire().await.unwrap();
-        let port = pick_unused_port().expect("No ports available");
+        let port = pick_port();
         let mut guard = GeckodriverGuard(Some(
             Command::new("geckodriver")
                 .arg("--port")
