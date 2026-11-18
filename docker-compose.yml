@@ -11,7 +11,7 @@
 services:
   db:
     # Pinned by digest for reproducible deployments.
-    image: postgres:18-alpine@sha256:123b17998ccaf47e53b502e8c6a1e79afd8f579c6f3eec83c563da026f957395
+    image: postgres:18-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015
     environment:
       POSTGRES_USER: rostfacto
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your .env}
@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
 
   migrations:
-    image: ghcr.io/suhlig/rostfacto-migrator@sha256:f644aad20780aa87f71cc5aca21fe400ea29617db9551e3a3abca8b2314a2d71
+    image: ghcr.io/suhlig/rostfacto-migrator@sha256:a7f71064b88f8e637bd237b88456a8b9601ab706b07be63eb2be347540e45d3d
     environment:
       DATABASE_URL: postgres://rostfacto:${POSTGRES_PASSWORD}@db/rostfacto
     depends_on:
@@ -37,7 +37,7 @@ services:
         condition: service_healthy
 
   app:
-    image: ghcr.io/suhlig/rostfacto@sha256:9bef81d9dbbb496a848150794d46678282790219355a7ef257c822dacb950a56
+    image: ghcr.io/suhlig/rostfacto@sha256:6f9c9dfad23fd8dccadd3ce0e273b6cea85178dd83d57926989c93e450ad3b91
     environment:
       DATABASE_URL: postgres://rostfacto_app:${POSTGRES_APP_PASSWORD}@db/rostfacto
       # GitHub auth variables are optional so that .env can opt into the

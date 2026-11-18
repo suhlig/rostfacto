@@ -335,16 +335,34 @@ async fn test_participants_panel_state_back_forward() -> WebDriverResult<()> {
     browser.driver.set_window_rect(0, 0, 1280, 900).await?;
 
     let retros_page = browser.retros_page().await?;
-    let retro = retros_page.create_retro("Participants History").await?;
+    let created = retros_page.create_retro("Participants History").await?;
 
-    assert!(retro.participants_panel_open().await?);
+    // Open the board again with a plain GET (like following a shared link), so
+    // the history entry behind the toggled one is an ordinary page load instead
+    // of the target of the new-retro form's POST redirect. That is the entry a
+    // visitor's Back button traverses to, and it keeps the test free of the
+    // POST entry's replay/resubmit handling.
+    let retro = RetroPage::new(&browser.driver, &server.base_url(), &created.slug).await?;
+    retro.wait_for_participants_panel(true).await?;
 
     retro.close_participants_panel().await?;
-    assert!(!retro.participants_panel_open().await?);
+    retro.wait_for_participants_panel(false).await?;
+    assert!(browser
+        .driver
+        .current_url()
+        .await?
+        .as_str()
+        .contains("participants=closed"));
 
     // Back returns to the pre-toggle state (the responsive default: open).
     browser.driver.back().await?;
     retro.wait_for_participants_panel(true).await?;
+    assert!(!browser
+        .driver
+        .current_url()
+        .await?
+        .as_str()
+        .contains("participants="));
 
     // Forward re-applies the closed state.
     browser.driver.forward().await?;
