@@ -5,20 +5,11 @@
 # actually be fixed (e.g. after a dependency upgrade lifts a version pin).
 
 [advisories]
-# zip 8.x is required by thirtyfour ^8 (the manager feature, a dev-only
-# dependency used to unpack browser-extension archives) and all three
-# advisories below are only fixed in zip 9.0.0. They describe attacks that
-# require extracting an attacker-controlled archive through
-# ZipArchive::extract(), which rostfacto never does. Drop these entries when
-# thirtyfour moves to zip 9.
 # libsqlite3-sys lands in Cargo.lock through sqlx's optional SQLite driver,
 # which rostfacto never enables (only the PostgreSQL driver is built, so no
 # SQLite code is compiled or reachable). sqlx 0.9.0, the latest release,
 # constrains libsqlite3-sys to <0.38.0 while this advisory is fixed in 0.39.0,
 # so no dependency upgrade can lift it yet. Re-check when sqlx allows >=0.39.
 ignore = [
-    "RUSTSEC-2026-0367",
-    "RUSTSEC-2026-0368",
-    "RUSTSEC-2026-0369",
     "RUSTSEC-2026-0459",
 ]
